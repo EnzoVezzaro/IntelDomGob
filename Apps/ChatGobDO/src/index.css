@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Courier+Prime&family=Georgia:ital,wght@0,400;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Georgia", serif;
+  --font-mono: "Courier Prime", "Courier New", Courier, monospace;
+  --font-display: "Inter", "Helvetica Neue", Arial, sans-serif;
+  
+  --color-brand-bg: #E4E3E0;
+  --color-brand-text: #141414;
+  --color-brand-accent: #E94E31;
+}
+
+body {
+  background-color: var(--color-brand-bg);
+  color: var(--color-brand-text);
+  font-family: var(--font-sans);
+}
+
+/* Brutalist Custom Grid Border */
+.grid-line-brutalist {
+  border: 1px solid var(--color-brand-text);
+}
+
+.status-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-weight: 800;
+  color: var(--color-brand-text);
+}
+
+/* Custom Scrollbar to match */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #E4E3E0;
+  border-left: 1px solid #141414;
+}
+::-webkit-scrollbar-thumb {
+  background: #141414;
+  border: 1px solid #E4E3E0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #E94E31;
+}
+
+

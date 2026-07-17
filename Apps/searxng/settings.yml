@@ -1,0 +1,66 @@
+# See https://docs.searxng.org/admin/settings/settings.html
+use_default_settings: true
+
+# Override specific default engines: disable the ones that get suspended or
+# CAPTCHA-blocked under programmatic use, and keep the healthy ones.
+engines:
+  - name: "brave"
+    disabled: true
+  - name: "duckduckgo"
+    disabled: true
+  - name: "startpage"
+    disabled: true
+  - name: "google"
+    disabled: true
+  - name: "google cse"
+    disabled: true
+  - name: "qwant"
+    disabled: true
+  - name: "bing"
+    disabled: false
+  - name: "mojeek"
+    disabled: false
+  - name: "wikipedia"
+    disabled: false
+  - name: "duckduckgo_lite"
+    disabled: false
+  - name: "wikidata"
+    disabled: false
+
+general:
+  # Allow the JSON API to be used without a user account
+  instance_name: "ChatGobDO SearXNG"
+  privacypolicy_url: false
+  donation_url: false
+  contact_url: false
+  enable_metrics: false
+
+search:
+  # Safe-search off by default so legal/government retrieval is not filtered
+  safe_search: 0
+  autocomplete: "duckduckgo"
+  formats:
+    - html
+    - json
+  default_engine: "bing"
+  default_engines:
+    - bing
+    - mojeek
+    - wikipedia
+    - duckduckgo_lite
+    - wikidata
+
+server:
+  # Bind inside the container
+  bind_address: "0.0.0.0"
+  port: 8080
+  # Disable the limiter so programmatic requests are not throttled/blocked
+  limiter: false
+  # Allow the JSON format to be requested by anyone (no auth required)
+  method: "POST"
+  # Must be changed from the default ultrasecretkey
+  secret_key: "03b2abdae0e790b9ec8c68f5845faeaa0a54b54ed8167d8362a7128fffe19f33"
+
+# Do NOT require login to use the instance
+ui:
+  static_use_hash: false
