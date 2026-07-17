@@ -136,7 +136,7 @@ export default function App() {
 
       const storedHistory = localStorage.getItem("dr_gov_intel_history");
       if (storedHistory) {
-        const parsed = JSON.parse(storedHistory);
+        const parsed = JSON.parse(storedHistory).map((r: any, i: number) => ({ ...r, id: r.id || `r_${r.timestamp}_${i}` }));
         setSearchHistory(parsed);
         if (parsed.length > 0) {
           setActiveResult(parsed[0]);
@@ -185,8 +185,9 @@ export default function App() {
   // Save history to LocalStorage
   const saveToHistory = (newHistory: SearchResult[]) => {
     try {
-      setSearchHistory(newHistory);
-      localStorage.setItem("dr_gov_intel_history", JSON.stringify(newHistory));
+      const normalized = newHistory.map((r, i) => ({ ...r, id: (r as any).id || `r_${(r as any).timestamp}_${i}` }));
+      setSearchHistory(normalized);
+      localStorage.setItem("dr_gov_intel_history", JSON.stringify(normalized));
     } catch (e) {
       console.error("Error saving history:", e);
     }
@@ -292,9 +293,10 @@ export default function App() {
       setCurrentStageIdx(-1);
 
       // Save result and select it
-      const updatedHistory = [data, ...searchHistory.filter(h => h.query.toLowerCase() !== searchQuery.toLowerCase())].slice(0, 30);
+      const resultWithId = { ...data, id: `r_${data.timestamp}_0` };
+      const updatedHistory = [resultWithId, ...searchHistory.filter(h => h.query.toLowerCase() !== searchQuery.toLowerCase())].slice(0, 30);
       saveToHistory(updatedHistory);
-      setActiveResult(data);
+      setActiveResult(resultWithId);
       setActiveTab("brief");
       setQuery("");
 
@@ -350,7 +352,8 @@ export default function App() {
     );
 
     try {
-      const q = `Últimos acontecimientos, leyes y reglamentos respecto a: ${topic.keywords.join(", ")}`;
+      const terms = [topic.title, ...topic.keywords].filter(Boolean);
+      const q = `Últimos acontecimientos, leyes y reglamentos respecto a: ${terms.join(", ")}`;
       const data = await runIntelQuery(q, topic.institutionFilter || []);
 
       const updated = savedWatchlists.map((w) =>
@@ -1007,7 +1010,7 @@ export default function App() {
                           {item.lastResult && (
                             <button
                               onClick={() => {
-                                setActiveResult(item.lastResult);
+                                setActiveResult({ ...item.lastResult, id: (item.lastResult as any).id || `r_watch_${item.id}` });
                                 setActiveTab("brief");
                                 const cleared = savedWatchlists.map((w) =>
                                   w.id === item.id ? { ...w, alertsCount: 0 } : w
@@ -1065,7 +1068,7 @@ export default function App() {
                 </div>
               ) : (
                 searchHistory.map((item) => {
-                  const isActive = activeResult?.timestamp === item.timestamp;
+                  const isActive = (activeResult as any)?.id === (item as any).id;
                   return (
                     <div
                       key={item.timestamp}
