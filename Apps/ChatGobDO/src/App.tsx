@@ -45,7 +45,8 @@ export default function App() {
 
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"ai" | "search">("ai");
+  const [settingsTab, setSettingsTab] = useState<"ai" | "search" | "theme">("ai");
+  const [theme, setTheme] = useState<"default" | "dark" | "dominican">("default");
   const [provider, setProvider] = useState("gemini");
   const [model, setModel] = useState("gemini-3.1-flash-lite");
   const [apiKey, setApiKey] = useState("");
@@ -132,6 +133,7 @@ export default function App() {
         setSearchSafe(s.searchSafe ?? false);
         setSearchTimeRange(s.searchTimeRange ?? "");
         setSearchEngines(s.searchEngines ?? "");
+        setTheme(s.theme ?? "default");
       }
 
       const storedHistory = localStorage.getItem("dr_gov_intel_history");
@@ -181,6 +183,13 @@ export default function App() {
       console.error("Error reading localStorage:", e);
     }
   }, []);
+
+  // Apply theme to <html> so global CSS can target it
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove("theme-default", "theme-dark", "theme-dominican");
+    root.classList.add(`theme-${theme}`);
+  }, [theme]);
 
   // Save history to LocalStorage
   const saveToHistory = (newHistory: SearchResult[]) => {
@@ -658,6 +667,14 @@ export default function App() {
               >
                 Búsqueda
               </button>
+              <button
+                onClick={() => setSettingsTab("theme")}
+                className={`flex-1 py-2.5 text-xs font-black uppercase tracking-widest border-l-2 border-[#141414] transition-colors ${
+                  settingsTab === "theme" ? "bg-[#141414] text-white" : "bg-white text-[#141414] hover:bg-[#E4E3E0]"
+                }`}
+              >
+                Tema
+              </button>
             </div>
 
             <div className="space-y-4">
@@ -782,12 +799,43 @@ export default function App() {
                 </>
               )}
 
+              {settingsTab === "theme" && (
+                <div className="space-y-3">
+                  <p className="text-xs font-black uppercase text-slate-500 mb-2">Selecciona un tema visual</p>
+                  {([
+                    { id: "default", name: "Por defecto", desc: "Claro brutalista actual", swatch: ["#E4E3E0", "#141414", "#E94E31"] },
+                    { id: "dark", name: "Oscuro", desc: "Fondo negro, acento naranja", swatch: ["#141414", "#E4E3E0", "#E94E31"] },
+                    { id: "dominican", name: "Dominicano", desc: "Azul y rojo RD sobre claro", swatch: ["#002D62", "#CE1126", "#FFFFFF"] },
+                  ] as const).map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTheme(t.id)}
+                      className={`w-full flex items-center justify-between p-3 border-2 transition-all ${
+                        theme === t.id
+                          ? "border-[#141414] bg-[#E4E3E0] shadow-[3px_3px_0px_0px_#E94E31]"
+                          : "border-slate-300 hover:border-[#141414]"
+                      }`}
+                    >
+                      <div className="text-left">
+                        <p className="text-sm font-black uppercase tracking-tight">{t.name}</p>
+                        <p className="text-[10px] text-slate-500 uppercase">{t.desc}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        {t.swatch.map((c, i) => (
+                          <span key={i} className="h-5 w-5 border border-[#141414]" style={{ background: c }} />
+                        ))}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <button 
                 onClick={() => {
                   localStorage.setItem("dr_gov_intel_settings", JSON.stringify({
                     provider, model, apiKey, responseLang,
                     searchLang, searchCategory, searchMaxResults,
-                    searchSafe, searchTimeRange, searchEngines
+                    searchSafe, searchTimeRange, searchEngines, theme
                   }));
                   setIsSettingsOpen(false);
                 }}
