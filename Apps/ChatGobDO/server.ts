@@ -124,138 +124,10 @@ function repairTruncatedJson(raw: string): any {
   }
 }
 
-// Live query of the Diputados SIL laws API (Iniciativas / Proyectos de Ley).
-// This returns structured legislative records directly, which we inject as
-// grounding so the model can confirm what Congress is actually working on.
-interface SilLaw {
-  numero: string;
-  tipo: string;
-  descripcion: string;
-  estado?: string;
-  materia?: string;
-  fechaDeposito?: string;
-  url: string;
-}
-
-async function querySilLaws(keyword: string, periodoId = 0, maxResults = 15): Promise<SilLaw[]> {
-  // Try the full query first, then fall back to significant individual tokens
-  // so a narrow multi-word phrase (e.g. "reforma fiscal") still surfaces laws.
-  const STOP = new Set([
-    "de", "la", "el", "los", "las", "y", "en", "a", "del", "por", "para", "con", "que", "su", "se", "un", "una",
-    "proyecto", "ley", "reforma", "sobre", "al", "lo", "como", "o", "es", "dominicana", "republica",
-    "cual", "este", "esta", "the", "of", "and", "to", "in", "for", "is", "on", "with", "dominican",
-  ]);
-  const tokens = keyword
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .split(/\s+/)
-    .map((t) => t.replace(/[^a-z0-9]/g, ""))
-    .filter((t) => t.length > 2 && !STOP.has(t));
-  const attempts = [keyword, ...Array.from(new Set(tokens))];
-
-  const byId = new Map<number, SilLaw>();
-  for (const kw of attempts) {
-    if (!kw) continue;
-    try {
-      const url = `https://www.diputadosrd.gob.do/sil/api/iniciativa/getIniciativas?page=1&keyword=${encodeURIComponent(
-        kw
-      )}&periodoId=${periodoId}`;
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 15000);
-      const resp = await fetch(url, {
-        signal: ctrl.signal,
-        headers: { "User-Agent": "ChatGobDO/1.0", Accept: "application/json" },
-      });
-      clearTimeout(t);
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      const results: any[] = data.results || [];
-      for (const r of results) {
-        const id = r.id;
-        if (byId.has(id)) continue;
-        byId.set(id, {
-          numero: r.numero || "",
-          tipo: r.tipo || "Iniciativa",
-          descripcion: (r.descripcion || "").replace(/\s+/g, " ").trim(),
-          estado: r.estado || r.condicion || "",
-          materia: r.materia || "",
-          fechaDeposito: r.fechaDeposito || "",
-          url: `https://www.diputadosrd.gob.do/sil/iniciativa/${id}`,
-        });
-      }
-    } catch (e) {
-      console.error("SIL laws API failed for kw=", kw, e);
-    }
-    if (byId.size >= maxResults) break;
-  }
-  return Array.from(byId.values()).slice(0, maxResults);
-}
-
-// Fetch real official-portal activity directly (HTML pages) so FLUJO A does not
-// depend on web-search engine indexing, which rarely surfaces .gob.do pages.
-// For each targeted portal we pull its legislative-action / laws section pages
-// and extract the in-domain links as concrete congressional activity.
-async function fetchOfficialPortalActivity(
-  targetPortals: any[],
-  query: string
-): Promise<{ url: string; title: string; institution: string }[]> {
-  const out: { url: string; title: string; institution: string }[] = [];
-  const seen = new Set<string>();
-  const linkRe = /<a[^>]+href="([^"#]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const stripTags = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-
-  for (const portal of targetPortals) {
-    // Only hit congressional / official portals; skip pure data portals here.
-    const sections = (portal.sections || []).filter(
-      (s: any) =>
-        s.category === "legislative_action" ||
-        s.category === "laws" ||
-        s.category === "agendas" ||
-        s.category === "acts"
-    );
-    if (portal.url.includes("datos.gob.do")) continue;
-    const pages = sections.slice(0, 3).flatMap((s: any) => s.seeds || []).filter((u: string) => !u.includes("/api/"));
-    for (const page of pages.slice(0, 4)) {
-      try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 12000);
-        const resp = await fetch(page, {
-          signal: ctrl.signal,
-          headers: { "User-Agent": "ChatGobDO/1.0", Accept: "text/html" },
-        });
-        clearTimeout(t);
-        if (!resp.ok) continue;
-        const html = await resp.text();
-        let m: RegExpExecArray | null;
-        while ((m = linkRe.exec(html)) !== null) {
-          const href = m[1];
-          const text = stripTags(m[2]).slice(0, 160);
-          if (!text || text.length < 5) continue;
-          try {
-            const abs = new URL(href, page).href;
-            const host = new URL(abs).hostname.replace(/^www\./, "");
-            const portalHost = new URL(portal.url).hostname.replace(/^www\./, "");
-            if (host !== portalHost && !host.endsWith("." + portalHost)) continue;
-            if (seen.has(abs)) continue;
-            // Relevance: require TOPICAL coherence with the query — the link text
-            // must contain at least the number of meaningful query tokens below.
-            const toks = queryTokens(query);
-            const needed = toks.length <= 2 ? 1 : 2;
-            if (toks.length === 0 || tokenOverlap(text, toks) < needed) continue;
-            seen.add(abs);
-            out.push({ url: abs, title: text, institution: portal.name });
-          } catch {
-            continue;
-          }
-        }
-      } catch {
-        continue;
-      }
-    }
-  }
-  return out.slice(0, 40);
-}
+// Live query of the Diputados SIL laws API (Iniciativas / Proyectos de Ley) is
+// now handled by the `chamber` institution service (src/institutions/chamber).
+// Its structured legislative records are injected as grounding so the model can
+// confirm what Congress is actually working on.
 
 // FLUJO B: fetch Dominican news coverage directly. SearXNG's active engines
 // (bing/mojeek) rarely index .do content, so we pull the official portals'
@@ -273,7 +145,8 @@ const DR_NEWS_SOURCES: { url: string; name: string }[] = [
 
 async function fetchNewsActivity(
   query: string,
-  isAllowed: (sourceLabel: string) => boolean
+  isAllowed: (sourceLabel: string) => boolean,
+  restricted = true
 ): Promise<{ url: string; title: string; source: string }[]> {
   const out: { url: string; title: string; source: string }[] = [];
   const seen = new Set<string>();
@@ -302,9 +175,11 @@ async function fetchNewsActivity(
           const srcHost = new URL(src.url).hostname.replace(/^www\./, "");
           if (host !== srcHost && !host.endsWith("." + srcHost)) continue;
           if (seen.has(abs)) continue;
-          const toks = queryTokens(query);
-          const needed = toks.length <= 2 ? 1 : 2;
-          if (toks.length === 0 || tokenOverlap(text, toks) < needed) continue;
+          if (restricted) {
+            const toks = queryTokens(query);
+            const needed = toks.length <= 2 ? 1 : 2;
+            if (toks.length === 0 || tokenOverlap(text, toks) < needed) continue;
+          }
           seen.add(abs);
           out.push({ url: abs, title: text, source: src.name });
         } catch {
@@ -318,54 +193,9 @@ async function fetchNewsActivity(
   return out.slice(0, 30);
 }
 
-// FLUJO A/B: the legacy Senate MasterLex system (wfilemaster/*) is login-gated
-// and unreachable, so we use the PUBLIC Senate WordPress REST API instead. It
-// surfaces Senate initiatives, sessions and coverage as posts.
-async function fetchSenadoActivity(
-  query: string,
-  isAllowed: (sourceLabel: string) => boolean
-): Promise<{ url: string; title: string; date: string; source: string }[]> {
-  const out: { url: string; title: string; date: string; source: string }[] = [];
-  const seen = new Set<string>();
-  if (!isAllowed("Senado de la República")) return out;
-  const toks = queryTokens(query);
-  // Build keyword queries (WP search is keyword-based; a long phrase returns
-  // nothing). Use the full query plus its meaningful tokens — but NO synthetic
-  // "Senado <token>" query, which pollutes results with the generic Senate feed.
-  const queries = Array.from(new Set([query, ...toks]));
-  for (const q of queries) {
-    if (!q) continue;
-    const ep = `https://www.senadord.gob.do/wp-json/wp/v2/posts?search=${encodeURIComponent(q)}&per_page=10`;
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 15000);
-      const resp = await fetch(ep, {
-        signal: ctrl.signal,
-        headers: { "User-Agent": "ChatGobDO/1.0", Accept: "application/json" },
-      });
-      clearTimeout(t);
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      if (!Array.isArray(data)) continue;
-      for (const post of data) {
-        const link: string = post.link || post.url || "";
-        const title: string = (post.title?.rendered || post.title || "").replace(/<[^>]+>/g, "").trim();
-        const date: string = post.date || "";
-        if (!link || !title || seen.has(link)) continue;
-        // TOPICAL coherence: the returned post must actually relate to the query.
-        // Require at least the number of meaningful tokens below to appear in title.
-        const needed = toks.length <= 2 ? 1 : 2;
-        if (toks.length === 0 || tokenOverlap(title, toks) < needed) continue;
-        seen.add(link);
-        out.push({ url: link, title, date, source: "Senado de la República" });
-      }
-    } catch {
-      continue;
-    }
-    if (out.length >= 20) break;
-  }
-  return out.slice(0, 20);
-}
+// The legacy Senate MasterLex system (wfilemaster/*) is login-gated and
+// unreachable, so the Senate institution service (src/institutions/senate) uses
+// the PUBLIC Senate WordPress REST API instead, surfacing initiatives/sessions.
 
 // Shared Spanish stopwords for query tokenization.
 const ES_STOP = new Set([
@@ -395,49 +225,9 @@ function tokenOverlap(text: string, tokens: string[]): number {
   return n;
 }
 
-// FLUJO A: Datos Abiertos RD (datos.gob.do) — the official CKAN open-data portal.
-// We use its package_search API (not the HTML page) to find relevant datasets.
-async function fetchDatosGobActivity(
-  query: string,
-  isAllowed: (sourceLabel: string) => boolean
-): Promise<{ url: string; title: string; snippet: string; source: string }[]> {
-  const out: { url: string; title: string; snippet: string; source: string }[] = [];
-  const seen = new Set<string>();
-  if (!isAllowed("Datos Abiertos RD")) return out;
-  const toks = queryTokens(query);
-  const queries = Array.from(new Set([query, ...toks]));
-  for (const q of queries) {
-    if (!q) continue;
-    try {
-      const ep = `https://datos.gob.do/api/3/action/package_search?q=${encodeURIComponent(q)}&rows=8`;
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 15000);
-      const resp = await fetch(ep, {
-        signal: ctrl.signal,
-        headers: { "User-Agent": "ChatGobDO/1.0", Accept: "application/json" },
-      });
-      clearTimeout(t);
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      const results = data?.result?.results || [];
-      for (const ds of results) {
-        const url: string = ds.url || `https://datos.gob.do/dataset/${ds.name}`;
-        const title: string = (ds.title || "").toString().trim();
-        const notes: string = (ds.notes || "").toString().replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
-        if (!url || !title || seen.has(url)) continue;
-        // Topical coherence: dataset title/notes must relate to the query.
-        const needed = toks.length <= 2 ? 1 : 2;
-        if (toks.length > 0 && tokenOverlap(`${title} ${notes}`, toks) < needed) continue;
-        seen.add(url);
-        out.push({ url, title, snippet: notes, source: "Datos Abiertos RD" });
-      }
-    } catch {
-      continue;
-    }
-    if (out.length >= 20) break;
-  }
-  return out.slice(0, 20);
-}
+// Datos Abiertos RD (datos.gob.do) — the official CKAN open-data portal — is now
+// handled by the `datos` institution service (src/institutions/datos) via its
+// package_search API.
 
 // Map a URL to a known Dominican Republic government institution.
 function classifyInstitution(url: string): string {
@@ -460,6 +250,18 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString(),
     apiKeyConfigured: !!process.env.GEMINI_API_KEY
   });
+});
+
+// Institution Registry API — lets the frontend dynamically discover available
+// institution plugins and their capabilities WITHOUT backend code changes.
+app.get("/api/institutions", async (req, res) => {
+  try {
+    const { registerAllInstitutions, describeAll } = await import("./src/institutions");
+    registerAllInstitutions();
+    res.json({ institutions: describeAll() });
+  } catch (e: any) {
+    res.status(500).json({ error: "Failed to load institutions", message: e.message });
+  }
 });
 
 // Portal URL-tree API: builds (and caches) a recursive URL tree for each portal.
@@ -581,28 +383,31 @@ ${institutionContext}
 Conduct the full multi-agent search and reasoning process. Output the results strictly in JSON format. Provide the absolute maximum amount of accurate Dominican Republic legal, government, or policy details you can find.`;
 
     // Run real web searches through SearXNG before invoking the model.
-    // Split the research by category: for each relevant portal section we build a
+    // Split the research by category: for each relevant institution we build a
     // query scoped to that department + category so news, legislative action, laws,
     // decrees, etc. are each searched against their most important pages.
-    const { DR_PORTALS } = await import("./src/portals");
+    const { registerAllInstitutions, getAllInstitutions, getInstitutionByName, hasLegislativeCapability } =
+      await import("./src/institutions");
+    registerAllInstitutions();
+    const ALL_INSTITUTIONS = getAllInstitutions();
 
-    // Determine which portals to target.
-    let targetPortals = DR_PORTALS;
+    // Resolve which institution services to target. Selection may arrive as
+    // display names (e.g. "Senado de la República") or ids (e.g. "senate").
+    let targetServices = ALL_INSTITUTIONS;
     if (institutions && Array.isArray(institutions) && institutions.length > 0) {
-      targetPortals = DR_PORTALS.filter((p) =>
-        institutions.some((inst: string) =>
-          inst.toLowerCase().includes(p.url.toLowerCase().replace(/^https?:\/\//, "")) ||
-          p.name.toLowerCase().includes(inst.toLowerCase())
-        )
-      );
-      if (targetPortals.length === 0) targetPortals = DR_PORTALS;
+      const resolved = institutions
+        .map((inst: string) => getInstitutionByName(inst) || ALL_INSTITUTIONS.find((s) => s.id === inst))
+        .filter(Boolean) as typeof ALL_INSTITUTIONS;
+      targetServices = resolved.length > 0 ? resolved : ALL_INSTITUTIONS;
     }
+    // Backwards-compatible `targetPortals` shape (name/url) for downstream code.
+    const targetPortals = targetServices.map((s) => ({ name: s.name, url: s.url }));
 
     // When the user selected specific sources (via Árbol de URLs or Fijar
     // Instituciones), restrict ALL retrieval to those portals only. Empty
     // selection (or no institution filter) means "search everything".
-    const restricted = (institutions && Array.isArray(institutions) && institutions.length > 0 && targetPortals.length < DR_PORTALS.length);
-    const allowedPortalNames = new Set(targetPortals.map((p) => p.name.toLowerCase()));
+    const restricted = !!(institutions && Array.isArray(institutions) && institutions.length > 0 && targetServices.length < ALL_INSTITUTIONS.length);
+    const allowedPortalNames = new Set(targetServices.map((s) => s.name.toLowerCase()));
     // Aliases so the fetchers' source labels match the portal selection.
     const portalAliases: Record<string, string[]> = {
       "senado de la república": ["senado de la república", "senado"],
@@ -624,25 +429,31 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       return false;
     };
 
-    // Build a host->portal lookup for the targeted portals. We no longer use the
-    // `site:` operator because the active engines (bing/mojeek) return 0 results
-    // for scoped queries; instead we run BROAD queries and filter by host here.
+    // Build a host->portal lookup for the targeted institutions. We no longer use
+    // the `site:` operator because the active engines (bing/mojeek) return 0
+    // results for scoped queries; instead we run BROAD queries and filter by host.
     const hostToPortal = new Map<string, string>();
-    for (const p of targetPortals) {
-      const host = p.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
-      hostToPortal.set(host, p.name);
+    for (const s of targetServices) {
+      const host = s.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      hostToPortal.set(host, s.name);
       // Also map common subdomains / alternate hosts.
-      if (host === "camaradediputados.gob.do") hostToPortal.set("diputadosrd.gob.do", p.name);
-      if (host === "senado.gob.do") hostToPortal.set("senadord.gob.do", p.name);
+      if (host === "camaradediputados.gob.do") hostToPortal.set("diputadosrd.gob.do", s.name);
+      if (host === "senado.gob.do") hostToPortal.set("senadord.gob.do", s.name);
     }
 
-    // Broad query variants (no site:/inurl: scope).
+    // Broad query variants (no site:/inurl: scope). In free search (no
+    // institutions fixed) these run as-is and the result filter below accepts
+    // ALL Dominican sources, so the query searches across every source.
     const searchQueries: string[] = [
       query,
       `${query} República Dominicana`,
       `${query} gob.do`,
       `${query} sitio oficial`,
     ];
+    for (const portal of targetPortals) {
+      const host = portal.url.replace(/^https?:\/\//, "");
+      searchQueries.push(`${query} ${host}`);
+    }
     for (const portal of targetPortals) {
       const host = portal.url.replace(/^https?:\/\//, "");
       searchQueries.push(`${query} ${host}`);
@@ -663,9 +474,25 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       const r = await searxngSearch(sq, search?.maxResults || 8, searchOpts);
       searxResults.push(...r);
     }
-    // Filter to official sources only: keep results whose host belongs to a
-    // targeted portal. Tag each with its portal name for traceability.
+    // Filter sources. When the user fixed specific institutions (restricted),
+    // keep only those official portals. In FREE search (no filters fixed) we do
+    // NOT filter by host: we return every result SearchXNG found, so the model
+    // gets the broadest possible grounding. State/institutional sources are
+    // prioritized downstream; news is the least relevant stream.
     const isOfficialHost = (host: string) => hostToPortal.has(host);
+    const keepResult = (host: string) => !restricted || isOfficialHost(host);
+    // Official-host results (Congreso stream). In free search this keeps every
+    // official portal hit; in restricted mode only the selected portals.
+    const filteredResults = searxResults.filter((r) => {
+      try {
+        const host = new URL(r.url).hostname.replace(/^www\./, "");
+        return keepResult(host);
+      } catch {
+        return false;
+      }
+    });
+    // Dominican-relevant pool: official OR Dominican media, so FLUJO B is
+    // populated with on-topic DR coverage instead of global search garbage.
     const DR_MEDIA = [
       "listin.com.do", "diariolibre.com", "hoy.com.do", "elmundo.com.do", "elnuevodiario.com.do",
       "almomento.net", "acento.com.do", "elcaribe.com.do", "eldeporte.com.do", "codetel.com.do",
@@ -673,17 +500,6 @@ Conduct the full multi-agent search and reasoning process. Output the results st
     ];
     const isDominicanSource = (host: string) =>
       host.endsWith(".do") || DR_MEDIA.some((m) => host === m || host.endsWith("." + m));
-    const filteredResults = searxResults.filter((r) => {
-      try {
-        const host = new URL(r.url).hostname.replace(/^www\./, "");
-        return isOfficialHost(host);
-      } catch {
-        return false;
-      }
-    });
-    // News pool: Dominican-relevant results (official OR Dominican media), so the
-    // FLUJO B (noticias) is populated with on-topic DR coverage instead of global
-    // garbage. Official-host results are still kept for the congress stream.
     const newsPool = searxResults.filter((r) => {
       try {
         const host = new URL(r.url).hostname.replace(/^www\./, "");
@@ -692,7 +508,8 @@ Conduct the full multi-agent search and reasoning process. Output the results st
         return false;
       }
     });
-    const taggedResults = newsPool.map((r) => {
+    // Tag every result with its institution for traceability.
+    const taggedResults = [...filteredResults, ...newsPool].map((r) => {
       try {
         const host = new URL(r.url).hostname.replace(/^www\./, "");
         return { ...r, institution: hostToPortal.get(host) || classifyInstitution(r.url) };
@@ -709,10 +526,14 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       return true;
     });
 
-    // Split into two parallel streams:
-    //  (1) CONGRESO: official congressional/government portal sources.
-    //  (2) NOTICIAS: press / media coverage about the topic.
-    const isCongress = (r: any) => {
+    // Split into three streams (faithful to the older working version):
+    //  (1) CONGRESO: the actual Congreso Nacional portals (Senado, Diputados,
+    //      Presidencia, Tribunal, DGCP, Datos) — the PRIMARY grounding. This must
+    //      stay NARROW so real Senate/Diputados hits are not crowded out.
+    //  (2) OTRAS FUENTES OFICIALES: other .gob.do ministries (Hacienda, MEPrD,
+    //      DGII, etc.) — shown as official context but NOT in the Congress stream.
+    //  (3) NOTICIAS: Dominican media / press coverage (secondary context).
+    const isCongressStream = (r: any) => {
       try {
         const h = new URL(r.url).hostname.replace(/^www\./, "");
         if (isOfficialHost(h)) return true;
@@ -721,27 +542,64 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       return inst.includes("senado") || inst.includes("diputados") || inst.includes("presidencia") ||
         inst.includes("cámara") || inst.includes("tribunal") || inst.includes("dgcp") || inst.includes("datos");
     };
-    const congressResults = uniqueResults.filter(isCongress);
-    const newsResults = uniqueResults.filter((r) => !isCongress(r));
+    const isOtherOfficial = (r: any) => {
+      try {
+        const h = new URL(r.url).hostname.replace(/^www\./, "");
+        // Any other Dominican government domain that is not already a Congress portal.
+        if ((h.endsWith(".gob.do") || h === "gob.do") && !isOfficialHost(h)) return true;
+      } catch {}
+      return false;
+    };
+    const congressResults = uniqueResults.filter(isCongressStream);
+    const otherOfficialResults = uniqueResults.filter(isOtherOfficial);
+    const newsResults = uniqueResults.filter(
+      (r) => !isCongressStream(r) && !isOtherOfficial(r)
+    );
 
     // Hard cap on context size so small models don't truncate the JSON schema.
-    const MAX_CONTEXT_RESULTS = 30;
+    const MAX_CONTEXT_RESULTS = 36;
 
     // Live query of the Diputados SIL laws API for directly-structured legislative records.
     // Cap to keep the grounding prompt within the model's budget. Skip if the
     // Cámara de Diputados is not among the selected sources.
     const SIL_CONTEXT_MAX = 12;
-    const silLaws = isPortalAllowed("Cámara de Diputados")
-      ? (await querySilLaws(query)).slice(0, SIL_CONTEXT_MAX)
+    const chamberSvc = targetServices.find((s) => s.id === "chamber");
+    const silLaws = chamberSvc && hasLegislativeCapability(chamberSvc) && isPortalAllowed("Cámara de Diputados")
+      ? (await chamberSvc.getLaws(query)).slice(0, SIL_CONTEXT_MAX)
       : [];
 
-    // FLUJO A also pulls REAL official-portal activity via direct HTTP fetch
-    // (web search engines rarely index .gob.do pages). Merge with any
-    // congressional hits from SearXNG.
-    const officialActivity = await fetchOfficialPortalActivity(targetPortals, query);
-    // FLUJO B: real Dominican news coverage via direct fetches of official news
-    // sections + Dominican newspapers (SearXNG rarely indexes .do content).
-    const newsActivity = await fetchNewsActivity(query, isPortalAllowed);
+    // Run BOTH streams in parallel. FLUJO A (institutional: Congreso, Senado,
+    // Presidencia, DGCP, Datos Abiertos) is the PRIMARY source and what the
+    // answer must be grounded on. FLUJO B (news) is SECONDARY / extra context.
+    //
+    // Each institution is now an isolated plugin consumed only via the registry.
+    // `officialActivity` aggregates every targeted institution's direct search;
+    // `newsActivity` pulls Dominican press; Senate + Datos use their own services.
+    const [
+      officialActivity,
+      newsActivity,
+      senadoActivity,
+      datosActivity,
+    ] = await Promise.all([
+      // Direct official-portal activity across all targeted institutions.
+      (async () => {
+        const acts = await Promise.all(
+          targetServices
+            .filter((s) => s.id !== "senate" && s.id !== "datos") // Senate/Datos handled separately
+            .map((s) => s.search(query).catch(() => [] as any[]))
+        );
+        return acts.flat();
+      })(),
+      fetchNewsActivity(query, isPortalAllowed, restricted),
+      (async () => {
+        const sen = targetServices.find((s) => s.id === "senate");
+        return sen ? (await sen.search(query).catch(() => [])) : [];
+      })(),
+      (async () => {
+        const dat = targetServices.find((s) => s.id === "datos");
+        return dat ? (await dat.search(query).catch(() => [])) : [];
+      })(),
+    ]);
     const officialAsResults = officialActivity.map((a) => ({
       title: a.title,
       url: a.url,
@@ -758,7 +616,7 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       return true;
     }).slice(0, MAX_CONTEXT_RESULTS);
 
-    // Merge SearXNG Dominican news + direct news fetches for FLUJO B.
+    // Merge SearXNG results + direct news fetches + other official .gob.do for FLUJO B.
     const newsAsResults = newsActivity.map((a) => ({
       title: a.title,
       url: a.url,
@@ -766,7 +624,7 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       engine: "medio",
       institution: a.source,
     }));
-    const newsMerged = [...newsResults, ...newsAsResults];
+    const newsMerged = [...newsResults, ...newsAsResults, ...otherOfficialResults];
     const seenN = new Set<string>();
     const trimmedNews = newsMerged.filter((r) => {
       const k = r.url.toLowerCase();
@@ -776,7 +634,6 @@ Conduct the full multi-agent search and reasoning process. Output the results st
     }).slice(0, 30);
 
     // Public Senate (WordPress REST API) — official Senate activity/coverage.
-    const senadoActivity = await fetchSenadoActivity(query, isPortalAllowed);
     const senadoAsResults = senadoActivity.map((a) => ({
       title: a.title,
       url: a.url,
@@ -785,7 +642,6 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       institution: "Senado de la República",
     }));
     // Datos Abiertos RD — official open-data portal (FLUJO A).
-    const datosActivity = await fetchDatosGobActivity(query, isPortalAllowed);
     const datosAsResults = datosActivity.map((a) => ({
       title: a.title,
       url: a.url,
@@ -793,8 +649,9 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       engine: "datos-gob",
       institution: a.source,
     }));
-    // Merge Senate + Datos Abiertos into FLUJO A (official congressional source).
-    const congressFinal = [...trimmedCongress, ...senadoAsResults, ...datosAsResults];
+    // PREPEND Senate + Datos Abiertos API results so they ALWAYS survive the
+    // cap and are never crowded out by other official/portal hits.
+    const congressFinal = [...senadoAsResults, ...datosAsResults, ...trimmedCongress];
     const seenCF = new Set<string>();
     const trimmedCongressFinal = congressFinal.filter((r) => {
       const k = r.url.toLowerCase();
@@ -851,8 +708,9 @@ ${newsContext}
 REGLAS DE REDACCIÓN:
 1. Basa la respuesta ESTRICTAMENTE en las fuentes anteriores. No inventes fuentes, números de ley ni fechas.
 2. El enfoque PRIMARIO (FLUJO A) debe ser lo que está haciendo el CONGRESO NACIONAL (Senado y Cámara de Diputados): proyectos de ley, iniciativas, comisiones, sesiones. Las NOTICIAS (FLUJO B) son solo contexto secundario.
-3. OBLIGATORIO: toda ley/iniciativa listada en "LEYES / INICIATIVAS LEGISLATIVAS (via Diputados SIL API)" debe incluirse como fila en la MATRIZ DE EVIDENCIA (campo "evidence"), con su URL, institución "Cámara de Diputados (SIL)" y confianza "High".
-4. Si las fuentes carecen de información, indícalo honestamente y mantén la confianza baja.`;
+3. OBLIGATORIO: toda ley/iniciativa listada en "LEYES / INICIATIVAS LEGISLATIVAS (via Diputados SIL API)" debe incluirse como fila en la MATRIZ DE EVIDENCIA (campo "evidence"), con su URL, institución "Cámara de Diputados (SIL)" y confianza "High". Además, TODA fuente del Congreso en FLUJO A (C-, Senado, Datos Abiertos) debe aparecer en la MATRIZ DE EVIDENCIA antes que las noticias.
+4. CITA EL CONGRESO PRIMERO en el resumen ejecutivo, análisis detallado y cada sección. Las noticias (FLUJO B) van al final como contexto secundario, nunca como fuente principal.
+5. Si las fuentes carecen de información, indícalo honestamente y mantén la confianza baja.`;
 
     const responseSchema = {
       type: Type.OBJECT,
@@ -1200,35 +1058,84 @@ REGLAS DE REDACCIÓN:
     }
 
     // OBLIGATORIO: garantizar que TODA ley/iniciativa del SIL aparezca en la MATRIZ DE EVIDENCIA.
-    if (silLaws.length > 0) {
-      searchResult.evidence = searchResult.evidence || [];
-      const existingEvUrls = new Set(
-        searchResult.evidence.map((ev: any) => (ev.sourceUrl || "").toLowerCase())
-      );
-      for (const l of silLaws) {
-        if (existingEvUrls.has(l.url.toLowerCase())) continue;
-        const fact = `${l.numero} · ${l.tipo}${l.estado ? " — Estado: " + l.estado : ""}: ${l.descripcion}`;
-        searchResult.evidence.push({
-          fact,
-          sourceUrl: l.url,
-          institution: "Cámara de Diputados (SIL)",
-          date: l.fechaDeposito || "",
-          confidence: "High",
-        });
-        existingEvUrls.add(l.url.toLowerCase());
-      }
-      // Ordenar la evidencia priorizando fuentes del Congreso (SIL + Senado + Cámara).
-      const congressRank = (inst: string) => {
-        const i = (inst || "").toLowerCase();
-        if (i.includes("sil") || i.includes("cámara de diputados") || i.includes("diputados")) return 0;
-        if (i.includes("senado")) return 1;
-        if (i.includes("presidencia")) return 2;
-        return 3;
-      };
-      searchResult.evidence.sort(
-        (a: any, b: any) => congressRank(a.institution) - congressRank(b.institution)
-      );
+    // También inyectamos forzosamente las fuentes REALES del Congreso (Senado, Cámara,
+    // Presidencia, Datos Abiertos) recuperadas en FLUJO A aunque el modelo cite poco,
+    // para que docsAnalyzed / evidence nunca se queden vacíos.
+    searchResult.evidence = searchResult.evidence || [];
+    const existingEvUrls = new Set(
+      searchResult.evidence.map((ev: any) => (ev.sourceUrl || "").toLowerCase())
+    );
+
+    // 1) Leyes / iniciativas SIL (siempre High, primacía máxima).
+    for (const l of silLaws) {
+      if (existingEvUrls.has(l.url.toLowerCase())) continue;
+      const fact = `${l.numero} · ${l.tipo}${l.estado ? " — Estado: " + l.estado : ""}: ${l.descripcion}`;
+      searchResult.evidence.push({
+        fact,
+        sourceUrl: l.url,
+        institution: "Cámara de Diputados (SIL)",
+        date: l.fechaDeposito || "",
+        confidence: "High",
+      });
+      existingEvUrls.add(l.url.toLowerCase());
     }
+
+    // 2) Fuentes oficiales del Congreso/Nacional recuperadas en FLUJO A (real grounding).
+    for (const r of trimmedCongressFinal) {
+      if (existingEvUrls.has(r.url.toLowerCase())) continue;
+      searchResult.evidence.push({
+        fact: `${r.title}${r.snippet ? " — " + r.snippet.slice(0, 200) : ""}`,
+        sourceUrl: r.url,
+        institution: r.institution || classifyInstitution(r.url),
+        date: r.snippet && /\d{4}-\d{2}-\d{2}/.test(r.snippet) ? r.snippet.match(/\d{4}-\d{2}-\d{2}/)![0] : "",
+        confidence: "High",
+      });
+      existingEvUrls.add(r.url.toLowerCase());
+    }
+
+    // 3) Noticias (FLUJO B) como contexto secundario, confianza Media.
+    for (const r of trimmedNewsFinal) {
+      if (existingEvUrls.has(r.url.toLowerCase())) continue;
+      searchResult.evidence.push({
+        fact: `${r.title}${r.snippet ? " — " + r.snippet.slice(0, 200) : ""}`,
+        sourceUrl: r.url,
+        institution: r.institution || classifyInstitution(r.url),
+        date: "",
+        confidence: "Medium",
+      });
+      existingEvUrls.add(r.url.toLowerCase());
+    }
+
+    // Ordenar la evidencia priorizando fuentes del Congreso (SIL + Senado + Cámara).
+    const congressRank = (inst: string) => {
+      const i = (inst || "").toLowerCase();
+      if (i.includes("sil") || i.includes("cámara de diputados") || i.includes("diputados")) return 0;
+      if (i.includes("senado")) return 1;
+      if (i.includes("presidencia")) return 2;
+      if (i.includes("tribunal") || i.includes("dgcp") || i.includes("datos")) return 3;
+      return 4; // noticias / medios
+    };
+    searchResult.evidence.sort(
+      (a: any, b: any) => congressRank(a.institution) - congressRank(b.institution)
+    );
+
+    // Forzar retrieval.documentsAnalyzed y extractedCount con las fuentes REALES
+    // recuperadas, de modo que el UI nunca muestre "docsAnalyzed: 2" vacío.
+    const realDocs = [
+      ...trimmedCongressFinal.map((r) => r.title || r.url),
+      ...trimmedNewsFinal.map((r) => r.title || r.url),
+      ...silLaws.map((l) => `${l.numero} · ${l.tipo}`),
+    ];
+    searchResult.retrieval = searchResult.retrieval || { documentsAnalyzed: [], extractedCount: 0 };
+    if (!Array.isArray(searchResult.retrieval.documentsAnalyzed) ||
+        searchResult.retrieval.documentsAnalyzed.length === 0) {
+      searchResult.retrieval.documentsAnalyzed = realDocs;
+    }
+    const realCount = trimmedCongressFinal.length + trimmedNewsFinal.length + silLaws.length;
+    searchResult.retrieval.extractedCount =
+      typeof searchResult.retrieval.extractedCount === "number" && searchResult.retrieval.extractedCount > 0
+        ? searchResult.retrieval.extractedCount
+        : realCount;
 
     // Add general metadata
     searchResult.query = query;

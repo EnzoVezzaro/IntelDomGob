@@ -1,4 +1,4 @@
-import { DR_PORTALS, CATEGORY_LABELS } from "./portals";
+import { DR_PORTALS, CATEGORY_LABELS, PortalSection } from "./portals";
 
 // Builds a CATEGORIZED URL tree: for each department (portal) and each research
 // category (news, legislative action, laws, ...), it crawls the curated seed pages
@@ -118,7 +118,7 @@ async function fetchApiEntries(url: string): Promise<UrlEntry[]> {
 
 async function crawlSection(
   host: string,
-  section: { seeds: string[]; isApi?: boolean }
+  section: PortalSection
 ): Promise<UrlEntry[]> {
   if (section.isApi) {
     const entries: UrlEntry[] = [];

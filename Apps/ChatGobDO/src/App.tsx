@@ -26,12 +26,23 @@ import {
   Landmark,
   Newspaper
 } from "lucide-react";
-import { Institution, AgentStage, Source, SearchResult, SavedTopic } from "./types";
+import { AgentStage, Source, SearchResult, SavedTopic } from "./types";
 
 // Standard DR Government URLs reference
-import { DR_PORTALS, CATEGORY_LABELS } from "./portals";
+import { CATEGORY_LABELS, DR_PORTALS as DR_PORTALS_LEGACY } from "./portals";
+
+// Dynamically-discovered institution plugins (from the backend registry).
+interface InstitutionDescriptor {
+  id: string;
+  name: string;
+  description?: string;
+  url: string;
+  enabledByDefault: boolean;
+  hasLegislative: boolean;
+}
 
 export default function App() {
+  const [institutions, setInstitutions] = useState<InstitutionDescriptor[]>([]);
   const [query, setQuery] = useState("");
   const [selectedInstitutions, setSelectedInstitutions] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -66,6 +77,17 @@ export default function App() {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   // Selected trees (portal refId or section key). Empty = use all.
   const [selectedTrees, setSelectedTrees] = useState<Set<string>>(new Set());
+
+  // Dynamically load the institution registry from the backend so the UI never
+  // needs a code change when institutions are added/removed.
+  useEffect(() => {
+    fetch("/api/institutions")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data?.institutions)) setInstitutions(data.institutions);
+      })
+      .catch((e) => console.error("Failed to load institutions", e));
+  }, []);
 
   // Model catalogue per provider
   const PROVIDER_MODELS: Record<string, string[]> = {
@@ -288,7 +310,8 @@ export default function App() {
           const refId = k.includes(":") ? k.split(":")[0] : k;
           selectedRefs.add(refId);
         }
-        const matched = DR_PORTALS.filter((p) => selectedRefs.has(p.refId));
+        // Resolve selected trees to institution names via the dynamic registry.
+        const matched = institutions.filter((p) => selectedRefs.has(p.id));
         if (matched.length > 0) {
           effectiveInstitutions = matched.map((p) => p.name);
         }
@@ -919,28 +942,35 @@ export default function App() {
               El Agente Planificador selecciona los portales de manera autónoma. Active casillas debajo para restringir la búsqueda a instituciones prioritarias:
             </p>
             <div className="grid grid-cols-1 gap-1.5 max-h-56 overflow-y-auto pr-1">
-              {Object.values(Institution).map((inst) => {
-                const isSelected = selectedInstitutions.includes(inst);
-                return (
-                  <button
-                    key={inst}
-                    onClick={() => handleToggleInstitution(inst)}
-                    className={`flex items-center justify-between text-left px-3 py-2 rounded-none text-xs transition-all border ${
-                      isSelected
-                        ? "bg-[#141414] border-[#141414] text-white font-bold"
-                        : "bg-white/50 hover:bg-white border-slate-300 text-slate-800"
-                    }`}
-                  >
-                    <span className="truncate mr-2 font-mono">{inst}</span>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      readOnly
-                      className="rounded-none border-[#141414] text-[#E94E31] focus:ring-0 h-3 w-3 pointer-events-none accent-[#E94E31]"
-                    />
-                  </button>
-                );
-              })}
+              {institutions.length === 0 ? (
+                <p className="text-[10px] font-mono text-slate-400">Cargando instituciones…</p>
+              ) : (
+                institutions.map((inst) => {
+                  const isSelected = selectedInstitutions.includes(inst.name);
+                  return (
+                    <button
+                      key={inst.id}
+                      onClick={() => handleToggleInstitution(inst.name)}
+                      className={`flex items-center justify-between text-left px-3 py-2 rounded-none text-xs transition-all border ${
+                        isSelected
+                          ? "bg-[#141414] border-[#141414] text-white font-bold"
+                          : "bg-white/50 hover:bg-white border-slate-300 text-slate-800"
+                      }`}
+                    >
+                      <span className="truncate mr-2 font-mono">{inst.name}</span>
+                      {inst.hasLegislative && (
+                        <span className="text-[8px] font-black uppercase bg-[#E94E31] text-white px-1 mr-1">SIL</span>
+                      )}
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        readOnly
+                        className="rounded-none border-[#141414] text-[#E94E31] focus:ring-0 h-3 w-3 pointer-events-none accent-[#E94E31]"
+                      />
+                    </button>
+                  );
+                })
+              )}
             </div>
             {selectedInstitutions.length > 0 && (
               <button
@@ -1159,21 +1189,31 @@ export default function App() {
               Consulte de forma directa los motores y repositorios legislativos oficiales dominicanos:
             </p>
             <div className="grid grid-cols-1 gap-2">
-              {DR_PORTALS.map((portal) => (
-                <a
-                  key={portal.name}
-                  href={portal.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between p-2.5 bg-black hover:bg-[#E94E31]/95 hover:text-white transition-all border border-[#141414] text-xs text-[#E4E3E0]"
-                >
-                  <div>
-                    <span className="text-[8px] font-mono font-black text-slate-400 uppercase tracking-widest">{portal.refId}</span>
-                    <span className="font-bold block text-xs uppercase tracking-tight">{portal.name}</span>
-                  </div>
-                  <ExternalLink className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                </a>
-              ))}
+              {institutions.length === 0
+                ? Object.values(DR_PORTALS_LEGACY).map((portal) => (
+                    <a key={portal.name} href={portal.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 bg-black hover:bg-[#E94E31]/95 hover:text-white transition-all border border-[#141414] text-xs text-[#E4E3E0]">
+                      <div>
+                        <span className="font-bold block text-xs uppercase tracking-tight">{portal.name}</span>
+                      </div>
+                      <ExternalLink className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                    </a>
+                  ))
+                : institutions.map((inst) => (
+                    <a
+                      key={inst.id}
+                      href={inst.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 bg-black hover:bg-[#E94E31]/95 hover:text-white transition-all border border-[#141414] text-xs text-[#E4E3E0]"
+                    >
+                      <div>
+                        <span className="text-[8px] font-mono font-black text-slate-400 uppercase tracking-widest">{inst.id}</span>
+                        <span className="font-bold block text-xs uppercase tracking-tight">{inst.name}</span>
+                      </div>
+                      <ExternalLink className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                    </a>
+                  ))}
             </div>
           </div>
 
@@ -1291,7 +1331,7 @@ export default function App() {
                       setQuery(s.text);
                     }}
                     disabled={isSearching}
-                    className="text-[10px] font-mono bg-[#E4E3E0]/40 hover:bg-[#141414] hover:text-white border-2 border-[#141414] px-3 py-1.5 transition-all text-[#141414]"
+                    className="text-[11px] font-black uppercase tracking-widest bg-white hover:bg-[#E4E3E0] text-[#141414] border-2 border-[#141414] px-3 py-1.5 transition-all"
                   >
                     {s.label}
                   </button>
