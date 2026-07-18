@@ -76,6 +76,8 @@ export interface SourceStreams {
   news: SourceStreamItem[];
   laws: LawItem[];
   bulletins: BulletinItem[];
+  /** One stream per institution plugin (each service shows in its own FLUJO). */
+  perInstitution?: Record<string, SourceStreamItem[]>;
 }
 
 export interface SearchResult {

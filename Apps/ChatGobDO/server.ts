@@ -794,11 +794,14 @@ Conduct the full multi-agent search and reasoning process. Output the results st
     // Each institution is now an isolated plugin consumed only via the registry.
     // `officialActivity` aggregates every targeted institution's direct search;
     // `newsActivity` pulls Dominican press; Senate + Datos use their own services.
+    // We also keep per-service results (perInstitution) so each plugin renders
+    // in its OWN FLUJO on the UI.
     const [
       officialActivity,
       newsActivity,
       senadoActivity,
       datosActivity,
+      perInstitutionResults,
     ] = await Promise.all([
       // Direct official-portal activity across all targeted institutions.
       (async () => {
@@ -817,6 +820,16 @@ Conduct the full multi-agent search and reasoning process. Output the results st
       (async () => {
         const dat = targetServices.find((s) => s.id === "datos");
         return dat ? (await dat.search(query).catch(() => [])) : [];
+      })(),
+      // Per-service results keyed by institution id (for individual FLUJOs).
+      (async () => {
+        const entries = await Promise.all(
+          targetServices.map(async (s) => {
+            const res = await s.search(query).catch(() => [] as any[]);
+            return [s.id, res] as const;
+          })
+        );
+        return Object.fromEntries(entries);
       })(),
     ]);
     const officialAsResults = officialActivity.map((a) => ({
@@ -1297,12 +1310,23 @@ REGLAS DE REDACCIÓN:
 
     searchResult.sources = {
       congress: (() => {
-        // Use model picks if available, otherwise fallback to server-split congress
-        // (excluding tribunal and datos which go to their own FLUJOs).
-        if (Array.isArray(modelSources.congress) && modelSources.congress.length) {
-          return modelSources.congress.filter((s: any) => !isTribunalSource(s) && !isDatosSource(s));
-        }
-        return congressOnlyResults.map(mapToSource);
+        // ALWAYS show the FULL retrieved congressional pool (Senado + Diputados +
+        // demás oficiales), never just the model's curated picks. Merge model
+        // picks (which may carry richer snippets) on top of the real results so
+        // nothing the server actually found is hidden from FLUJO A.
+        const seenC2 = new Set<string>();
+        const outC: any[] = [];
+        const pushC = (item: any) => {
+          const key = normUrl(item.url);
+          if (!key || seenC2.has(key)) return;
+          seenC2.add(key);
+          outC.push(item);
+        };
+        (modelSources.congress || [])
+          .filter((s: any) => !isTribunalSource(s) && !isDatosSource(s))
+          .forEach(pushC);
+        congressOnlyResults.map(mapToSource).forEach(pushC);
+        return outC;
       })(),
       tribunal: (() => {
         // sources.tribunal is built from the real retrieved pool (Tribunal
@@ -1365,6 +1389,26 @@ REGLAS DE REDACCIÓN:
         tipo: b.tipo || "Boletín",
         snippet: b.snippet || "",
       })),
+      perInstitution: (() => {
+        // Each institution plugin renders in its OWN FLUJO. Map every targeted
+        // service's real search results to SourceStreamItem, preserving the
+        // registry order so FLUJOs appear consistently.
+        const normUrl = (u: string) => (u || "").toLowerCase().replace(/\/+$/, "").replace(/^https?:\/\//, "");
+        const out: Record<string, any[]> = {};
+        for (const s of targetServices) {
+          const raw = (perInstitutionResults[s.id] || []) as any[];
+          const seen = new Set<string>();
+          const items: any[] = [];
+          for (const r of raw) {
+            const key = normUrl(r.url);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            items.push(mapToSource(r));
+          }
+          out[s.id] = items;
+        }
+        return out;
+      })(),
     };
 
     // Inject the real SearXNG search queries that were executed

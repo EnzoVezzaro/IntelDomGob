@@ -25,8 +25,7 @@ import {
   Radio,
   Landmark,
   Newspaper,
-  MessageSquare,
-  BookMarked
+  MessageSquare
 } from "lucide-react";
 import { AgentStage, Source, SearchResult, SavedTopic } from "./types";
 
@@ -1567,6 +1566,7 @@ export default function App() {
                           </div>
                           {(() => {
                             const laws = activeResult.sources!.laws!;
+                            const bulletins = activeResult.sources!.bulletins || [];
                             const groups: Record<string, typeof laws> = {};
                             for (const l of laws) {
                               const inst = (l.url || "").includes("senado")
@@ -1578,17 +1578,21 @@ export default function App() {
                             const chambers = ["Senado de la República", "Cámara de Diputados"];
                             return chambers.map((inst) => {
                               const items = groups[inst] || [];
+                              // Boletines/Actas (Senado DSpace) se muestran como más
+                              // filas del Senado, sin título propio.
+                              const isSenado = inst === "Senado de la República";
+                              const totalCount = items.length + (isSenado ? bulletins.length : 0);
                               return (
                                 <div key={inst}>
                                   <div className="bg-[#141414] text-white/90 px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
                                     <span className="text-[8px] font-black uppercase bg-white text-[#141414] px-1 mr-1">SIL</span>
                                     {inst}
-                                    {items.length > 0 && <span className="ml-auto text-[8px] font-mono bg-white/20 px-1">{items.length}</span>}
+                                    {totalCount > 0 && <span className="ml-auto text-[8px] font-mono bg-white/20 px-1">{totalCount}</span>}
                                   </div>
-                                  {items.length > 0 ? (
+                                  {totalCount > 0 ? (
                                     <ul className="divide-y divide-[#141414]/15">
                                       {items.map((l, i) => (
-                                        <li key={i} className="px-3 py-2.5 flex items-start gap-3">
+                                        <li key={`law-${i}`} className="px-3 py-2.5 flex items-start gap-3">
                                           <span className="text-[10px] font-mono font-black text-[#E94E31] mt-0.5 whitespace-nowrap">{l.numero}</span>
                                           <div className="min-w-0">
                                             <div className="flex flex-wrap items-center gap-1.5">
@@ -1604,6 +1608,24 @@ export default function App() {
                                           </a>
                                         </li>
                                       ))}
+                                      {isSenado && (
+                                        bulletins.map((b, i) => (
+                                          <li key={`bul-${i}`} className="px-3 py-2.5 flex items-start gap-3">
+                                            <span className="text-[10px] font-mono font-black text-[#E94E31] mt-0.5 whitespace-nowrap">{b.tipo || "Doc"}</span>
+                                            <div className="min-w-0">
+                                              <div className="flex flex-wrap items-center gap-1.5">
+                                                <span className="text-xs font-black text-[#141414] uppercase">Senado</span>
+                                                {b.date && <span className="text-[9px] font-mono bg-[#141414] text-white px-1.5 py-0.5">{b.date}</span>}
+                                              </div>
+                                              <p className="text-xs text-slate-700 leading-snug mt-0.5 line-clamp-2">{b.title}</p>
+                                              {b.snippet && <span className="text-[9px] font-mono text-slate-400 mt-0.5 block line-clamp-1">{b.snippet}</span>}
+                                            </div>
+                                            <a href={b.url} target="_blank" rel="noopener noreferrer" className="ml-auto flex-shrink-0 inline-flex p-1.5 bg-[#141414] hover:bg-[#E94E31] text-white transition-colors">
+                                              <ExternalLink className="h-3.5 w-3.5" />
+                                            </a>
+                                          </li>
+                                        ))
+                                      )}
                                     </ul>
                                   ) : (
                                     <div className="px-3 py-2 text-[10px] text-slate-400 italic">No hay iniciativas SIL para esta consulta.</div>
@@ -1730,30 +1752,39 @@ export default function App() {
                       )}
                     </section>
 
-                    {/* FLUJO E: Boletines / Actas / Año (Senado DSpace) */}
-                    {activeResult.sources?.bulletins && activeResult.sources.bulletins.length > 0 && (
-                    <section>
-                      <div className="flex items-center gap-2 mb-3">
-                        <BookMarked className="h-5 w-5 text-[#141414]" />
-                        <h4 className="text-sm font-black text-[#141414] uppercase tracking-wider">FLUJO E · BOLETINES / ACTAS / DOCUMENTOS LEGISLATIVOS</h4>
-                        <span className="ml-auto text-[10px] font-mono bg-[#141414] text-white px-2 py-0.5">
-                          {activeResult.sources.bulletins.length} docs
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {activeResult.sources.bulletins.map((b, i) => (
-                          <a key={i} href={b.url} target="_blank" rel="noopener noreferrer" className="group block border-2 border-[#141414] bg-white p-3 hover:bg-[#E4E3E0] transition-colors shadow-[3px_3px_0px_0px_#141414]">
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="text-[9px] font-mono font-black uppercase tracking-wider text-[#141414] bg-[#E4E3E0] px-1.5 py-0.5">{b.tipo || "Boletín"}</span>
-                              {b.date && <span className="text-[9px] font-mono text-slate-500">{b.date}</span>}
-                            </div>
-                            <h5 className="text-xs font-bold text-[#141414] mt-1.5 leading-snug">{b.title}</h5>
-                            {b.snippet && <p className="text-[10px] text-slate-600 mt-1 line-clamp-2 font-sans">{b.snippet}</p>}
-                          </a>
-                        ))}
-                      </div>
-                    </section>
-                    )}
+                    {/* FLUJOS F+ : un FLUJO por cada institución / plugin */}
+                    {/* Senado y Diputados ya aparecen en FLUJO A (Congreso Nacional). */}
+                    {institutions
+                      .filter((inst) => inst.id !== "senate" && inst.id !== "chamber")
+                      .map((inst) => {
+                      const items = activeResult.sources?.perInstitution?.[inst.id] || [];
+                      if (items.length === 0) return null;
+                      return (
+                        <section key={inst.id}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Landmark className="h-5 w-5 text-[#141414]" />
+                            <h4 className="text-sm font-black text-[#141414] uppercase tracking-wider break-words">
+                              FLUJO · {inst.name}
+                            </h4>
+                            <span className="ml-auto text-[10px] font-mono bg-[#141414] text-white px-2 py-0.5">
+                              {items.length} resultados
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {items.map((s, i) => (
+                              <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="group block border-2 border-[#141414] bg-white p-3 hover:bg-[#E4E3E0] transition-colors shadow-[3px_3px_0px_0px_#141414]">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="text-[9px] font-mono font-black uppercase tracking-wider text-[#141414] bg-[#E4E3E0] px-1.5 py-0.5">{s.institution}</span>
+                                  <ExternalLink className="h-3.5 w-3.5 text-[#141414] group-hover:text-[#E94E31]" />
+                                </div>
+                                <h5 className="text-xs font-black text-[#141414] mt-1.5 leading-snug">{s.title}</h5>
+                                {s.snippet && <p className="text-[10px] text-slate-600 mt-1 line-clamp-2 font-sans">{s.snippet}</p>}
+                              </a>
+                            ))}
+                          </div>
+                        </section>
+                      );
+                    })}
                   </div>
                 )}
 

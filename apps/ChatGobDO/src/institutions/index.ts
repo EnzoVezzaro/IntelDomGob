@@ -10,6 +10,7 @@ import { judiciaryService } from "./judiciary";
 import { dgcpService } from "./dgcp";
 import { datosService } from "./datos";
 import { consultoriaService } from "./consultoria";
+import { comprasService } from "./compras";
 
 let registered = false;
 
@@ -23,6 +24,7 @@ export function registerAllInstitutions(): void {
   registerInstitution(dgcpService);
   registerInstitution(datosService);
   registerInstitution(consultoriaService);
+  registerInstitution(comprasService);
   registered = true;
 }
 
@@ -35,3 +37,4 @@ export { judiciaryService } from "./judiciary";
 export { dgcpService } from "./dgcp";
 export { datosService } from "./datos";
 export { consultoriaService } from "./consultoria";
+export { comprasService } from "./compras";
