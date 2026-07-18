@@ -36,6 +36,12 @@ export interface InstitutionLaw {
   /** Optional legislative metadata surfaced by some sources (e.g. SIL). */
   materia?: string;
   fechaDeposito?: string;
+  /** Extra SIL metadata (Cámara / Senado). */
+  condicion?: string;
+  grupo?: string;
+  origen?: string;
+  legislatura?: string;
+  numPromulgacion?: string;
 }
 
 export interface InstitutionService {

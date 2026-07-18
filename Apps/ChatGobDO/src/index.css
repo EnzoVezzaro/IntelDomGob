@@ -16,6 +16,26 @@
   --dominican-white: #FFFFFF;
 }
 
+/* Logo flag-emblem colors — adapt to the active theme */
+.flag-canton-blue { background-color: var(--dominican-blue); }
+.flag-canton-red { background-color: var(--dominican-red); }
+.flag-cross { background-color: var(--dominican-white); }
+
+/* Light (default) theme: dark monochrome emblem (no flag colors) */
+.theme-default .flag-canton-blue { background-color: var(--color-brand-text); }
+.theme-default .flag-canton-red { background-color: var(--color-brand-text); }
+.theme-default .flag-cross { background-color: var(--color-brand-bg); }
+
+/* Dark theme: emblem goes white so it stays visible on dark UI */
+.theme-dark .flag-canton-blue { background-color: #E4E3E0; }
+.theme-dark .flag-canton-red { background-color: #E4E3E0; }
+.theme-dark .flag-cross { background-color: #141414; }
+
+/* Dominican theme: true flag colors (on-brand) */
+.theme-dominican .flag-canton-blue { background-color: var(--dominican-blue); }
+.theme-dominican .flag-canton-red { background-color: var(--dominican-red); }
+.theme-dominican .flag-cross { background-color: #FFFFFF; }
+
 body {
   background-color: var(--color-brand-bg);
   color: var(--color-brand-text);
@@ -87,6 +107,9 @@ body {
   font-weight: 800;
   color: var(--color-brand-text);
 }
+
+/* status-label adapts to the active theme */
+.theme-dark .status-label { color: var(--color-brand-bg); }
 
 /* Custom Scrollbar to match */
 ::-webkit-scrollbar {

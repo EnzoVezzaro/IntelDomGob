@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   BookOpen,
@@ -24,7 +24,8 @@ import {
   X,
   Radio,
   Landmark,
-  Newspaper
+  Newspaper,
+  MessageSquare
 } from "lucide-react";
 import { AgentStage, Source, SearchResult, SavedTopic } from "./types";
 
@@ -53,6 +54,17 @@ export default function App() {
   const [currentStageIdx, setCurrentStageIdx] = useState(-1);
   const [evidenceFilter, setEvidenceFilter] = useState("");
   const [apiError, setApiError] = useState<{ error: string; message: string } | null>(null);
+
+  // Context-grounded chat (below the Audit Evidence Packet)
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll the chat to the latest message.
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, chatLoading]);
 
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -262,6 +274,38 @@ export default function App() {
     return data;
   };
 
+  // Context-grounded chat: user asks follow-ups about the active AUDIT EVIDENCE
+  // PACKET; the backend answers strictly from the retrieved result.
+  const handleChatSend = async () => {
+    const text = chatInput.trim();
+    if (!text || chatLoading || !activeResult) return;
+    const history = chatMessages;
+    const next = [...history, { role: "user" as const, content: text }];
+    setChatMessages(next);
+    setChatInput("");
+    setChatLoading(true);
+    try {
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: activeResult,
+          message: text,
+          history: history.map((m) => ({ role: m.role, content: m.content })),
+          apiKey: apiKey || undefined,
+          model: model || undefined,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || data.error || "Chat failed");
+      setChatMessages([...next, { role: "assistant" as const, content: data.reply || "Sin respuesta." }]);
+    } catch (e: any) {
+      setChatMessages([...next, { role: "assistant" as const, content: `⚠️ ${e.message || "Error al contactar el asistente."}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   // Run the retrieval query
   const handleRunQuery = async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
@@ -329,6 +373,7 @@ export default function App() {
       const updatedHistory = [resultWithId, ...searchHistory.filter(h => h.query.toLowerCase() !== searchQuery.toLowerCase())].slice(0, 30);
       saveToHistory(updatedHistory);
       setActiveResult(resultWithId);
+      setChatMessages([]);
       setActiveTab("brief");
       setQuery("");
 
@@ -875,8 +920,15 @@ export default function App() {
       <header className="bg-[#E4E3E0] border-b-2 border-[#141414] sticky top-0 z-40 px-6 py-5">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 bg-[#141414] text-[#E4E3E0] flex items-center justify-center font-black text-xl border-2 border-[#141414] shadow-[3px_3px_0px_0px_#E94E31]">
-                DOM
+              <div className="h-12 w-12 relative bg-[#141414] border-2 border-[#141414] shadow-[3px_3px_0px_0px_#E94E31] overflow-hidden">
+                {/* Dominican-flag emblem: four cantons divided by a white cross.
+                    Colors adapt per theme via .flag-* classes in index.css. */}
+                <div className="flag-canton-blue absolute top-0 left-0 w-1/2 h-1/2" />
+                <div className="flag-canton-red absolute top-0 right-0 w-1/2 h-1/2" />
+                <div className="flag-canton-red absolute bottom-0 left-0 w-1/2 h-1/2" />
+                <div className="flag-canton-blue absolute bottom-0 right-0 w-1/2 h-1/2" />
+                <div className="flag-cross absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-[6px]" />
+                <div className="flag-cross absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[6px]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -1430,6 +1482,7 @@ export default function App() {
               </div>
             </div>
           ) : activeResult ? (
+            <>
             <div className="bg-white border-2 border-[#141414] shadow-[8px_8px_0px_0px_#141414] rounded-none overflow-hidden flex flex-col">
               
               {/* Result Meta Header */}
@@ -1505,31 +1558,77 @@ export default function App() {
                         </span>
                       </div>
 
-                      {/* Leyes / Iniciativas (SIL) — primary congressional output */}
+                      {/* Leyes / Iniciativas (SIL) — primary congressional output, grouped by origin */}
                       {activeResult.sources?.laws?.length ? (
                         <div className="mb-4 border-2 border-[#E94E31] bg-[#E94E31]/5 shadow-[4px_4px_0px_0px_#E94E31]">
                           <div className="bg-[#E94E31] text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                            <Scale className="h-3.5 w-3.5" /> Leyes / Iniciativas Legislativas (Cámara de Diputados · SIL)
+                            <Scale className="h-3.5 w-3.5" /> Leyes / Iniciativas Legislativas (SIL)
                           </div>
-                          <ul className="divide-y divide-[#141414]/15">
-                            {activeResult.sources.laws.map((l, i) => (
-                              <li key={i} className="px-3 py-2.5 flex items-start gap-3">
-                                <span className="text-[10px] font-mono font-black text-[#E94E31] mt-0.5 whitespace-nowrap">{l.numero}</span>
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className="text-xs font-black text-[#141414] uppercase">{l.tipo}</span>
-                                    {l.estado && <span className="text-[9px] font-mono bg-[#141414] text-white px-1.5 py-0.5">{l.estado}</span>}
+                          {(() => {
+                            const laws = activeResult.sources!.laws!;
+                            const groups: Record<string, typeof laws> = {};
+                            for (const l of laws) {
+                              const inst = (l.url || "").includes("senado")
+                                ? "Senado de la República"
+                                : "Cámara de Diputados";
+                              (groups[inst] ||= []).push(l);
+                            }
+                            // Always show both chambers — even when empty
+                            const chambers = ["Senado de la República", "Cámara de Diputados"];
+                            return chambers.map((inst) => {
+                              const items = groups[inst] || [];
+                              return (
+                                <div key={inst}>
+                                  <div className="bg-[#141414] text-white/90 px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                    <span className="text-[8px] font-black uppercase bg-white text-[#141414] px-1 mr-1">SIL</span>
+                                    {inst}
+                                    {items.length > 0 && <span className="ml-auto text-[8px] font-mono bg-white/20 px-1">{items.length}</span>}
                                   </div>
-                                  <p className="text-xs text-slate-700 leading-snug mt-0.5 line-clamp-2">{l.descripcion}</p>
+                                  {items.length > 0 ? (
+                                    <ul className="divide-y divide-[#141414]/15">
+                                      {items.map((l, i) => (
+                                        <li key={i} className="px-3 py-2.5 flex items-start gap-3">
+                                          <span className="text-[10px] font-mono font-black text-[#E94E31] mt-0.5 whitespace-nowrap">{l.numero}</span>
+                                          <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                              <span className="text-xs font-black text-[#141414] uppercase">{l.tipo}</span>
+                                              {l.estado && <span className="text-[9px] font-mono bg-[#141414] text-white px-1.5 py-0.5">{l.estado}</span>}
+                                              {l.materia && <span className="text-[9px] font-mono bg-[#E94E31] text-white px-1.5 py-0.5">{l.materia}</span>}
+                                            </div>
+                                            <p className="text-xs text-slate-700 leading-snug mt-0.5 line-clamp-2">{l.descripcion}</p>
+                                            {l.fechaDeposito && <span className="text-[9px] font-mono text-slate-400 mt-0.5 block">{l.fechaDeposito}</span>}
+                                          </div>
+                                          <a href={l.url} target="_blank" rel="noopener noreferrer" className="ml-auto flex-shrink-0 inline-flex p-1.5 bg-[#141414] hover:bg-[#E94E31] text-white transition-colors">
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                          </a>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <div className="px-3 py-2 text-[10px] text-slate-400 italic">No hay iniciativas SIL para esta consulta.</div>
+                                  )}
                                 </div>
-                                <a href={l.url} target="_blank" rel="noopener noreferrer" className="ml-auto flex-shrink-0 inline-flex p-1.5 bg-[#141414] hover:bg-[#E94E31] text-white transition-colors">
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
-                              </li>
-                            ))}
-                          </ul>
+                              );
+                            });
+                          })()}
                         </div>
-                      ) : null}
+                      ) : (
+                        // Even with zero laws, show both chambers with empty state
+                        <div className="mb-4 border-2 border-[#E94E31]/30 bg-[#E94E31]/5">
+                          <div className="bg-[#E94E31] text-white px-3 py-1.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                            <Scale className="h-3.5 w-3.5" /> Leyes / Iniciativas Legislativas (SIL)
+                          </div>
+                          {["Senado de la República", "Cámara de Diputados"].map((inst) => (
+                            <div key={inst}>
+                              <div className="bg-[#141414] text-white/90 px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                <span className="text-[8px] font-black uppercase bg-white text-[#141414] px-1 mr-1">SIL</span>
+                                {inst}
+                              </div>
+                              <div className="px-3 py-2 text-[10px] text-slate-400 italic">No hay iniciativas SIL para esta consulta.</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {activeResult.sources?.congress?.length ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1549,22 +1648,76 @@ export default function App() {
                       )}
                     </section>
 
-                    {/* FLUJO B: Noticias (secondary) */}
+                    {/* FLUJO B: Tribunal Constitucional */}
                     <section>
                       <div className="flex items-center gap-2 mb-3">
-                        <Newspaper className="h-5 w-5 text-slate-500" />
-                        <h4 className="text-sm font-black text-slate-600 uppercase tracking-wider">FLUJO B · COBERTURA EN NOTICIAS / MEDIOS</h4>
-                        <span className="ml-auto text-[10px] font-mono bg-slate-200 text-slate-700 px-2 py-0.5">
+                        <Scale className="h-5 w-5 text-[#141414]" />
+                        <h4 className="text-sm font-black text-[#141414] uppercase tracking-wider">FLUJO B · ACTIVIDAD DEL TRIBUNAL CONSTITUCIONAL</h4>
+                        <span className="ml-auto text-[10px] font-mono bg-[#141414] text-white px-2 py-0.5">
+                          {activeResult.sources?.tribunal?.length || 0} fuentes
+                        </span>
+                      </div>
+                      {activeResult.sources?.tribunal?.length ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {activeResult.sources.tribunal.map((s, i) => (
+                            <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="group block border-2 border-[#141414] bg-white p-3 hover:bg-[#E4E3E0] transition-colors shadow-[3px_3px_0px_0px_#141414]">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-[9px] font-mono font-black uppercase tracking-wider text-[#141414] bg-[#E4E3E0] px-1.5 py-0.5">{s.institution || "Tribunal Constitucional"}</span>
+                                <ExternalLink className="h-3.5 w-3.5 text-[#141414] group-hover:text-[#E94E31]" />
+                              </div>
+                              <h5 className="text-xs font-black text-[#141414] mt-1.5 leading-snug">{s.title}</h5>
+                              {s.snippet && <p className="text-[10px] text-slate-600 mt-1 line-clamp-2 font-sans">{s.snippet}</p>}
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 font-mono border-2 border-dashed border-[#141414]/30 p-4">No se recuperaron decisiones o comunicados del Tribunal Constitucional para esta consulta.</p>
+                      )}
+                    </section>
+
+                    {/* FLUJO C: Datos Abiertos */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Database className="h-5 w-5 text-[#141414]" />
+                        <h4 className="text-sm font-black text-[#141414] uppercase tracking-wider">FLUJO C · DATOS ABIERTOS</h4>
+                        <span className="ml-auto text-[10px] font-mono bg-[#141414] text-white px-2 py-0.5">
+                          {activeResult.sources?.datos?.length || 0} datasets
+                        </span>
+                      </div>
+                      {activeResult.sources?.datos?.length ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {activeResult.sources.datos.map((s, i) => (
+                            <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="group block border-2 border-[#141414] bg-white p-3 hover:bg-[#E4E3E0] transition-colors shadow-[3px_3px_0px_0px_#141414]">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-[9px] font-mono font-black uppercase tracking-wider text-[#141414] bg-[#E4E3E0] px-1.5 py-0.5">{s.institution || "Datos Abiertos RD"}</span>
+                                <ExternalLink className="h-3.5 w-3.5 text-[#141414] group-hover:text-[#E94E31]" />
+                              </div>
+                              <h5 className="text-xs font-black text-[#141414] mt-1.5 leading-snug">{s.title}</h5>
+                              {s.snippet && <p className="text-[10px] text-slate-600 mt-1 line-clamp-2 font-sans">{s.snippet}</p>}
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 font-mono border-2 border-dashed border-[#141414]/30 p-4">No se recuperaron datasets de Datos Abiertos para esta consulta.</p>
+                      )}
+                    </section>
+
+                    {/* FLUJO D: Noticias (quaternary) */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Newspaper className="h-5 w-5 text-[#141414]" />
+                        <h4 className="text-sm font-black text-[#141414] uppercase tracking-wider">FLUJO D · COBERTURA EN NOTICIAS / MEDIOS</h4>
+                        <span className="ml-auto text-[10px] font-mono bg-[#141414] text-white px-2 py-0.5">
                           {activeResult.sources?.news?.length || 0} notas
                         </span>
                       </div>
                       {activeResult.sources?.news?.length ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {activeResult.sources.news.map((s, i) => (
-                            <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="group block border-2 border-slate-300 bg-white p-3 hover:border-[#141414] transition-colors">
+                            <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="group block border-2 border-[#141414] bg-white p-3 hover:bg-[#E4E3E0] transition-colors shadow-[3px_3px_0px_0px_#141414]">
                               <div className="flex items-start justify-between gap-2">
-                                <span className="text-[9px] font-mono font-black uppercase tracking-wider text-slate-500 bg-slate-100 px-1.5 py-0.5">{s.source || s.institution || "Medio"}</span>
-                                <ExternalLink className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#141414]" />
+                                <span className="text-[9px] font-mono font-black uppercase tracking-wider text-[#141414] bg-[#E4E3E0] px-1.5 py-0.5">{s.source || s.institution || "Medio"}</span>
+                                <ExternalLink className="h-3.5 w-3.5 text-[#141414] group-hover:text-[#E94E31]" />
                               </div>
                               <h5 className="text-xs font-bold text-[#141414] mt-1.5 leading-snug">{s.title}</h5>
                               {s.snippet && <p className="text-[10px] text-slate-600 mt-1 line-clamp-2 font-sans">{s.snippet}</p>}
@@ -1572,7 +1725,7 @@ export default function App() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-500 font-mono border-2 border-dashed border-slate-300 p-4">No se recuperaron noticias para esta consulta.</p>
+                        <p className="text-xs text-slate-500 font-mono border-2 border-dashed border-[#141414]/30 p-4">No se recuperaron noticias para esta consulta.</p>
                       )}
                     </section>
                   </div>
@@ -1593,7 +1746,7 @@ export default function App() {
 
                     <div className="space-y-3">
                       <span className="status-label text-[10px]">INFORME ESTRUCTURADO Y ANÁLISIS JURÍDICO</span>
-                      <div className="bg-white border-2 border-[#141414] p-6 font-sans leading-relaxed shadow-[4px_4px_0px_0px_#141414] max-h-[480px] overflow-y-auto">
+                      <div className="bg-white border-2 border-[#141414] p-6 font-sans leading-relaxed shadow-[4px_4px_0px_0px_#141414] max-h-[640px] overflow-y-auto">
                         {parseMarkdown(activeResult.response.detailedAnalysis)}
                       </div>
                     </div>
@@ -1827,6 +1980,72 @@ export default function App() {
               </div>
 
             </div>
+
+            {/* Context-grounded Chat — interrogate the AUDIT EVIDENCE PACKET */}
+            <div className="mt-6 bg-white border-2 border-[#141414] shadow-[8px_8px_0px_0px_#141414] rounded-none overflow-hidden flex flex-col">
+              <div className="bg-[#141414] text-white p-4 border-b-2 border-[#141414] flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-[#E94E31]" />
+                <span className="text-[10px] font-mono font-black tracking-widest text-[#E94E31] uppercase">CHAT SOBRE EL PAQUETE DE EVIDENCIA</span>
+                <span className="text-[9px] font-mono text-slate-400 ml-auto">Responde usando solo los resultados recuperados</span>
+              </div>
+
+              <div className="p-4 max-h-[420px] overflow-y-auto space-y-3 bg-[#E4E3E0]/30">
+                {chatMessages.length === 0 && (
+                  <p className="text-[11px] text-[#141414]/60 font-mono italic text-center py-6">
+                    Haga una pregunta sobre esta evidencia (ej. "¿Qué comisiones ven este proyecto?" o "Resume las leyes citadas").
+                  </p>
+                )}
+                {chatMessages.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[85%] px-3.5 py-2.5 text-[12px] leading-relaxed border-2 ${
+                        m.role === "user"
+                          ? "bg-[#141414] text-white border-[#141414] rounded-none"
+                          : "bg-white text-[#141414] border-[#141414] rounded-none shadow-[2px_2px_0px_0px_#E94E31]"
+                      }`}
+                    >
+                      <p className="font-sans whitespace-pre-wrap">{m.content}</p>
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border-2 border-[#141414] px-3.5 py-2.5 rounded-none shadow-[2px_2px_0px_0px_#E94E31]">
+                      <div className="h-3.5 w-3.5 border-2 border-[#141414] border-t-[#E94E31] rounded-full animate-spin" />
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              <div className="border-t-2 border-[#141414] p-3 flex items-center gap-2 bg-white">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
+                  placeholder="Pregunte sobre esta evidencia…"
+                  disabled={chatLoading || !activeResult}
+                  className="flex-1 text-xs px-3 py-2.5 bg-[#E4E3E0]/20 border-2 border-[#141414] focus:outline-none focus:ring-0 font-sans"
+                />
+                <button
+                  onClick={handleChatSend}
+                  disabled={chatLoading || !chatInput.trim() || !activeResult}
+                  className="px-4 py-2.5 bg-[#E94E31] text-white hover:bg-[#141414] font-black uppercase text-[10px] tracking-wider border-2 border-[#141414] shadow-[2px_2px_0px_0px_#141414] transition-all disabled:opacity-40"
+                >
+                  ENVIAR
+                </button>
+              </div>
+            </div>
+
+            {chatMessages.length > 0 && (
+              <button
+                onClick={() => setChatMessages([])}
+                className="mt-2 text-center w-full text-[10px] text-[#E94E31] hover:text-[#141414] font-black uppercase tracking-wider"
+              >
+                [ Limpiar conversación ]
+              </button>
+            )}
+            </>
           ) : (
             !isSearching && !apiError && (
               <div className="bg-white border-2 border-[#141414] shadow-[6px_6px_0px_0px_#141414] p-10 text-center rounded-none">

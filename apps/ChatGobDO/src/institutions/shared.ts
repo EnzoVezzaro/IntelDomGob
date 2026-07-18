@@ -31,6 +31,116 @@ export function requiredOverlap(tokens: string[]): number {
   return tokens.length <= 2 ? 1 : 2;
 }
 
+/**
+ * Score how topically relevant a legislative record is to a user query.
+ * Generic and query-agnostic: it does NOT encode any specific subject (no
+ * hardcoded topic lists), so it works for EVERY query.
+ *
+ * Method: weighted token overlap with inverse-frequency-style weighting.
+ *   - Query tokens are matched (substring) against the record's text.
+ *   - Rare / specific tokens (longer, less common in legislative boilerplate)
+ *     contribute more; very common filler ("ley", "proyecto", "reforma",
+ *     articles/prepositions) contributes ~0 so a record that merely contains a
+ *     generic word does not rank as relevant.
+ *   - A record must contain at least one non-generic query token to score > 0,
+ *     which naturally excludes "parcela Reformada" / "reforma curricular" type
+ *     noise while keeping "Código Penal" / "reforma fiscal" when those tokens
+ *     are actually present in the query AND the record.
+ *
+ * Returns 0 when the record shares no specific topical token with the query.
+ */
+const GENERIC_TOKENS = new Set([
+  "ley", "leyes", "proyecto", "proyectos", "del", "la", "el", "las", "los", "y", "de",
+  "para", "con", "sobre", "por", "en", "a", "al", "lo", "que", "se", "su", "un", "una",
+  "reforma", "reformas", "modifica", "modificacion", "modificando", "num", "numero",
+  "codigo", "código", "articulo", "articulos", "orgánica", "organica", "sistema",
+  "republica", "dominicana", "fecha", "crea", "crear", "establece", "establece",
+  "mediante", "cual", "este", "esta", "dicta", "dicta",
+]);
+
+export function tokenizeQuery(q: string): string[] {
+  return q
+    .toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .split(/\s+/)
+    .map((t) => (/^\d+[-–]\d+$/.test(t) ? t : t.replace(/[^a-z0-9]/g, "")))
+    .filter((t) => t.length >= 3);
+}
+
+export function relevanceScore(text: string, query: string): number {
+  const q = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const t = (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (!q.trim() || !t.trim()) return 0;
+
+  const qTokens = tokenizeQuery(q);
+  if (qTokens.length === 0) return 0;
+
+  let score = 0;
+  let specificHits = 0;
+  for (const tk of qTokens) {
+    if (!t.includes(tk)) continue;
+    if (GENERIC_TOKENS.has(tk)) {
+      // Filler/subtype tokens barely move the needle.
+      score += 0.15;
+    } else {
+      // Specific tokens are the real signal; longer = rarer = stronger.
+      specificHits++;
+      score += tk.length >= 6 ? 3 : tk.length >= 5 ? 2 : 1.2;
+    }
+  }
+  // Only relevant if at least one SPECIFIC (non-generic) query token is present
+  // in the record. This is query-agnostic: works for any subject.
+  if (specificHits === 0) return 0;
+  return score;
+}
+
+/**
+ * Detect an expediente-number-like query (e.g. "50-88", "05088", "50-88-2024").
+ * Such queries must match an expediente's `numero` field as a number token,
+ * not as a loose substring — otherwise "50-88" wrongly matches "05088" inside
+ * "05088-2024-2028-CD". Returns the normalized query digits for comparison.
+ */
+const NUMBER_QUERY_RE = /^[\d]{1,6}[\s-]?[\d]{0,6}(?:[\s-]?[\d]{0,6})*$/;
+
+export function isNumberQuery(q: string): boolean {
+  const s = (q || "").trim();
+  if (!s) return false;
+  const digits = s.replace(/[^\d]/g, "");
+  // Require at least one hyphen/dash or 4+ digits to avoid matching words like
+  // "ley 99" — the query must clearly look like an expediente reference.
+  return NUMBER_QUERY_RE.test(s) && (s.includes("-") || digits.length >= 4);
+}
+
+/**
+ * True when an expediente `numero` actually contains the number-query as a
+ * whole number token (e.g. "50-88" matches "050-88-S-SE" but NOT "05088-...").
+ * Substring false-positives (05088 matching "50-88") are rejected.
+ *
+ * Matching is done on digit groups with leading-zero equivalence: "50-88" ->
+ * groups [50, 88] matches numero groups [050, 88] (same groups, zero-padded),
+ * while "50-88" does NOT match [05088, ...] because the groups differ.
+ */
+export function numeroMatchesQuery(numero: string, query: string): boolean {
+  if (!numero || !query) return false;
+  const numGroups = numero.split(/[^\d]+/).filter(Boolean).map((g) => String(parseInt(g, 10)));
+  const qGroups = query.split(/[^\d]+/).filter(Boolean).map((g) => String(parseInt(g, 10)));
+  if (qGroups.length === 0) return false;
+  if (qGroups.length === 1) {
+    // Single number: match if any group equals it (handles "05088" vs "5088").
+    return numGroups.includes(qGroups[0]);
+  }
+  // Multi-group (e.g. "50-88"): the query group sequence must appear as a
+  // contiguous run at the START of the numero's groups (expediente numbers list
+  // their identity groups first), or anywhere contiguously.
+  for (let i = 0; i + qGroups.length <= numGroups.length; i++) {
+    let ok = true;
+    for (let j = 0; j < qGroups.length; j++) {
+      if (numGroups[i + j] !== qGroups[j]) { ok = false; break; }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
 export async function fetchText(url: string, timeoutMs = 12000): Promise<string | null> {
   try {
     const ctrl = new AbortController();

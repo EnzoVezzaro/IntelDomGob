@@ -56,10 +56,14 @@ export interface LawItem {
   descripcion: string;
   estado?: string;
   url: string;
+  materia?: string;
+  fechaDeposito?: string;
 }
 
 export interface SourceStreams {
   congress: SourceStreamItem[];
+  tribunal: SourceStreamItem[];
+  datos: SourceStreamItem[];
   news: SourceStreamItem[];
   laws: LawItem[];
 }

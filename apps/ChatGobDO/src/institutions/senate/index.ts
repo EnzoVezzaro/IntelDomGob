@@ -1,8 +1,17 @@
-import type { InstitutionService, InstitutionResult, InstitutionDocument } from "../types";
+import type { InstitutionService, InstitutionResult, InstitutionDocument, InstitutionLaw } from "../types";
 import { queryTokens, tokenOverlap, requiredOverlap, fetchJson } from "../shared";
+import {
+  searchExpedientes,
+  getListPage,
+  expedienteToLaw,
+  expedienteToResult,
+} from "./sil";
 
-// Senado de la República — public WordPress REST API. Surfaces initiatives,
-// sessions and coverage as posts. (Legacy MasterLex/wfilemaster is login-gated.)
+// Senado de la República.
+// Two complementary channels:
+//   1) WordPress REST API (senadord.gob.do) — narrative activity / press.
+//   2) SIL (wfilemaster ASP.NET) — structured legislative records (expedientes /
+//      iniciativas / proyectos de ley) via the public "Ingresar consultante" login.
 
 const SENADO_HOST = "https://www.senadord.gob.do";
 const WP_API = `${SENADO_HOST}/wp-json/wp/v2/posts`;
@@ -36,7 +45,7 @@ function toResult(post: SenadoPost): InstitutionResult | null {
 
 export const senateApi = {
   /** Keyword search over the Senate WordPress posts. */
-  async search(query: string): Promise<InstitutionResult[]> {
+  async search(query: string, restricted = true): Promise<InstitutionResult[]> {
     const out: InstitutionResult[] = [];
     const seen = new Set<string>();
     const toks = queryTokens(query);
@@ -49,8 +58,12 @@ export const senateApi = {
       for (const post of data as SenadoPost[]) {
         const r = toResult(post);
         if (!r || seen.has(r.url)) continue;
-        const needed = requiredOverlap(toks);
-        if (toks.length > 0 && tokenOverlap(r.title, toks) < needed) continue;
+        // In free search we keep all posts (ranked by WP relevance). Only apply
+        // the strict topical gate when a portal is explicitly restricted.
+        if (restricted && toks.length > 0) {
+          const needed = requiredOverlap(toks);
+          if (tokenOverlap(r.title, toks) < needed) continue;
+        }
         seen.add(r.url);
         out.push(r);
       }
@@ -67,23 +80,47 @@ class SenateService implements InstitutionService {
   enabledByDefault = senateConfig.enabledByDefault;
   url = senateConfig.url;
 
-  async initialize(): Promise<void> {
-    // No warm-up needed; WP API is public.
-  }
+  async initialize(): Promise<void> {}
   async seed(): Promise<void> {}
   async sync(): Promise<void> {
-    await this.search("República Dominicana");
+    await this.search("República Dominicana", false);
   }
-  async search(query: string): Promise<InstitutionResult[]> {
-    return senateApi.search(query);
+
+  /**
+   * Merge WordPress narrative activity with structured SIL expedientes so the
+   * Senate contributes BOTH its news coverage and its actual legislative record.
+   */
+  async search(query: string, restricted = false): Promise<InstitutionResult[]> {
+    const wp = await senateApi.search(query, restricted).catch(() => [] as InstitutionResult[]);
+    const sil = await searchExpedientes(query, { colecciones: [53], maxResults: 15 })
+      .then((exps) => exps.map(expedienteToResult))
+      .catch(() => [] as InstitutionResult[]);
+    const seen = new Set<string>();
+    const merged: InstitutionResult[] = [];
+    for (const r of [...wp, ...sil]) {
+      const k = r.url.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      merged.push(r);
+    }
+    return merged;
   }
+
   async getDocuments(): Promise<InstitutionDocument[]> {
-    const posts = await senateApi.search("");
-    return posts.map(({ institution, ...doc }) => doc);
+    const docs = await senateApi.search("", false).catch(() => [] as InstitutionResult[]);
+    return docs.map(({ institution, ...d }) => d);
   }
+
   async healthCheck(): Promise<boolean> {
     const data = await fetchJson(`${WP_API}?per_page=1`);
     return Array.isArray(data);
+  }
+
+  /** Structured Senate SIL laws/iniciativas for a keyword. */
+  async getLaws(query: string): Promise<InstitutionLaw[]> {
+    const exps = await searchExpedientes(query, { colecciones: [53], maxResults: 15 })
+      .catch(() => [] as Awaited<ReturnType<typeof searchExpedientes>>);
+    return exps.map(expedienteToLaw);
   }
 }
 
