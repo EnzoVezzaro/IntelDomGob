@@ -42,6 +42,7 @@ export interface InstitutionLaw {
   origen?: string;
   legislatura?: string;
   numPromulgacion?: string;
+  pdfUrl?: string;
 }
 
 export interface InstitutionService {
@@ -78,4 +79,24 @@ export function hasLegislativeCapability(
   svc: InstitutionService
 ): svc is InstitutionService & LegislativeCapability {
   return typeof (svc as InstitutionService & LegislativeCapability).getLaws === "function";
+}
+
+/** Boletín / acta / año-based items from a DSpace-like source. */
+export interface BulletinDoc {
+  title: string;
+  url: string;
+  date: string;
+  tipo: string; // "Boletín" | "Acta" | "Año" | "Proyecto"
+  snippet?: string;
+}
+
+/** Institution that can also return bulletins / session records. */
+export interface BulletinCapability {
+  getBulletins?(query: string): Promise<BulletinDoc[]>;
+}
+
+export function hasBulletinCapability(
+  svc: InstitutionService
+): svc is InstitutionService & BulletinCapability {
+  return typeof (svc as InstitutionService & BulletinCapability).getBulletins === "function";
 }

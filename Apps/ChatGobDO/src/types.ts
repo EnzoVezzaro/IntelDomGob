@@ -58,6 +58,15 @@ export interface LawItem {
   url: string;
   materia?: string;
   fechaDeposito?: string;
+  pdfUrl?: string;
+}
+
+export interface BulletinItem {
+  title: string;
+  url: string;
+  date?: string;
+  tipo?: string;
+  snippet?: string;
 }
 
 export interface SourceStreams {
@@ -66,6 +75,7 @@ export interface SourceStreams {
   datos: SourceStreamItem[];
   news: SourceStreamItem[];
   laws: LawItem[];
+  bulletins: BulletinItem[];
 }
 
 export interface SearchResult {

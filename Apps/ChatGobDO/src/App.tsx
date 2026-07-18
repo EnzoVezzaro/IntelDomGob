@@ -25,7 +25,8 @@ import {
   Radio,
   Landmark,
   Newspaper,
-  MessageSquare
+  MessageSquare,
+  BookMarked
 } from "lucide-react";
 import { AgentStage, Source, SearchResult, SavedTopic } from "./types";
 
@@ -934,11 +935,11 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <span className="status-label text-xs">GOVERNMENT INTELLIGENCE PLATFORM</span>
                   <span className="bg-[#E94E31] text-[#E4E3E0] text-[10px] px-2 py-0.5 font-black uppercase tracking-wider">
-                    v0.1 ACTIVE
+                    v{import.meta.env.APP_VERSION}
                   </span>
                 </div>
                 <h1 className="text-3xl font-black tracking-tighter uppercase leading-none mt-1">
-                  INTEL.DOM.GOB <span className="text-[#E94E31]">RAG</span>
+                  {import.meta.env.APP_NAME} <span className="text-[#E94E31]">RAG</span>
                 </h1>
               </div>
             </div>
@@ -1728,6 +1729,31 @@ export default function App() {
                         <p className="text-xs text-slate-500 font-mono border-2 border-dashed border-[#141414]/30 p-4">No se recuperaron noticias para esta consulta.</p>
                       )}
                     </section>
+
+                    {/* FLUJO E: Boletines / Actas / Año (Senado DSpace) */}
+                    {activeResult.sources?.bulletins && activeResult.sources.bulletins.length > 0 && (
+                    <section>
+                      <div className="flex items-center gap-2 mb-3">
+                        <BookMarked className="h-5 w-5 text-[#141414]" />
+                        <h4 className="text-sm font-black text-[#141414] uppercase tracking-wider">FLUJO E · BOLETINES / ACTAS / DOCUMENTOS LEGISLATIVOS</h4>
+                        <span className="ml-auto text-[10px] font-mono bg-[#141414] text-white px-2 py-0.5">
+                          {activeResult.sources.bulletins.length} docs
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {activeResult.sources.bulletins.map((b, i) => (
+                          <a key={i} href={b.url} target="_blank" rel="noopener noreferrer" className="group block border-2 border-[#141414] bg-white p-3 hover:bg-[#E4E3E0] transition-colors shadow-[3px_3px_0px_0px_#141414]">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-[9px] font-mono font-black uppercase tracking-wider text-[#141414] bg-[#E4E3E0] px-1.5 py-0.5">{b.tipo || "Boletín"}</span>
+                              {b.date && <span className="text-[9px] font-mono text-slate-500">{b.date}</span>}
+                            </div>
+                            <h5 className="text-xs font-bold text-[#141414] mt-1.5 leading-snug">{b.title}</h5>
+                            {b.snippet && <p className="text-[10px] text-slate-600 mt-1 line-clamp-2 font-sans">{b.snippet}</p>}
+                          </a>
+                        ))}
+                      </div>
+                    </section>
+                    )}
                   </div>
                 )}
 

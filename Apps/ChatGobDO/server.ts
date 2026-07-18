@@ -368,9 +368,11 @@ async function fetchNewsActivity(
   return out.slice(0, 30);
 }
 
-// The legacy Senate MasterLex system (wfilemaster/*) is login-gated and
-// unreachable, so the Senate institution service (src/institutions/senate) uses
-// the PUBLIC Senate WordPress REST API instead, surfacing initiatives/sessions.
+// The legacy Senate MasterLex system (wfilemaster) is login-gated and
+// unreachable. The Senate institution service (src/institutions/senate) uses:
+//   1) PUBLIC Senate WordPress REST API (senadord.gob.do) — narrative activity.
+//   2) PUBLIC DSpace REST API (memoriahistorica.senadord.gob.do) — structured
+//      legislative records (expedientes / iniciativas / proyectos de ley).
 
 // Shared Spanish stopwords for query tokenization.
 const ES_STOP = new Set([
@@ -562,7 +564,7 @@ Conduct the full multi-agent search and reasoning process. Output the results st
     // Split the research by category: for each relevant institution we build a
     // query scoped to that department + category so news, legislative action, laws,
     // decrees, etc. are each searched against their most important pages.
-    const { registerAllInstitutions, getAllInstitutions, getInstitutionByName, hasLegislativeCapability } =
+    const { registerAllInstitutions, getAllInstitutions, getInstitutionByName, hasLegislativeCapability, hasBulletinCapability } =
       await import("./src/institutions");
     registerAllInstitutions();
     const ALL_INSTITUTIONS = getAllInstitutions();
@@ -771,12 +773,19 @@ Conduct the full multi-agent search and reasoning process. Output the results st
     const chamberLaws = chamberSvc && hasLegislativeCapability(chamberSvc) && isPortalAllowed("Cámara de Diputados")
       ? (await chamberSvc.getLaws(query)).slice(0, SIL_CONTEXT_MAX)
       : [];
-    // Senate SIL (wfilemaster) structured laws/iniciativas.
+    // Senate DSpace (memoriahistorica.senadord.gob.do) structured laws/iniciativas.
     const senateSvcForLaws = targetServices.find((s) => s.id === "senate");
     const senateLaws = senateSvcForLaws && hasLegislativeCapability(senateSvcForLaws) && isPortalAllowed("Senado de la República")
       ? (await senateSvcForLaws.getLaws(query)).slice(0, SIL_CONTEXT_MAX)
       : [];
     const silLaws = [...chamberLaws, ...senateLaws];
+
+    // Senate bulletins / actas / año-based content (separate from laws).
+    const BULLETIN_MAX = 10;
+    const senateSvcForBulletins = targetServices.find((s) => s.id === "senate");
+    const senadoBulletins = (senateSvcForBulletins && hasBulletinCapability(senateSvcForBulletins) && isPortalAllowed("Senado de la República")
+      ? (await senateSvcForBulletins.getBulletins!(query)).slice(0, BULLETIN_MAX)
+      : []) as any[];
 
     // Run BOTH streams in parallel. FLUJO A (institutional: Congreso, Senado,
     // Presidencia, DGCP, Datos Abiertos) is the PRIMARY source and what the
@@ -932,6 +941,12 @@ Conduct the full multi-agent search and reasoning process. Output the results st
           .join("\n\n")
       : "No se recuperaron noticias desde SearXNG.";
 
+    const bulletinContext = senadoBulletins.length
+      ? senadoBulletins
+          .map((b, i) => `[B-${i + 1}] (${b.tipo || "Boletín"}) ${b.title}\nURL: ${b.url}\nFecha: ${b.date || "s/f"}${b.snippet ? `\n${b.snippet}` : ""}`)
+          .join("\n\n")
+      : "No se encontraron boletines/actas relevantes.";
+
     const groundedUserPrompt = `${userPrompt}
 
 === FLUJO A: ACTIVIDAD DEL CONGRESO NACIONAL (FUENTES OFICIALES) ===
@@ -955,13 +970,18 @@ Esto es la cobertura de prensa sobre el tema (contexto secundario, NO primario).
 
 ${newsContext}
 
+=== FLUJO E: BOLETINES, ACTAS Y DOCUMENTOS LEGISLATIVOS (Senado DSpace) ===
+Boletines legislativos, actas de sesiones, compendios por año y documentos relacionados del Senado de la República. Esto complementa las iniciativas del FLUJO A con registros institucionales históricos. CÍTALO como fuente complementaria al Congreso.
+
+${bulletinContext}
+
 REGLAS DE REDACCIÓN:
 1. Basa la respuesta ESTRICTAMENTE en las fuentes anteriores. No inventes fuentes, números de ley ni fechas.
-2. El enfoque PRIMARIO (FLUJO A) debe ser lo que está haciendo el CONGRESO NACIONAL (Senado y Cámara de Diputados): proyectos de ley, iniciativas, comisiones, sesiones. El TRIBUNAL CONSTITUCIONAL (FLUJO B) es el segundo nivel de prioridad: sentencias, decisiones y jurisprudencia. DATOS ABIERTOS (FLUJO C) es el tercer nivel: datasets oficiales. Las NOTICIAS (FLUJO D) son solo contexto cuaternario.
-3. OBLIGATORIO: toda ley/iniciativa listada en "LEYES / INICIATIVAS LEGISLATIVAS (via Diputados SIL API)" debe incluirse como fila en la MATRIZ DE EVIDENCIA (campo "evidence"), con su URL, institución (Cámara de Diputados o Senado según la URL) y confianza "High". Además, TODA fuente del Congreso en FLUJO A (C-, Senado), del Tribunal en FLUJO B (T-), y de Datos Abiertos en FLUJO C (D-) debe aparecer en la MATRIZ DE EVIDENCIA antes que las noticias.
-4. CITA EL CONGRESO PRIMERO en el resumen ejecutivo, análisis detallado y cada sección. El Tribunal Constitucional va después. Datos Abiertos va después. Las noticias (FLUJO D) van al final como contexto cuaternario, nunca como fuente principal.
+2. El enfoque PRIMARIO (FLUJO A) debe ser lo que está haciendo el CONGRESO NACIONAL (Senado y Cámara de Diputados): proyectos de ley, iniciativas, comisiones, sesiones. El TRIBUNAL CONSTITUCIONAL (FLUJO B) es el segundo nivel de prioridad: sentencias, decisiones y jurisprudencia. DATOS ABIERTOS (FLUJO C) es el tercer nivel: datasets oficiales. Los BOLETINES/ACTAS (FLUJO E) son fuente complementaria del Senado. Las NOTICIAS (FLUJO D) son solo contexto cuaternario.
+3. OBLIGATORIO: toda ley/iniciativa listada en "LEYES / INICIATIVAS LEGISLATIVAS (via Diputados SIL API)" debe incluirse como fila en la MATRIZ DE EVIDENCIA (campo "evidence"), con su URL, institución (Cámara de Diputados o Senado según la URL) y confianza "High". Además, TODA fuente del Congreso en FLUJO A (C-, Senado), del Tribunal en FLUJO B (T-), de Datos Abiertos en FLUJO C (D-), y de Boletines/Actas en FLUJO E (B-) debe aparecer en la MATRIZ DE EVIDENCIA antes que las noticias.
+4. CITA EL CONGRESO PRIMERO en el resumen ejecutivo, análisis detallado y cada sección. El Tribunal Constitucional va después. Datos Abiertos va después. Boletines/Actas van como complemento. Las noticias (FLUJO D) van al final como contexto cuaternario, nunca como fuente principal.
 5. Si las fuentes carecen de información, indícalo honestamente y mantén la confianza baja.
-6. PROHIBIDO ALUCINAR FUENTES EN FLUJO B, FLUJO C y FLUJO D. Cada entrada del array "news" (y de "sources.news") DEBE usar EXACTAMENTE una URL que aparezca en el bloque "FLUJO D: COBERTURA EN NOTICIAS / MEDIOS" de arriba (las marcadas con [N-1], [N-2], …). NO inventes URLs, NO uses "Fuente Web", y NO cites sitios que no sean dominicanos (.do, .gob.do) ni medios/páginas externas (zhihu, wikipedia, reddit, etc.). Si el bloque FLUJO D está vacío o no contiene resultados útiles, devuelve el array "news" VACÍO ([]). No rellenes con fuentes imaginadas.
+6. PROHIBIDO ALUCINAR FUENTES EN FLUJO B, FLUJO C, FLUJO D y FLUJO E. Cada entrada del array "news" (y de "sources.news") DEBE usar EXACTAMENTE una URL que aparezca en el bloque "FLUJO D: COBERTURA EN NOTICIAS / MEDIOS" de arriba (las marcadas con [N-1], [N-2], …). Cada entrada del array "bulletins" DEBE usar EXACTAMENTE una URL que aparezca en el bloque "FLUJO E" de arriba (las marcadas con [B-1], [B-2], …). NO inventes URLs, NO uses "Fuente Web", y NO cites sitios que no sean dominicanos (.do, .gob.do) ni medios/páginas externas. Si el bloque FLUJO D está vacío, devuelve "news" VACÍO ([]). Si el bloque FLUJO E está vacío, devuelve "bulletins" VACÍO ([]).
 7. INCLUYE TODAS las notas del FLUJO D que sean claramente relevantes para la consulta (no solo 2): lista hasta ~10 entradas [N-x] distintas, priorizando las que mencionan los mismos términos de la consulta (p.ej. "causales", "Código Penal", "reforma"). Esto reproduce la cobertura de resultados de una búsqueda de Google sobre el tema.`;
 
     const responseSchema = {
@@ -1012,9 +1032,24 @@ REGLAS DE REDACCIÓN:
                 required: ["numero", "url"]
               },
               description: "Laws / iniciativas from the Diputados SIL API (primary congressional activity)."
+            },
+            bulletins: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  url: { type: Type.STRING },
+                  date: { type: Type.STRING },
+                  tipo: { type: Type.STRING },
+                  snippet: { type: Type.STRING },
+                },
+                required: ["title", "url"]
+              },
+              description: "Boletines, actas and year-based legislative documents from the Senado DSpace (FLUJO E)."
             }
           },
-          required: ["congress", "news", "laws"]
+          required: ["congress", "news", "laws", "bulletins"]
         },
         planner: {
           type: Type.OBJECT,
@@ -1174,16 +1209,16 @@ REGLAS DE REDACCIÓN:
       } catch (err: any) {
         lastErr = err;
         const status = err?.status || err?.code || (typeof err?.message === "string" ? err.message : "");
-        const isOverload =
+        const isTransient =
           status === 503 ||
           status === "UNAVAILABLE" ||
           status === 429 ||
-          /high demand|UNAVAILABLE|503|overload|try again later/i.test(String(status));
-        if (!isOverload || attempt === MAX_MODEL_RETRIES) {
+          /high demand|UNAVAILABLE|503|overload|try again later|ECONNRESET|ETIMEDOUT|ECONNREFUSED|fetch failed/i.test(String(status));
+        if (!isTransient || attempt === MAX_MODEL_RETRIES) {
           throw err;
         }
         const waitMs = 5000 * attempt;
-        console.warn(`Gemini overloaded (attempt ${attempt}/${MAX_MODEL_RETRIES}). Retrying in ${waitMs / 1000}s...`);
+        console.warn(`Gemini transient error (attempt ${attempt}/${MAX_MODEL_RETRIES}). Retrying in ${waitMs / 1000}s...`);
         await new Promise((r) => setTimeout(r, waitMs));
       }
     }
@@ -1323,6 +1358,13 @@ REGLAS DE REDACCIÓN:
         }));
         return silMapped;
       })(),
+      bulletins: senadoBulletins.map((b) => ({
+        title: b.title,
+        url: b.url,
+        date: b.date || "",
+        tipo: b.tipo || "Boletín",
+        snippet: b.snippet || "",
+      })),
     };
 
     // Inject the real SearXNG search queries that were executed
@@ -1367,6 +1409,23 @@ REGLAS DE REDACCIÓN:
             date: l.fechaDeposito || "",
           });
           existingUrls.add(l.url.toLowerCase());
+        }
+      }
+    }
+
+    // Inject bulletins / actas / year-docs as verified citations.
+    if (senadoBulletins.length > 0) {
+      const existingUrls = new Set((searchResult.response.citations || []).map((c: any) => c.url.toLowerCase()));
+      for (const b of senadoBulletins) {
+        if (!existingUrls.has(b.url.toLowerCase())) {
+          searchResult.response.citations.push({
+            title: b.title,
+            url: b.url,
+            snippet: b.snippet || "",
+            institution: "Senado de la República (DSpace)",
+            date: b.date || "",
+          });
+          existingUrls.add(b.url.toLowerCase());
         }
       }
     }
@@ -1472,11 +1531,90 @@ REGLAS DE REDACCIÓN:
         searchResult.retrieval.documentsAnalyzed.length === 0) {
       searchResult.retrieval.documentsAnalyzed = realDocs;
     }
-    const realCount = trimmedCongressFinal.length + trimmedNewsFinal.length + silLaws.length;
+    const realCount = trimmedCongressFinal.length + trimmedNewsFinal.length + silLaws.length + senadoBulletins.length;
     searchResult.retrieval.extractedCount =
       typeof searchResult.retrieval.extractedCount === "number" && searchResult.retrieval.extractedCount > 0
         ? searchResult.retrieval.extractedCount
         : realCount;
+
+    // Build the legislative timeline DETERMINISTICALLY from real data sources
+    // (silLaws + congressResults + newsResults). The model's own timeline is
+    // replaced entirely — it tends to hallucinate dates and events.
+    const timelineSeen = new Set<string>();
+    const timelineEvents: { date: string; sortKey: string; event: string; detail: string }[] = [];
+    const pushTimeline = (date: string, event: string, detail: string) => {
+      const key = `${date}::${event}`;
+      if (timelineSeen.has(key) || !date) return;
+      timelineSeen.add(key);
+      timelineEvents.push({ date, sortKey: date, event, detail });
+    };
+
+    // Normalize date to YYYY-MM-DD for consistent sorting.
+    const normDate = (d: string): string => {
+      if (!d) return "";
+      // Handle "YYYY-MM-DD"
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+      // Handle "MM/DD/YYYY"
+      const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) return `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+      // Handle "Month YYYY" or "DD/MM/YYYY" — best effort
+      const parsed = new Date(d);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+      return "";
+    };
+
+    // 1) SIL laws — PRIMARY timeline source. Each law/proyecto gets an entry.
+    // Require a valid numero (expediente ID) to avoid old noise records from DSpace.
+    const validNumero = /^\d{3,5}[-–]\d{4}|^\d{4,6}$/;
+    for (const l of silLaws) {
+      const d = normDate(l.fechaDeposito || "");
+      if (!d || !l.numero || !validNumero.test(l.numero)) continue;
+      const silHost = l.url.includes("senado") ? "Senado" : "Cámara";
+      pushTimeline(
+        d,
+        `${l.numero} · ${l.tipo}${l.estado ? " (" + l.estado + ")" : ""}`,
+        `${silHost}: ${l.descripcion.slice(0, 160)}`
+      );
+    }
+
+    // 2) Congress official results — ONLY add if the result looks legislative
+    // (mentions actual legislative activity). Generic Senate news (conferences,
+    // visits, juramentas, cocktail parties) are excluded.
+    const legislativeRe = /\bley(es|\b)|proyecto|\bc[oó]digo|\breforma|\bart[ií]culo|\bdecreto|\bresoluci[oó]n|\bdiputad|\bcongres|\bsil\b|\biniciativa|\bcomisi[oó]n\s+bicameral|\bcomisi[oó]n\s+especial|\baprueba|\bderoga|\bsanciona|\bvet[oa]/i;
+    for (const r of trimmedCongressFinal) {
+      const fullText = `${r.title || ""} ${r.snippet || ""}`;
+      if (!legislativeRe.test(fullText)) continue;
+      const dateMatch = fullText.match(/(\d{4}-\d{2}-\d{2})/);
+      const d = normDate(dateMatch ? dateMatch[1] : "");
+      if (!d) continue;
+      const inst = r.institution || classifyInstitution(r.url);
+      pushTimeline(d, `${inst}: ${r.title}`, r.snippet || "");
+    }
+
+    // 3) Bulletins / actas / año-based docs — add to timeline if they have dates.
+    for (const b of senadoBulletins) {
+      const d = normDate(b.date || "");
+      if (!d) continue;
+      pushTimeline(d, `Boletín/Acta: ${b.title.slice(0, 120)}`, b.snippet || b.tipo || "");
+    }
+
+    // 4) News — only add if clearly about the topic (match ≥2 query tokens).
+    const qTokens = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\s+/).filter((t) => t.length > 3);
+    for (const r of trimmedNewsFinal) {
+      const fullText = `${r.title || ""} ${r.snippet || ""}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const matchCount = qTokens.filter((t) => fullText.includes(t)).length;
+      if (matchCount < 2) continue;
+      const dateMatch = fullText.match(/(\d{4}-\d{2}-\d{2})/);
+      const d = normDate(dateMatch ? dateMatch[1] : "");
+      if (!d) continue;
+      pushTimeline(d, `Noticia: ${r.title.slice(0, 120)}`, r.snippet || "");
+    }
+
+    // Sort chronologically and cap at 30 events.
+    searchResult.response.timeline = timelineEvents
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+      .slice(0, 30)
+      .map(({ date, event, detail }) => ({ date, event, detail }));
 
     // Add general metadata
     searchResult.query = query;
@@ -1544,13 +1682,25 @@ app.post("/api/chat", async (req, res) => {
     if (Array.isArray(c?.sources?.laws) && c.sources.laws.length) {
       parts.push(
         "LEYES / INICIATIVAS (SIL):\n" +
-          c.sources.laws.map((l: any, i: number) => `[L${i + 1}] ${l.numero} · ${l.tipo} (${l.estado || ""}) — ${l.url}`).join("\n")
+          c.sources.laws.map((l: any, i: number) => `[L${i + 1}] ${l.numero} · ${l.tipo} (${l.estado || ""})${l.fechaDeposito ? " · Fecha: " + l.fechaDeposito : ""} — ${l.url}`).join("\n")
+      );
+    }
+    if (Array.isArray(c?.sources?.bulletins) && c.sources.bulletins.length) {
+      parts.push(
+        "BOLETINES / ACTAS / DOCUMENTOS (FLUJO E):\n" +
+          c.sources.bulletins.map((b: any, i: number) => `[B${i + 1}] ${b.title} (${b.tipo || "Boletín"}) — ${b.url}`).join("\n")
       );
     }
     if (Array.isArray(c?.response?.citations) && c.response.citations.length) {
       parts.push(
         "CITAS VERIFICADAS:\n" +
           c.response.citations.map((ci: any, i: number) => `[X${i + 1}] ${ci.title} — ${ci.url}`).join("\n")
+      );
+    }
+    if (Array.isArray(c?.response?.timeline) && c.response.timeline.length) {
+      parts.push(
+        "CRONOLOGÍA LEGISLATIVA:\n" +
+          c.response.timeline.map((t: any, i: number) => `[T${i + 1}] ${t.date} — ${t.event}${t.detail ? ": " + t.detail : ""}`).join("\n")
       );
     }
     grounding = parts.join("\n\n");
@@ -1610,9 +1760,9 @@ Asistente:`;
       } catch (err: any) {
         lastErr = err;
         const status = err?.status || err?.code || (typeof err?.message === "string" ? err.message : "");
-        const isOverload = status === 503 || status === "UNAVAILABLE" || status === 429 ||
-          /high demand|UNAVAILABLE|503|overload|try again later/i.test(String(status));
-        if (!isOverload || attempt === MAX_RETRIES) throw err;
+        const isTransient = status === 503 || status === "UNAVAILABLE" || status === 429 ||
+          /high demand|UNAVAILABLE|503|overload|try again later|ECONNRESET|ETIMEDOUT|ECONNREFUSED|fetch failed/i.test(String(status));
+        if (!isTransient || attempt === MAX_RETRIES) throw err;
         await new Promise((r) => setTimeout(r, 4000 * attempt));
       }
     }

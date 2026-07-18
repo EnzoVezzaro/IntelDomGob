@@ -87,9 +87,12 @@ export function relevanceScore(text: string, query: string): number {
       score += tk.length >= 6 ? 3 : tk.length >= 5 ? 2 : 1.2;
     }
   }
-  // Only relevant if at least one SPECIFIC (non-generic) query token is present
-  // in the record. This is query-agnostic: works for any subject.
-  if (specificHits === 0) return 0;
+  // Require at least 2 specific tokens to match when the query is complex
+  // (≥4 specific tokens). This prevents single-word false positives like
+  // "posesión de nacionalidad" matching "drogas 50-88 posesión".
+  const totalSpecific = qTokens.filter((tk) => !GENERIC_TOKENS.has(tk)).length;
+  const minRequired = totalSpecific >= 4 ? 2 : 1;
+  if (specificHits < minRequired) return 0;
   return score;
 }
 
@@ -99,7 +102,13 @@ export function relevanceScore(text: string, query: string): number {
  * not as a loose substring — otherwise "50-88" wrongly matches "05088" inside
  * "05088-2024-2028-CD". Returns the normalized query digits for comparison.
  */
-const NUMBER_QUERY_RE = /^[\d]{1,6}[\s-]?[\d]{0,6}(?:[\s-]?[\d]{0,6})*$/;
+/**
+ * Matches expediente-style number queries: digit groups separated by hyphens,
+ * optionally followed by a hyphen-separated alpha suffix like "PLO-SE", "SLO-SE".
+ * Examples: "01749-2014-PLO-SE", "50-88", "02257-2015". Does NOT match queries
+ * with trailing keywords like "50-88 drogas".
+ */
+const NUMBER_QUERY_RE = /^[\d]{1,6}(-[\d]{1,6}){0,3}(-[A-Za-z]{2,8}){0,2}$/;
 
 export function isNumberQuery(q: string): boolean {
   const s = (q || "").trim();

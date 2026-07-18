@@ -1,17 +1,17 @@
-import type { InstitutionService, InstitutionResult, InstitutionDocument, InstitutionLaw } from "../types";
+import type { InstitutionService, InstitutionResult, InstitutionDocument, InstitutionLaw, BulletinDoc } from "../types";
 import { queryTokens, tokenOverlap, requiredOverlap, fetchJson } from "../shared";
 import {
   searchExpedientes,
-  getListPage,
   expedienteToLaw,
   expedienteToResult,
-} from "./sil";
+  fetchBulletins,
+} from "./dspace";
 
 // Senado de la República.
 // Two complementary channels:
 //   1) WordPress REST API (senadord.gob.do) — narrative activity / press.
-//   2) SIL (wfilemaster ASP.NET) — structured legislative records (expedientes /
-//      iniciativas / proyectos de ley) via the public "Ingresar consultante" login.
+//   2) DSpace REST API (memoriahistorica.senadord.gob.do) — structured
+//      legislative records (expedientes / iniciativas / proyectos de ley).
 
 const SENADO_HOST = "https://www.senadord.gob.do";
 const WP_API = `${SENADO_HOST}/wp-json/wp/v2/posts`;
@@ -92,7 +92,7 @@ class SenateService implements InstitutionService {
    */
   async search(query: string, restricted = false): Promise<InstitutionResult[]> {
     const wp = await senateApi.search(query, restricted).catch(() => [] as InstitutionResult[]);
-    const sil = await searchExpedientes(query, { colecciones: [53], maxResults: 15 })
+    const sil = await searchExpedientes(query, { maxResults: 20 })
       .then((exps) => exps.map(expedienteToResult))
       .catch(() => [] as InstitutionResult[]);
     const seen = new Set<string>();
@@ -116,11 +116,16 @@ class SenateService implements InstitutionService {
     return Array.isArray(data);
   }
 
-  /** Structured Senate SIL laws/iniciativas for a keyword. */
+  /** Structured Senate SIL laws/iniciativas for a keyword (ranked, top 20). */
   async getLaws(query: string): Promise<InstitutionLaw[]> {
-    const exps = await searchExpedientes(query, { colecciones: [53], maxResults: 15 })
+    const exps = await searchExpedientes(query, { maxResults: 20 })
       .catch(() => [] as Awaited<ReturnType<typeof searchExpedientes>>);
     return exps.map(expedienteToLaw);
+  }
+
+  /** Recent bulletins, session records, and year-based Senado content. */
+  async getBulletins(query: string): Promise<BulletinDoc[]> {
+    return fetchBulletins(query, { maxResults: 10 }).catch(() => []);
   }
 }
 
