@@ -1,0 +1,317 @@
+# INTEL.DOM.GOB — single canonical Docker Compose stack.
+#
+# Development and production use the SAME file. The only difference is the
+# DOMAIN environment variable (set in .env). Caddy exposes every app via a
+# subdomain, auto-manages HTTPS, and discovers services by their docker names.
+#
+#   studio.<DOMAIN>   -> Studio SPA
+#   api.<DOMAIN>      -> API gateway (the product)
+#   docs.<DOMAIN>     -> documentation site
+#
+# Bring it all up with:
+#   docker compose up -d
+#
+# No service exposes ports publicly except Caddy.
+
+services:
+  # -------------------------------------------------------------------------
+  # Reverse proxy — the ONLY publicly reachable entrypoint.
+  # -------------------------------------------------------------------------
+  caddy:
+    build:
+      context: .
+      dockerfile: docker/caddy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+      - studio
+    environment:
+      CADDY_DOMAIN: "${DOMAIN:-localhost}"
+      CADDY_ACME_EMAIL: "${CADDY_ACME_EMAIL:-}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # API gateway — delegates everything to the Orchestrator.
+  # -------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: "${NODE_ENV:-development}"
+      DOMAIN: "${DOMAIN:-localhost}"
+      API_PORT: "4000"
+      SEARXNG_URL: "http://searxng:8080"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      LOG_FORMAT: "${LOG_FORMAT:-development}"
+    depends_on:
+      searxng:
+        condition: service_healthy
+    expose:
+      - "4000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # Studio — React SPA client of the API.
+  # -------------------------------------------------------------------------
+  studio:
+    build:
+      context: .
+      dockerfile: apps/studio/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # Documentation site — served by Caddy at docs.<DOMAIN>.
+  # -------------------------------------------------------------------------
+  docs:
+    build:
+      context: .
+      dockerfile: docker/docs/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # MCP server — a pure client of the API, exposed at mcp.<DOMAIN>.
+  # -------------------------------------------------------------------------
+  mcp:
+    build:
+      context: .
+      dockerfile: services/mcp/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: "${NODE_ENV:-development}"
+      DOMAIN: "${DOMAIN:-localhost}"
+      API_PORT: "4000"
+      MCP_PORT: "4100"
+      INTEL_API_TOKEN: "${INTEL_API_TOKEN:-}"
+    expose:
+      - "4100"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4100/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # Web client — a lightweight, no-JS API client at web.<DOMAIN>.
+  # -------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      INTEL_API_URL: "http://api:4000"
+      WEB_PORT: "4200"
+    expose:
+      - "4200"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4200/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # Admin console — operator view at admin.<DOMAIN>.
+  # -------------------------------------------------------------------------
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    restart: unless-stopped
+    environment:
+      INTEL_API_URL: "http://api:4000"
+      ADMIN_PORT: "4300"
+      INTEL_API_TOKEN: "${INTEL_API_TOKEN:-}"
+    expose:
+      - "4300"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4300/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # SearXNG — default Search Provider (preserved exactly).
+  # -------------------------------------------------------------------------
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    volumes:
+      - ./docker/searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # Event-driven Workers — consume the DragonflyDB (Redis Streams) event bus.
+  # Each worker is an independent consumer; heavy work (OCR, embeddings,
+  # crawling, batch AI) is offloaded here instead of blocking the API.
+  # -------------------------------------------------------------------------
+  ocr-worker:
+    build:
+      context: .
+      dockerfile: workers/Dockerfile
+    restart: unless-stopped
+    environment:
+      WORKER: "ocr-worker"
+      REDIS_URL: "redis://dragonfly:6379"
+      UNLIMITED_OCR_URL: "${UNLIMITED_OCR_URL:-}"
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    networks:
+      - intel
+
+  embedding-worker:
+    build:
+      context: .
+      dockerfile: workers/Dockerfile
+    restart: unless-stopped
+    environment:
+      WORKER: "embedding-worker"
+      REDIS_URL: "redis://dragonfly:6379"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    networks:
+      - intel
+
+  document-worker:
+    build:
+      context: .
+      dockerfile: workers/Dockerfile
+    restart: unless-stopped
+    environment:
+      WORKER: "document-worker"
+      REDIS_URL: "redis://dragonfly:6379"
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    networks:
+      - intel
+
+  crawler-worker:
+    build:
+      context: .
+      dockerfile: workers/Dockerfile
+    restart: unless-stopped
+    environment:
+      WORKER: "crawler-worker"
+      REDIS_URL: "redis://dragonfly:6379"
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    networks:
+      - intel
+
+  ai-worker:
+    build:
+      context: .
+      dockerfile: workers/Dockerfile
+    restart: unless-stopped
+    environment:
+      WORKER: "ai-worker"
+      REDIS_URL: "redis://dragonfly:6379"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+    networks:
+      - intel
+
+  # -------------------------------------------------------------------------
+  # Infrastructure
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-intel}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-intel}"
+      POSTGRES_DB: "${POSTGRES_DB:-inteldomgob}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-intel}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intel
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    restart: unless-stopped
+    command: ["--logtostderr", "--bind", "0.0.0.0", "--port", "6379", "--force_epoll", "--proactor_threads", "1", "--maxmemory", "256mb"]
+    volumes:
+      - dragonfly_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - intel
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+  dragonfly_data:
+
+networks:
+  intel:
+    driver: bridge

@@ -1,0 +1,53 @@
+# Helm values for INTEL.DOM.GOB
+domain: localhost
+environment: dev
+
+image:
+  registry: ghcr.io
+  org: inteldomgob
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Single broker: DragonflyDB (Redis-compatible). ioredis + Streams work as-is.
+dragonfly:
+  enabled: true
+  image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+  port: 6379
+  resources:
+    requests: { cpu: "250m", memory: "512Mi" }
+    limits: { cpu: "1", memory: "1Gi" }
+
+postgres:
+  enabled: true
+  image: postgres:16
+  port: 5432
+  database: intel
+  # Password MUST come from a secret, not here. See secrets section.
+  existingSecret: inteldg-secrets
+
+caddy:
+  enabled: true
+  image: caddy:2
+  # Caddyfile lives at docker/caddy/Caddyfile and routes *.localhost / *.intel.dom.gob
+
+services:
+  api:        { replicas: 2, port: 4000, memory: "1Gi" }
+  worker-ocr: { replicas: 1, memory: "1Gi" }
+  worker-embedding: { replicas: 1, memory: "1Gi" }
+  worker-document: { replicas: 1, memory: "1Gi" }
+  worker-crawler: { replicas: 1, memory: "512Mi" }
+  worker-ai: { replicas: 1, memory: "1Gi" }
+  studio:     { replicas: 1, port: 3000 }
+  web:        { replicas: 1, port: 8080 }
+  admin:      { replicas: 1, port: 8081 }
+  mcp:        { replicas: 1, port: 4100 }
+
+# Secrets are referenced, never inlined. Provide via:
+#   kubectl create secret generic inteldg-secrets \
+#     --from-literal=postgres-password=... \
+#     --from-literal=gemini-api-key=... \
+#     --from-literal=openai-api-key=...
+secrets:
+  postgresPassword: inteldg-secrets
+  geminiApiKey: inteldg-secrets
+  openaiApiKey: inteldg-secrets

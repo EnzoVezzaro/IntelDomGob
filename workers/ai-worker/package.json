@@ -1,0 +1,26 @@
+{
+  "name": "@intel.dom.gob/worker-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "clean": "echo \"nothing to clean\"",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "test": "echo \"no tests\""
+  },
+  "dependencies": {
+    "@intel.dom.gob/events": "*",
+    "@intel.dom.gob/logger": "*",
+    "@intel.dom.gob/service-ai": "*",
+    "@intel.dom.gob/providers": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2",
+    "tsx": "^4.21.0"
+  }
+}

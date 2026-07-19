@@ -1,0 +1,33 @@
+{
+  "name": "@intel.dom.gob/service-orchestrator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./build": "./src/build.ts",
+    "./classify": "./src/classify.ts",
+    "./prompt": "./src/prompt.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "echo \"no tests\"",
+    "clean": "echo \"nothing to clean\""
+  },
+  "dependencies": {
+    "@intel.dom.gob/types": "*",
+    "@intel.dom.gob/logger": "*",
+    "@intel.dom.gob/utils": "*",
+    "@intel.dom.gob/providers": "*",
+    "@intel.dom.gob/service-ai": "*",
+    "@intel.dom.gob/service-search": "*",
+    "@intel.dom.gob/service-institutions": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2"
+  }
+}

@@ -1,0 +1,17 @@
+# Exclude local dev artifacts from Docker build context (repo-root context).
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+*.log
+.env
+.env.*
+backups
+README.md
+AGENTS.md
+CONTRIBUTING.md
+CHANGELOG.md
+WORK.md
+scripts
+.DS_Store

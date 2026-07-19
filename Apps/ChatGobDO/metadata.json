@@ -1,6 +1,0 @@
-{
-  "name": "Government Intelligence AI",
-  "description": "Local-first multi-agent retrieval and reasoning framework for Dominican Republic government official information.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

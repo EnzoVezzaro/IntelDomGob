@@ -1,0 +1,61 @@
+# docker/caddy/Caddyfile
+#
+# Single reverse proxy for the entire platform. Every application is exposed
+# through a human-readable subdomain instead of a port — exactly like
+# production. Caddy auto-manages HTTPS (Let's Encrypt) when a real DOMAIN is set.
+#
+# Development:  DOMAIN=localhost
+#   -> http://studio.localhost  http://api.localhost  http://mcp.localhost
+#      http://web.localhost  http://admin.localhost  http://docs.localhost
+# Production:   DOMAIN=intel.dom.gob
+#   -> https://studio.intel.dom.gob  https://api.intel.dom.gob  ... (same subdomains)
+#
+# The domain is injected at container start via the CADDY_DOMAIN env var, so the
+# SAME compose file works in both environments — only the value changes.
+
+{
+    # Use the internal CA for *.localhost so local HTTPS works without public DNS.
+    local_certs
+}
+
+{$CADDY_DOMAIN:localhost} {
+    respond "INTEL.DOM.GOB platform root. Use studio.{$CADDY_DOMAIN:localhost} / api.{$CADDY_DOMAIN:localhost}"
+}
+
+studio.{$CADDY_DOMAIN:localhost} {
+    reverse_proxy studio:80
+}
+
+api.{$CADDY_DOMAIN:localhost} {
+    reverse_proxy api:4000
+    # Convenience aliases for the API's Swagger UI + OpenAPI spec (served
+    # under /v1 by the API router).
+    handle /docs {
+        uri replace /docs /v1/docs
+        reverse_proxy api:4000
+    }
+    handle /openapi.json {
+        uri replace /openapi.json /v1/openapi.json
+        reverse_proxy api:4000
+    }
+}
+
+mcp.{$CADDY_DOMAIN:localhost} {
+    reverse_proxy mcp:4100
+}
+
+web.{$CADDY_DOMAIN:localhost} {
+    reverse_proxy web:4200
+}
+
+admin.{$CADDY_DOMAIN:localhost} {
+    reverse_proxy admin:4300
+}
+
+docs.{$CADDY_DOMAIN:localhost} {
+    reverse_proxy docs:80
+}
+
+searxng.{$CADDY_DOMAIN:localhost} {
+    reverse_proxy searxng:8080
+}

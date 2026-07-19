@@ -1,177 +1,304 @@
-# INTEL.DOM.GOV RAG
+# INTEL.DOM.GOB
 
-**Plataforma de Inteligencia Gubernamental (Government Intelligence Platform) con Deep Research para el Estado Dominicano.**
+**Plataforma de Inteligencia Gubernamental del Estado Dominicano** — API-first, multi-agente, basada en evidencia oficial.
 
----
-
-## ¿Qué es?
-
-**INTEL.DOM.GOV RAG** es una plataforma de inteligencia estatal impulsada por IA que realiza *deep research* en tiempo real sobre las fuentes oficiales de la **República Dominicana**. No es un chatbot convencional: cada consulta dispara un **bucle multiagente de recuperación y razonamiento** que busca, lee, contrasta y sintetiza información oficial antes de responder. La IA no contesta de memoria: construye la respuesta a partir de las fuentes oficiales recuperadas.
-
-La plataforma cubre los tres poderes del Estado y los organismos de transparencia:
-
-- **Poder Legislativo** — Cámara de Diputados, Senado de la República, SIL de Iniciativas.
-- **Poder Ejecutivo** — Presidencia de la República, Consultoría Jurídica del Poder Ejecutivo.
-- **Poder Judicial** — Tribunal Constitucional.
-- **Transparencia y Datos** — DGCP (Contrataciones Públicas), Datos Abiertos RD.
+> El API es el producto. Todo lo demás es simplemente otro cliente.
 
 ---
 
-## Dos flujos paralelos (FUENTES)
+## Vision
 
-El resultado se presenta en dos vertientes claramente separadas y visualizadas:
+INTEL.DOM.GOB es una plataforma de inteligencia estatal impulsada por IA que realiza *deep research* en tiempo real sobre las fuentes oficiales de la República Dominicana. Cada consulta dispara un **bucle multi-agente de recuperación y razonamiento** que busca, lee, contrasta y sintetiza información oficial antes de responder.
 
-### FLUJO A · Fuentes institucionales oficiales (primario)
-Recuperación en vivo desde los portales del Estado Dominicano:
-
-| Institución | Tipo | Secciones clave |
-|-------------|------|-----------------|
-| Cámara de Diputados | Legislativo | Iniciativas, Sesiones del Pleno, Debates, Vistas Públicas, Órdenes del Día, Actas, Transparencia |
-| Senado de la República | Legislativo | Iniciativas, Iniciativas Aprobadas, Orden del Día, Actas, Comisiones |
-| Diputados SIL (API) | Legislativo | Iniciativas/Leyes (API), Comisiones (API), Sesiones (API) |
-| Presidencia de la República | Ejecutivo | Noticias, Decretos/Gaceta, Transparencia |
-| Consultoría Jurídica | Ejecutivo | Noticias, Consulta Jurídica |
-| Tribunal Constitucional | Judicial | Sala de Prensa, Jurisprudencia/Decisiones, **Sentencias (buscador)** |
-| DGCP (Contrataciones) | Transparencia | Leyes, Decretos, Resoluciones, Publicaciones |
-| Datos Abiertos RD | Transparencia | Catálogo de Datasets |
-
-### FLUJO B · Cobertura en noticias / medios (secundario)
-- Secciones de noticias de los portales oficiales.
-- Medios dominicanos (Diario Libre, Listín Diario, Hoy, El Caribe).
-
----
-
-## Cómo funciona (arquitectura)
+La arquitectura gira en torno al **API**. Todo fluye a través de:
 
 ```
-        Usuario
-           │
-           ▼
-   Planificador / Orquestador
-           │
-   ┌───────┼────────────┐
-   ▼       ▼            ▼
-Agente  Agente        Agente
-Búsqueda Institución  Recuperación
-   │       │            │
-   └───────┼────────────┘
-           ▼
-  Fuentes oficiales .do
-  (Legislativo, Ejecutivo, Judicial, Transparencia)
-           ▼
-   Extracción de evidencia
-           ▼
-   Agente de Validación
-           ▼
-   Agente de Refinamiento
-           ▼
-   Generador de Respuesta (con citas)
-           ▼
-        Usuario
+Cliente → API → Orchestrator → Services → Providers → External Systems
 ```
 
-### Bucle de agentes por consulta
-
-1. **Planner** — entiende la intención y decide instituciones y estrategia.
-2. **Institution** — acota a los portales oficiales relevantes.
-3. **Search** — formula las búsquedas (SearXNG + APIs oficiales).
-4. **Retrieval** — descarga y extrae el texto de las fuentes oficiales.
-5. **Evidence** — extrae hechos, fechas, leyes, decretos y resoluciones.
-6. **Validation** — detecta contradicciones, duplicados y falta de información.
-7. **Refinement** — sintetiza y elimina ruido.
-8. **Response** — genera el análisis con citas verificables.
-
-Todo el proceso es **impulsado por la consulta** y **stateless**: no hay crawling continuo ni base de conocimiento persistente.
+Ningún cliente habla directamente con servicios o proveedores.
 
 ---
 
-## Árbol de URLs y filtrado por selección
+## Architecture
 
-El panel **Árbol de URLs** permite seleccionar exactamente de qué fuentes recuperar:
+```
+Clients
+─────────────────────────────────────────────
+Studio · Web · CLI · Admin · MCP · SDKs
 
-- Por defecto, la búsqueda abarca **todas** las instituciones del Estado.
-- Si se selecciona **cualquier** fuente (portal o sección), el sistema **filtra los resultados antes de pasarlos a la IA**, de modo que la respuesta se basa únicamente en la información filtrada.
-- La selección puede hacerse a nivel de portal o de sección (p. ej. solo "Decretos" de Presidencia, o solo "Jurisprudencia" del Tribunal Constitucional).
+        │  (HTTPS via reverse proxy / subdomains)
+        ▼
+   API (api.intel.dom.gob)        ← gateway, REST + SSE, versioned /v1
+        │
+        ▼
+   Orchestrator                   ← heart: planning, search, AI, merge
+        │
+        ▼
+   Core Services
+   ───────────────────────────────
+   Search · AI · Institutions · Crawler · OCR · Memory · RAG · …
+        │
+        ▼
+   Providers
+   ───────────────────────────────
+   SearXNG (default search) · Gemini (default AI) · + future providers
+        │
+        ▼
+   Infrastructure
+   ───────────────────────────────
+   PostgreSQL · Redis · Object Storage · Docker · Caddy
+```
 
----
+### Layered principles
 
-## Matriz de Evidencia Extraída
-
-Cada respuesta incluye una **MATRIZ DE EVIDENCIA** con trazabilidad directa a las fuentes oficiales:
-
-- Hecho / declaración clave.
-- Institución responsable.
-- Fecha de publicación.
-- Enlace al documento oficial.
-- Nivel de confianza (Alto / Medio / Bajo).
-
----
-
-## Agentes de recuperación (fuentes reales)
-
-| Fuente | Método | Estado |
-|--------|--------|--------|
-| Cámara de Diputados — secciones | HTTP directo | ✅ Activo |
-| Senado de la República | HTTP directo | ✅ Activo |
-| Diputados SIL — API JSON | API en vivo | ✅ Activo |
-| Presidencia de la República | HTTP directo | ✅ Activo |
-| Consultoría Jurídica | HTTP directo | ✅ Activo |
-| Tribunal Constitucional | HTTP directo | ✅ Activo |
-| Tribunal Constitucional — Sentencias | Buscador AJAX `?searchString=<KEYTERM>` (requiere header `X-Requested-With: XMLHttpRequest`) | ✅ Activo |
-| DGCP (Contrataciones Públicas) | HTTP directo | ✅ Activo |
-| Datos Abiertos RD | CKAN API | ✅ Activo |
-| Medios dominicanos | HTTP directo | ✅ Activo |
-| SearXNG (búsqueda web) | Instancia local `127.0.0.1:8090` | ✅ Activo |
-
----
-
-## Reglas de razonamiento
-
-La IA debe:
-
-- Razonar **solo** sobre la evidencia recuperada.
-- Nunca inventar fuentes, números de ley, decretos ni fechas.
-- Cubrir el **Estado Dominicano** en su conjunto: Legislativo, Ejecutivo, Judicial y Transparencia.
-- Citar la URL oficial exacta de cada hecho.
-- Mantener la confianza baja si las fuentes son insuficientes.
+* **Separation of Concerns** — cada capa tiene exactamente una responsabilidad.
+* **Provider abstraction** — todo lo externo está detrás de un Provider. Añadir Brave/OpenAI/Ollama = crear una implementación, nada más.
+* **Pluggable services** — cada servicio es independiente y testeable.
+* **Develop exactly like production** — mismo Docker Compose, solo cambia `DOMAIN`.
 
 ---
 
-## Requisitos y configuración
+## Repository Layout
 
-- **Node.js** + TypeScript.
-- Instancia de **SearXNG** local (ver `searxng-docker-compose.yml` y `searxng/settings.yml`) expuesta en `127.0.0.1:8090`.
-- **API key de Gemini** configurada en el panel de Ajustes (o variable `GEMINI_API_KEY`).
-- Variables en `.env`: `SEARXNG_URL=http://127.0.0.1:8090`.
+```
+intel.dom.gob/
+├── apps/
+│   ├── api/          # Express API gateway (delegates to Orchestrator)
+│   └── studio/       # React SPA client (consumes the API only)
+├── services/
+│   ├── orchestrator/ # business logic: multi-agent reasoning
+│   ├── search/       # Search Service (SearXNG + news engines)
+│   ├── ai/           # AI Service (wraps AI providers)
+│   ├── institutions/ # institution plugins (Senado, Cámara, DGCP, …)
+│   └── crawler/      # URL-tree builder
+├── providers/
+│   ├── searxng/      # default Search Provider
+│   └── gemini/       # default AI Provider
+├── packages/
+│   ├── types/        # shared domain types
+│   ├── logger/       # structured logging
+│   ├── config/       # env configuration
+│   ├── utils/        # shared utilities
+│   └── sdk/          # the ONLY way clients talk to the API
+├── docker/
+│   ├── caddy/        # reverse proxy (subdomain routing + HTTPS)
+│   ├── searxng/      # preserved SearXNG settings
+│   └── docker-compose.yml
+├── scripts/          # start / stop / doctor / deploy / …
+├── docs/
+├── README.md
+├── AGENTS.md
+├── CONTRIBUTING.md
+└── CHANGELOG.md
+```
 
-### Puesta en marcha
+---
+
+## Quick Start
 
 ```bash
-# Servidor de búsqueda SearXNG
-docker compose -f searxng-docker-compose.yml up -d
+# 1. Clone & configure
+git clone <repo> intel.dom.gob
+cd intel.dom.gob
+cp .env.example .env          # set GEMINI_API_KEY, DOMAIN
 
-# Aplicación
-cd Apps/ChatGobDO
-npm install
-npm run dev
+# 2. One command brings up the whole platform
+./scripts/start.sh
+```
+
+Then open:
+
+* **Studio** → http://studio.localhost
+* **API** → http://api.localhost/v1/health
+* **API Docs (Swagger)** → http://api.localhost/v1/docs
+* **MCP** → http://mcp.localhost/health
+* **Web** → http://web.localhost
+* **Admin** → http://admin.localhost
+* **Docs** → http://docs.localhost
+
+### Local URLs (development)
+
+```
+https://studio.localhost
+https://api.localhost
+https://mcp.localhost
+https://web.localhost
+https://admin.localhost
+https://docs.localhost
+```
+
+### Production URLs
+
+```
+https://studio.intel.dom.gob
+https://api.intel.dom.gob
+https://mcp.intel.dom.gob
+https://web.intel.dom.gob
+https://admin.intel.dom.gob
+https://docs.intel.dom.gob
+```
+
+Only `DOMAIN` changes. Caddy auto-manages HTTPS via Let's Encrypt.
+
+---
+
+## Docker
+
+Single canonical `docker-compose.yml`. No per-environment compose files.
+
+```bash
+docker compose up -d        # brings up api, studio, mcp, web, admin, docs, searxng, postgres, dragonfly, caddy
+docker compose ps           # health-checked services
+```
+
+* Every container exposes `/health`, `/ready`, `/live`.
+* Only Caddy publishes ports (80/443). All other services use internal Docker DNS.
+* Services communicate by name: `api`, `searxng`, `postgres`, `dragonfly`.
+
+---
+
+## Scripts
+
+All operational scripts live in `scripts/`:
+
+| Script | Purpose |
+|--------|---------|
+| `init.sh` | Validate prerequisites, install deps |
+| `start.sh` | `docker compose up -d` + endpoints |
+| `up.sh` | Build + start the full stack, run a comprehensive health/endpoint report, and print a presentation of service health, exposed endpoints, workers and the API surface |
+| `stop.sh` | `docker compose down` |
+| `restart.sh` | Full restart |
+| `logs.sh [svc]` | Tail logs |
+| `doctor.sh` | Prerequisite + health checks |
+| `backup.sh` | Backup volumes |
+| `restore.sh <file>` | Restore PostgreSQL |
+| `lint.sh` | Typecheck all workspaces |
+| `format.sh` | Format code |
+| `test.sh` | Run tests |
+| `clean.sh` | Remove build artifacts |
+| `update.sh` | Update dependencies |
+| `deploy.sh` | One-command production deploy |
+
+---
+
+## Development
+
+Run services independently (no Docker needed for code changes):
+
+```bash
+npm install --workspaces
+cd apps/api && npm run dev       # API on :4000
+cd apps/studio && npm run dev    # Studio on :5173 (Vite)
 ```
 
 ---
 
-## Modelos soportados
+## Providers
 
-Proveedores configurables (Gemini / OpenAI / Anthropic). Modelo Gemini por defecto: **gemini-3.1-flash-lite**. La lista completa está en el panel de Ajustes (IA / Modelo).
+Adding a provider requires **only** creating a new implementation:
+
+```ts
+// providers/brave/src/index.ts
+import { createSearchProvider } from "@intel.dom.gob/providers";
+export const brave = createSearchProvider({
+  id: "brave",
+  async search(query) { /* ... */ return []; },
+});
+```
+
+Register it in `apps/api/src/index.ts`. Nothing else changes.
+
+| Kind | Default | Future |
+|------|---------|--------|
+| Search | SearXNG | Brave, Exa, Tavily, Google |
+| AI | Gemini | OpenAI, Anthropic, Ollama, DeepSeek |
 
 ---
 
-## Objetivo de diseño
+## Services
 
-El sistema debe sentirse menos como un chatbot y más como un **analista de inteligencia gubernamental** del Estado Dominicano. Cada respuesta debe ser:
+Each service has exactly one responsibility and is independently testable:
 
-- precisa,
-- basada en evidencia oficial,
-- reproducible,
-- transparente,
-- fácil de verificar.
+* **Orchestrator** — agent execution, planning, search/AI orchestration, result merging.
+* **Search** — web/news retrieval through the Search Provider.
+* **AI** — model calls via the AI Provider.
+* **Institutions** — pluggable Dominican government sources.
+* **Crawler** — categorized URL-tree builder.
 
-La IA no "sabe" la respuesta de antemano: la **construye** recuperando, validando y sintetizando información oficial del Estado Dominicano en tiempo real.
+---
+
+## API
+
+Versioned REST (`/v1`). The API contains **no business logic** — every endpoint delegates to the Orchestrator.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/health` | Service health |
+| GET | `/v1/institutions` | Dynamic institution registry |
+| GET | `/v1/url-tree` | Categorized URL tree (`?refresh=1`, `?portals=`) |
+| POST | `/v1/query` | Multi-agent intelligence query |
+| POST | `/v1/chat` | Context-grounded follow-up chat |
+
+All clients (Studio, CLI, MCP, SDKs) use `@intel.dom.gob/sdk`.
+
+---
+
+## Studio
+
+The Studio is the primary application — a React SPA that communicates **exclusively** with the API. It contains no business logic: only chat, conversations, prompts, history, tool browsing, provider selection, settings, and streaming.
+
+---
+
+## MCP
+
+The MCP server is another client of the platform: it calls the API like any other client and never invokes providers or services directly. Future MCP tools are pluggable.
+
+---
+
+## Deployment
+
+Single command, identical to local:
+
+```bash
+./scripts/deploy.sh
+```
+
+Internally: `git pull` → `docker compose pull` → `docker compose up -d --build` → health checks.
+
+Suitable for self-hosting and cloud VPS without modification.
+
+---
+
+## Roadmap
+
+* OCR service (Unlimited-OCR) — provider-backed, replaceable.
+* Presentation service (HyperFrames) — optional export plugin.
+* Memory service (codebase-memory-mcp) — optional, first-class.
+* Knowledge Graph service — entity relationships between laws/decrees.
+* MCP server client + pluggable tools.
+* Auth: JWT, API keys, OAuth, organizations, teams, permissions.
+* WebSockets + SSE streaming for tool/search progress.
+
+---
+
+## FAQ
+
+**Why a reverse proxy with subdomains instead of ports?**
+Ports are a dev artifact. Production behaves like `studio.intel.dom.gob`, and development mirrors it exactly via `studio.localhost`. One mental model, zero config drift.
+
+**Where does the AI key go?**
+`GEMINI_API_KEY` in `.env` (never committed). The API also accepts a per-request `apiKey` for multi-tenant use.
+
+**Is the existing SearXNG setup preserved?**
+Yes — `docker/searxng/settings.yml` is the original anonymous JSON API configuration, mounted unchanged.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and [AGENTS.md](./AGENTS.md).
+
+## License
+
+MIT.

@@ -1,0 +1,8 @@
+{
+  "name": "@intel.dom.gob/iac-pulumi",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "@pulumi/pulumi": "^3.0.0"
+  }
+}

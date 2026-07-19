@@ -1,0 +1,49 @@
+# INTEL.DOM.GOB Helm templates
+#
+# A single generic Deployment/Service template is expanded per entry in
+# values.yaml `services`. Caddy exposes subdomains; nothing is published to the
+# host except via Caddy.
+
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: { app: {{ $name }}, part-of: inteldg }
+spec:
+  replicas: {{ $svc.replicas | default 1 }}
+  selector:
+    matchLabels: { app: {{ $name }} }
+  template:
+    metadata:
+      labels: { app: {{ $name }} }
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.registry }}/{{ $.Values.image.org }}/{{ $name }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          env:
+            - name: DOMAIN
+              value: {{ $.Values.domain | quote }}
+            - name: REDIS_URL
+              value: "redis://dragonfly:6379"
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.secrets.geminiApiKey }}
+                  key: gemini-api-key
+          resources:
+            requests: { memory: {{ $svc.memory | default "512Mi" }} }
+            limits: { memory: {{ $svc.memory | default "512Mi" }} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+spec:
+  selector: { app: {{ $name }} }
+  ports:
+    - port: {{ $svc.port | default 4000 }}
+      targetPort: {{ $svc.port | default 4000 }}
+{{- end }}

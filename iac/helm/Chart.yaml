@@ -1,0 +1,14 @@
+apiVersion: v2
+name: inteldg
+description: INTEL.DOM.GOB intelligence operating system — Helm chart
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+# One chart renders all platform services. Each service is a Deployment +
+# Service. Caddy (ingress) routes subdomains per the AGENTS.md contract.
+#
+# Usage:
+#   helm install inteldg ./iac/helm -f iac/helm/values.yaml --namespace inteldg
+
+dependencies: []

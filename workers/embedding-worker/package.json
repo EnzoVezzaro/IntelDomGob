@@ -1,0 +1,26 @@
+{
+  "name": "@intel.dom.gob/worker-embedding",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "echo \"no tests\"",
+    "clean": "echo \"nothing to clean\"",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@intel.dom.gob/events": "*",
+    "@intel.dom.gob/logger": "*",
+    "@intel.dom.gob/service-embeddings": "*",
+    "@intel.dom.gob/service-storage": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2",
+    "tsx": "^4.21.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@intel.dom.gob/service-prompts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "echo \"no tests\"",
+    "clean": "echo \"nothing to clean\""
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2"
+  }
+}

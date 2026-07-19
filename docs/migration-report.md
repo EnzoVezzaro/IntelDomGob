@@ -1,0 +1,80 @@
+# Migration Report — ChatGobDO → INTEL.DOM.GOB Platform
+
+## Summary
+
+The original `apps/ChatGobDO` was a single Node process bundling an Express server (API +
+business logic + provider calls) and a React SPA in one codebase. It was functionally
+complete (multi-agent DR government intelligence) but monolithic. This refactor realizes
+the architecture described in `WORK.md` without rewriting the working intelligence logic.
+
+## What was preserved (verbatim logic)
+
+* **Institution plugins** — Senado, Cámara, Presidencia, Tribunal Constitucional, DGCP,
+  Datos Abiertos, Consultoría, Compras → moved to `services/institutions/src/<id>`.
+* **Crawler / URL-tree** → `services/crawler` (ported `crawler.ts` + `portals.ts`).
+* **SearXNG settings** → `docker/searxng/settings.yml` mounted unchanged.
+* **Multi-agent prompt + JSON schema** → `services/orchestrator/src/prompt.ts`.
+* **FLUJO A–E assembly, evidence matrix, legislative timeline** →
+  `services/orchestrator/src/build.ts` (deterministic, ported).
+* **Studio UI** → `apps/studio` (colors, typography, layout, components, branding kept;
+  only backend `fetch` calls replaced by the SDK client).
+
+## What was restructured
+
+| Original | New |
+|----------|-----|
+| `server.ts` (1 file, ~1845 lines) | `apps/api` (routes) + `services/orchestrator` (logic) + `services/ai` + `services/search` |
+| inline SearXNG helper | `providers/searxng` (`SearchProvider`) |
+| inline Gemini client | `providers/gemini` (`AiProvider`, retry/backoff) |
+| hardcoded `localhost:3000` calls | `@intel.dom.gob/sdk` client |
+| single process | API + Studio as separate deployable apps behind Caddy |
+| `searxng-docker-compose.yml` only | full `docker-compose.yml` (api, studio, searxng, postgres, dragonfly, caddy) |
+
+## Layer mapping
+
+* **Providers** own all external I/O (SearXNG, Gemini).
+* **Services** own single responsibilities (search fan-out, AI wrapping, institution
+  retrieval, crawling, orchestration).
+* **API** owns transport only (REST `/v1`, health, validation, CORS).
+* **Studio** owns UI only.
+
+## Verification
+
+* `npm install --workspaces` succeeds.
+* `tsc --noEmit` passes for all 13 packages/services/apps.
+* `apps/api` boots, `/v1/health` and `/v1/institutions` return correctly (all 8 plugins
+  load via the registry).
+* `apps/studio` production build succeeds (Vite).
+
+## Residual technical debt
+
+* Institution plugins still contain bespoke HTML/JSON scraping tuned to live `.do` sites;
+  these should gain contract tests as sources change.
+* The `Database` layer and `Auth` service are implemented (idempotent Postgres migrations for
+  users/orgs/api_keys/providers/conversations/prompts/agents/workflows/usage/billing/mcp_servers/
+  tool_registry, plus API-key + JWT verification), but are not yet wired into request auth by
+  default (dev runs with `REQUIRE_API_KEY=false`).
+
+## Implemented since the initial refactor
+
+1. `packages/database` (Postgres pool + 12-table idempotent migration) and `services/auth`
+   (API keys + JWT verification).
+2. SSE streaming: `orchestrator.runQueryStream` + `POST /v1/query/stream` + SDK `queryStream`.
+3. OpenAPI spec (`/v1/openapi.json`) + Swagger UI (`/v1/docs`), auto-generated from the router.
+4. Tests: `tests/` (vitest) with orchestrator result-assembly + provider-contract suites (all passing).
+5. MCP server (`services/mcp`) — a pure SDK client with 3 pluggable tools, exposed at `mcp.<domain>`.
+6. Additional AI providers OpenAI + Anthropic (registered when keys are present).
+7. Service scaffolding: embeddings, rag, memory, documents, ocr (+ Unlimited-OCR provider),
+   scheduler, evaluation, storage, presentation (+ HyperFrames provider).
+8. Extra clients: `apps/web`, `apps/admin`, `apps/cli` (all SDK-only).
+9. `docs` service (nginx serving `docs/`) so `docs.<domain>` resolves.
+10. API rate limiting (`express-rate-limit`) and per-request API-key gating (`REQUIRE_API_KEY`).
+
+## Remaining work to reach "production"
+
+1. Wire `services/auth` into default request gating (set `REQUIRE_API_KEY=true` in prod).
+2. Studio: add streaming UI, prompt library, prompt variables, tool browser, MCP browser.
+3. Real embedding model + pgvector-backed RAG store; connect Memory/RAG to the orchestrator.
+4. OCR/Presentation providers require running external services (Unlimited-OCR, HyperFrames).
+5. Knowledge Graph service (entity relationships) — proposed differentiator.
+6. Broaden tests to integration (api↔orchestrator↔providers) and e2e (studio↔api).

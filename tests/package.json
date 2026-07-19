@@ -1,0 +1,39 @@
+{
+  "name": "@intel.dom.gob/tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "echo \"tests typechecked via vitest\"",
+    "lint": "echo \"nothing to lint\"",
+    "clean": "echo \"nothing to clean\""
+  },
+  "dependencies": {
+    "@intel.dom.gob/types": "*",
+    "@intel.dom.gob/logger": "*",
+    "@intel.dom.gob/providers": "*",
+    "@intel.dom.gob/service-orchestrator": "*",
+    "@intel.dom.gob/service-ai": "*",
+    "@intel.dom.gob/service-search": "*",
+    "@intel.dom.gob/service-institutions": "*",
+    "@intel.dom.gob/service-knowledge-graph": "*",
+    "@intel.dom.gob/service-entities": "*",
+    "@intel.dom.gob/service-document-intelligence": "*",
+    "@intel.dom.gob/service-storage": "*",
+    "@intel.dom.gob/service-ocr": "*",
+    "@intel.dom.gob/service-embeddings": "*",
+    "@intel.dom.gob/events": "*",
+    "@intel.dom.gob/sdk": "*",
+    "@intel.dom.gob/app-api": "*"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0",
+    "typescript": "~5.8.2",
+    "express": "^4.19.2",
+    "supertest": "^7.0.0",
+    "@types/supertest": "^6.0.2",
+    "@types/express": "^4.17.21"
+  }
+}

@@ -1,36 +1,32 @@
 #!/usr/bin/env bash
-# start.sh — Arranca INTEL.DOM.GOV RAG (app + SearXNG si está disponible)
+# start.sh — Levanta toda la plataforma INTEL.DOM.GOB con un solo comando.
+#
+# Desarrollo y producción usan el MISMO docker compose. Solo cambia DOMAIN.
+#   docker compose up -d
+#
+# Después de esto la plataforma está operativa vía subdominios:
+#   http://studio.localhost   http://api.localhost
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_DIR="$ROOT_DIR/Apps/ChatGobDO"
-PID_FILE="$ROOT_DIR/scripts/.intel.pid"
 source "$ROOT_DIR/scripts/banner.sh"
 
 show_banner "start"
 
-# 1. SearXNG (opcional, si hay docker compose en la raíz)
-if [ -f "$ROOT_DIR/searxng-docker-compose.yml" ] && command -v docker >/dev/null 2>&1; then
-  echo "==> Levantando SearXNG..."
-  docker compose -f "$ROOT_DIR/searxng-docker-compose.yml" up -d || echo "!! No se pudo levantar SearXNG (continuando sin él)"
+if [ ! -f "$ROOT_DIR/.env" ]; then
+  echo "==> No se encontró .env; creando desde .env.example"
+  cp "$ROOT_DIR/.env.example" "$ROOT_DIR/.env"
 fi
 
-# 2. Dependencias de la app
-if [ ! -d "$APP_DIR/node_modules" ]; then
-  echo "==> Instalando dependencias de la app..."
-  (cd "$APP_DIR" && npm install)
-fi
+cd "$ROOT_DIR"
+echo "==> Levantando la plataforma (docker compose)..."
+docker compose up -d
 
-# 3. Arrancar la app en segundo plano
-echo "==> Iniciando servidor en http://0.0.0.0:3000 ..."
-(cd "$APP_DIR" && npm run dev) > "$ROOT_DIR/scripts/.intel.log" 2>&1 &
-echo $! > "$PID_FILE"
+echo ""
+echo "==> Esperando a que los servicios estén saludables..."
+sleep 5
+docker compose ps
 
-sleep 2
-if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-  echo "==> App corriendo (PID $(cat "$PID_FILE")). Log: scripts/.intel.log"
-  show_endpoints
-else
-  echo "!! La app falló al arrancar. Revisa scripts/.intel.log"
-  exit 1
-fi
+echo ""
+show_endpoints
+echo "==> Listo. Abre studio.${DOMAIN} en tu navegador."
