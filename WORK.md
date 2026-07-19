@@ -1439,7 +1439,7 @@ docker compose up
 
 or
 
-./scripts/start.sh
+./scripts/up.sh
 
 Every service should also run independently.
 

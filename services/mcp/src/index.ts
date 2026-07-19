@@ -12,6 +12,7 @@
 import express from "express";
 import { createLogger } from "@intel.dom.gob/logger";
 import { IntelDomGobClient, createClient } from "@intel.dom.gob/sdk";
+import { mountMcpProtocol } from "./mcp-protocol";
 
 const log = createLogger("service:mcp");
 
@@ -29,7 +30,7 @@ export interface McpServerOptions {
 }
 
 /** Registry of pluggable MCP tools. New tools are added via registerTool(). */
-const tools: McpTool[] = [];
+export const tools: McpTool[] = [];
 
 export function registerTool(tool: McpTool): void {
   if (tools.find((t) => t.name === tool.name)) return;
@@ -82,8 +83,24 @@ export class McpServer {
     this.client = createClient({ baseUrl: opts.apiBaseUrl, token: opts.token });
     this.port = opts.port ?? 4100;
     this.app.use(express.json());
+
+    // Legacy INTEL.DOM.GOB JSON-RPC surface (internal clients).
     this.app.post("/", (req, res) => this.handle(req.body, res));
-    this.app.get("/health", (_req, res) => res.json({ status: "ok", service: "mcp", tools: tools.map((t) => t.name) }));
+
+    // Official MCP-protocol surface (Streamable HTTP + SSE) so standard MCP
+    // clients like Odysseus, Claude Desktop and VS Code can connect. Reuses the
+    // exact same tool registry — no second source of truth.
+    mountMcpProtocol(this.app, () => createClient({ baseUrl: opts.apiBaseUrl, token: opts.token }));
+
+    this.app.get("/health", (_req, res) =>
+      res.json({
+        status: "ok",
+        service: "mcp",
+        transports: ["jsonrpc", "mcp-streamable-http", "mcp-sse"],
+        mcpEndpoint: "/mcp",
+        tools: tools.map((t) => t.name),
+      }),
+    );
   }
 
   private async handle(request: any, res: express.Response) {

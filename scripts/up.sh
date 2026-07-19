@@ -11,7 +11,8 @@
 #   5. Prints a clean, colourised presentation of the result.
 #
 # Usage:
-#   ./scripts/up.sh            # up + wait + report
+#   ./scripts/up.sh            # if infra is up, tear down then bring up (clean
+#                              #   restart); otherwise start it. Then wait + report.
 #   ./scripts/up.sh --no-up    # skip `compose up`, just report on running stack
 #   ./scripts/up.sh --down     # tear everything down afterwards
 #
@@ -77,13 +78,21 @@ wait_for() {
 }
 
 # ---- 1. bring the stack up -------------------------------------------------
+# If the infra is already running, take it down first so `up.sh` always yields a
+# clean, deterministic state (rebuild + fresh containers). This makes `up.sh`
+# double as the restart/refresh command.
 if [ "$NO_UP" -eq 0 ]; then
   if [ "$have_docker" -eq 0 ]; then
     bad "docker compose not available — cannot start infra. Install Docker or run with --no-up against a running stack."
     exit 1
   fi
-  log "${C_BOLD}▶ Building & starting the INTEL.DOM.GOB stack (DOMAIN=$DOMAIN)...${C_RESET}"
-  docker compose up -d --build 2>&1 | tail -20
+  if [ -n "$(docker compose ps -q 2>/dev/null)" ]; then
+    log "${C_BOLD}▶ Infra already up — tearing down first for a clean restart...${C_RESET}"
+    docker compose down --remove-orphans 2>&1 | tail -10
+  fi
+  log "${C_BOLD}▶ Starting the INTEL.DOM.GOB stack (DOMAIN=$DOMAIN)...${C_RESET}"
+  log "${C_DIM}  (uses cached images; rebuild explicitly with: docker compose up -d --build)${C_RESET}"
+  docker compose up -d --remove-orphans 2>&1 | tail -20
 fi
 
 # ---- 2. wait for healthchecks ---------------------------------------------
@@ -123,7 +132,10 @@ post_probe() {
 # Service health is read from `docker compose ps` state (fast, no in-container
 # exec — some images lack a shell). HTTP liveness is verified separately for the
 # API (the only service the report exercises).
-ALL_SERVICES="caddy api studio docs web admin mcp searxng postgres dragonfly ocr-worker embedding-worker document-worker crawler-worker ai-worker"
+# studio/v0 is the legacy React SPA, preserved for rollback only — it is NOT
+# started by default (the active Studio is v1/Odysseus), so it is excluded
+# from the required health list to avoid a false FAIL.
+ALL_SERVICES="caddy api studio odysseus studio-chromadb studio-searxng studio-ntfy docs web admin mcp searxng postgres dragonfly ocr-worker embedding-worker document-worker crawler-worker ai-worker"
 
 svc_state() {
   # $1 = service name -> prints "healthy" | "running" | "starting" | "down"
@@ -230,7 +242,7 @@ log ""
 log "  ${C_BOLD}${C_BLUE}Exposed endpoints (via Caddy)${C_RESET}"
 log "  ────────────────────────────────────────────────────────────────────"
 printf '    %-28s %s\n' "${C_DIM}URL${C_RESET}" "${C_DIM}Purpose${C_RESET}"
-printf '    %-28s %s\n' "http://studio.${DOMAIN}"   "Studio SPA (primary client)"
+printf '    %-28s %s\n' "http://studio.${DOMAIN}"   "Studio v1 — Odysseus workspace (primary client)"
 printf '    %-28s %s\n' "http://api.${DOMAIN}"      "API gateway / OpenAI-compat"
 printf '    %-28s %s\n' "http://api.${DOMAIN}/docs" "Swagger UI"
 printf '    %-28s %s\n' "http://web.${DOMAIN}"      "Lightweight no-JS client"
@@ -243,7 +255,7 @@ log ""
 log "  ${C_BOLD}${C_BLUE}All applications, services & websites${C_RESET}"
 log "  ────────────────────────────────────────────────────────────────────"
 printf '    %-28s %-26s %s\n' "${C_DIM}PUBLIC URL${C_RESET}" "${C_DIM}SERVICE / PORT${C_RESET}" "${C_DIM}PURPOSE${C_RESET}"
-printf '    %-28s %-26s %s\n' "http://studio.${DOMAIN}"   "studio :80"        "React SPA — primary client"
+printf '    %-28s %-26s %s\n' "http://studio.${DOMAIN}"   "odysseus :7000"    "Studio v1 — Odysseus workspace (primary client)"
 printf '    %-28s %-26s %s\n' "http://api.${DOMAIN}"      "api :4000"         "API gateway / OpenAI-compatible"
 printf '    %-28s %-26s %s\n' "http://api.${DOMAIN}/docs" "api :4000"         "Swagger UI (OpenAPI)"
 printf '    %-28s %-26s %s\n' "http://web.${DOMAIN}"      "web :4200"         "Lightweight no-JS client"

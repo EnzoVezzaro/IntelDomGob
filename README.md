@@ -103,8 +103,8 @@ git clone <repo> intel.dom.gob
 cd intel.dom.gob
 cp .env.example .env          # set GEMINI_API_KEY, DOMAIN
 
-# 2. One command brings up the whole platform
-./scripts/start.sh
+# 2. One command brings up the whole platform (downs + rebuilds if already up)
+./scripts/up.sh
 ```
 
 Then open:

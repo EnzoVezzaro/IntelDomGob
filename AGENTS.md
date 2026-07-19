@@ -47,9 +47,10 @@ Every request flows top-down. **Never skip a layer.**
 | `services/evaluation` | Answer faithfulness / quality evaluators | types, logger |
 | `services/storage` | Object storage abstraction | logger |
 | `services/presentation` | Shareable presentation artifacts | providers |
-| `services/mcp` | MCP server — a pure SDK client of the API | sdk, logger |
+| `services/mcp` | MCP server — a pure SDK client of the API. Exposes BOTH a legacy JSON-RPC surface (`POST /`) and the official MCP protocol (`/mcp`, Streamable HTTP + SSE), reusing one tool registry. | sdk, logger |
 | `apps/api` | Express gateway, routes, health, OpenAPI, SSE, rate-limit | services, providers, packages |
-| `apps/studio` | React SPA client | sdk, types |
+| `apps/studio/v0` | Legacy React SPA client (preserved for rollback) | sdk, types |
+| `apps/studio/v1` | **Active Studio UI** — vendored Odysseus workspace (git submodule, AGPL-3.0). Connects to the platform ONLY via the MCP server. Custom skin lives in its own fork/overlay, never mixed with MIT platform code. | — |
 | `apps/web` | Lightweight no-JS web client (SDK only) | sdk, logger |
 | `apps/admin` | Operator/admin console (SDK only) | sdk, logger |
 | `apps/cli` | Command-line client (SDK only) | sdk |
@@ -158,6 +159,24 @@ No other file changes.
 * ❌ No secrets committed — `.env` only, `GEMINI_API_KEY` never in code.
 * ❌ No duplication of utilities already in `packages/*`.
 * ❌ Never remove or alter `docker/searxng/settings.yml` behavior (preserved infrastructure).
+
+---
+
+## Studio (Web Application)
+
+The active Studio UI is **Odysseus** (https://github.com/odysseus-dev/odysseus), vendored
+as a git submodule at `apps/studio/v1` (AGPL-3.0 — kept separate from the MIT platform code).
+
+* Odysseus is an upstream self-hosted workspace, not platform code. It runs as its own
+  docker services (`odysseus`, `studio-chromadb`, `studio-searxng`, `studio-ntfy`) on a
+  dedicated `studio-net` network so it never touches the platform's `searxng` service.
+* The Studio connects to INTEL.DOM.GOB **only via the MCP server** (`mcp:4100/mcp`).
+  The INTEL.DOM.GOB MCP server is registered automatically on first boot by the
+  on-boot hook (`scripts/studio-onboot.sh`, mounted into the odysseus container).
+* The previous React SPA is preserved at `apps/studio/v0` (served at `studio/v0.<DOMAIN>`)
+  for reference / rollback.
+* Custom "skin" work belongs in the Odysseus submodule fork/overlay — never mixed into the
+  MIT `packages/*` or `services/*` code.
 
 ---
 

@@ -24,7 +24,8 @@ services:
     restart: unless-stopped
     depends_on:
       - api
-      - studio
+      - studio-v0
+      - odysseus
     environment:
       CADDY_DOMAIN: "${DOMAIN:-localhost}"
       CADDY_ACME_EMAIL: "${CADDY_ACME_EMAIL:-}"
@@ -66,12 +67,14 @@ services:
       - intel
 
   # -------------------------------------------------------------------------
-  # Studio — React SPA client of the API.
+  # Studio v0 — legacy React SPA client of the API (preserved at apps/studio/v0).
+  # The active Studio is now the Odysseus-based v1 (apps/studio/v1, served at
+  # studio.<DOMAIN>). This is kept for reference / rollback only.
   # -------------------------------------------------------------------------
-  studio:
+  studio-v0:
     build:
       context: .
-      dockerfile: apps/studio/Dockerfile
+      dockerfile: apps/studio/v0/Dockerfile
     restart: unless-stopped
     expose:
       - "80"
@@ -306,12 +309,154 @@ services:
     networks:
       - intel
 
+  # -------------------------------------------------------------------------
+  # Studio v1 — Odysseus workspace (AGPL-3.0, git submodule at apps/studio/v1).
+  #
+  # IMPORTANT: this is an UPSTREAM open-source project, NOT platform code. It is
+  # kept on its own `studio-net` network and reaches the platform ONLY through
+  # the MCP server (mcp:4100/mcp). It bundles its own searxng/chromadb/ntfy so
+  # it never touches the platform's `searxng` service. The Studio UI is the
+  # product surface; all intelligence stays behind the API + MCP.
+  # -------------------------------------------------------------------------
+  odysseus:
+    build:
+      context: ./apps/studio/v1
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_PORT: "7000"
+      APP_BIND: "0.0.0.0"
+      AUTH_ENABLED: "${STUDIO_AUTH_ENABLED:-true}"
+      LOCALHOST_BYPASS: "${STUDIO_LOCALHOST_BYPASS:-false}"
+      SECURE_COOKIES: "${STUDIO_SECURE_COOKIES:-false}"
+      ALLOWED_ORIGINS: "${STUDIO_ALLOWED_ORIGINS:-}"
+      ODYSSEUS_ADMIN_USER: "${STUDIO_ADMIN_USER:-admin}"
+      ODYSSEUS_ADMIN_PASSWORD: "${STUDIO_ADMIN_PASSWORD:-}"
+      SEARXNG_INSTANCE: "http://studio-searxng:8080"
+      CHROMADB_HOST: "studio-chromadb"
+      CHROMADB_PORT: "8000"
+      DATABASE_URL: "${STUDIO_DATABASE_URL:-sqlite:///./data/app.db}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      # Used by the on-boot seed script to register our MCP by default.
+      INTEL_MCP_NAME: "${STUDIO_MCP_NAME:-intel-dom-gob}"
+      INTEL_MCP_URL: "${STUDIO_MCP_URL:-http://mcp:4100/mcp}"
+      # Optional default email account (seeded into settings.json on boot).
+      STUDIO_EMAIL_SMTP_HOST: "${STUDIO_EMAIL_SMTP_HOST:-}"
+      STUDIO_EMAIL_SMTP_PORT: "${STUDIO_EMAIL_SMTP_PORT:-465}"
+      STUDIO_EMAIL_SMTP_SECURITY: "${STUDIO_EMAIL_SMTP_SECURITY:-}"
+      STUDIO_EMAIL_SMTP_USER: "${STUDIO_EMAIL_SMTP_USER:-}"
+      STUDIO_EMAIL_SMTP_PASSWORD: "${STUDIO_EMAIL_SMTP_PASSWORD:-}"
+      STUDIO_EMAIL_IMAP_HOST: "${STUDIO_EMAIL_IMAP_HOST:-}"
+      STUDIO_EMAIL_IMAP_PORT: "${STUDIO_EMAIL_IMAP_PORT:-993}"
+      STUDIO_EMAIL_IMAP_USER: "${STUDIO_EMAIL_IMAP_USER:-}"
+      STUDIO_EMAIL_IMAP_PASSWORD: "${STUDIO_EMAIL_IMAP_PASSWORD:-}"
+      STUDIO_EMAIL_IMAP_STARTTLS: "${STUDIO_EMAIL_IMAP_STARTTLS:-true}"
+      STUDIO_EMAIL_FROM: "${STUDIO_EMAIL_FROM:-}"
+    volumes:
+      - studio_data:/app/data
+      - studio_logs:/app/logs
+      # Mount our on-boot MCP-seed script without touching the submodule.
+      - ./scripts/studio-onboot.sh:/app/studio-onboot.sh:ro,z
+    expose:
+      - "7000"
+    # Override the default CMD with our on-boot hook: it runs first-time
+    # setup, registers the INTEL.DOM.GOB MCP server by default, then starts
+    # uvicorn. The submodule (AGPL-3.0) stays unmodified.
+    command: ["sh", "/app/studio-onboot.sh"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:7000/', timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      studio-searxng:
+        condition: service_healthy
+      studio-chromadb:
+        condition: service_started
+      mcp:
+        condition: service_started
+    networks:
+      - intel
+      - studio-net
+
+  studio-chromadb:
+    image: docker.io/chromadb/chroma:latest
+    environment:
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - studio_chromadb_data:/chroma/chroma
+    expose:
+      - "8000"
+    restart: unless-stopped
+    networks:
+      - studio-net
+
+  studio-searxng:
+    image: docker.io/searxng/searxng:2026.5.31-7159b8aed
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        if [ ! -s /etc/searxng/settings.yml ] || grep -q '__SEARXNG_SECRET__' /etc/searxng/settings.yml; then
+          secret="$${SEARXNG_SECRET:-}"
+          if [ -z "$$secret" ]; then
+            secret="$$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          fi
+          sed "s|__SEARXNG_SECRET__|$$secret|g" /tmp/searxng-settings.yml.template > /etc/searxng/settings.yml
+        fi
+        exec /usr/local/searxng/entrypoint.sh
+    volumes:
+      - studio_searxng_data:/etc/searxng
+      - ./apps/studio/v1/config/searxng/settings.yml:/tmp/searxng-settings.yml.template:ro,z
+    environment:
+      SEARXNG_BASE_URL: "http://localhost:8080/"
+      SEARXNG_SECRET: "${STUDIO_SEARXNG_SECRET:-}"
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5).read(1)\""]
+      interval: 5s
+      timeout: 6s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - studio-net
+
+  studio-ntfy:
+    image: docker.io/binwiederhier/ntfy
+    command: serve
+    environment:
+      NTFY_BASE_URL: "${STUDIO_NTFY_BASE_URL:-http://localhost:8091}"
+    volumes:
+      - studio_ntfy_cache:/var/cache/ntfy
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - studio-net
+
 volumes:
   caddy_data:
   caddy_config:
   postgres_data:
   dragonfly_data:
+  studio_data:
+  studio_logs:
+  studio_chromadb_data:
+  studio_searxng_data:
+  studio_ntfy_cache:
 
 networks:
   intel:
+    driver: bridge
+  studio-net:
     driver: bridge

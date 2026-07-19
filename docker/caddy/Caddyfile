@@ -22,8 +22,16 @@
     respond "INTEL.DOM.GOB platform root. Use studio.{$CADDY_DOMAIN:localhost} / api.{$CADDY_DOMAIN:localhost}"
 }
 
+# Studio — v1 UI (Odysseus workspace, AGPL-3.0 submodule at apps/studio/v1).
+# Connects to the platform ONLY via the MCP server (mcp:4100). The previous
+# React SPA lives at apps/studio/v0 and is served on an alternate port if needed.
 studio.{$CADDY_DOMAIN:localhost} {
-    reverse_proxy studio:80
+    reverse_proxy odysseus:7000
+}
+
+# Studio v0 — the legacy React SPA, preserved for reference/rollback.
+studio-v0.{$CADDY_DOMAIN:localhost} {
+    reverse_proxy studio-v0:80
 }
 
 api.{$CADDY_DOMAIN:localhost} {

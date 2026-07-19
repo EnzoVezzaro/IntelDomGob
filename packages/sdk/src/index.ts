@@ -58,7 +58,13 @@ export class IntelDomGobClient {
   /** Dynamic discovery of institution plugins. */
   async listInstitutions(): Promise<InstitutionDescriptor[]> {
     const res = await this.fetchImpl(this.url("/institutions"), { headers: this.headers() });
-    const data = (await res.json()) as { institutions: InstitutionDescriptor[] };
+    const data = (await res.json().catch(() => ({}))) as { institutions?: InstitutionDescriptor[] };
+    if (!Array.isArray(data.institutions)) {
+      // Never let a malformed/empty response surface as `{}` upstream.
+      // Return an explicit empty array and surface the anomaly for debugging.
+      console.warn("[sdk] listInstitutions: unexpected payload", data);
+      return [];
+    }
     return data.institutions;
   }
 

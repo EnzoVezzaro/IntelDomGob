@@ -30,4 +30,4 @@ echo "==> Installing workspace dependencies..."
 (cd "$ROOT_DIR" && npm install --workspaces)
 
 echo "==> Setup complete."
-echo "   Next: ./scripts/start.sh   (brings up the full stack via Docker)"
+echo "   Next: ./scripts/up.sh   (brings up the full stack via Docker)"

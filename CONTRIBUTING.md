@@ -14,8 +14,8 @@ Government Intelligence.
 
 ```bash
 cp .env.example .env
-./scripts/init.sh
-./scripts/start.sh
+./scripts/setup.sh
+./scripts/up.sh
 ```
 
 ## Workflow

@@ -21,9 +21,9 @@ export default defineConfig(() => {
         // resolve a second copy of react (or jsx-runtime) for that package, which
         // makes its <Panel>/<Button> elements use a different React instance and
         // crash with "A React Element from an older version of React was rendered".
-        react: path.resolve(__dirname, '../../node_modules/react'),
-        'react-dom': path.resolve(__dirname, '../../node_modules/react-dom'),
-        'react/jsx-runtime': path.resolve(__dirname, '../../node_modules/react/jsx-runtime'),
+        react: path.resolve(__dirname, '../../../node_modules/react'),
+        'react-dom': path.resolve(__dirname, '../../../node_modules/react-dom'),
+        'react/jsx-runtime': path.resolve(__dirname, '../../../node_modules/react/jsx-runtime'),
       },
       dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
     },

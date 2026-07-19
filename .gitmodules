@@ -1,0 +1,3 @@
+[submodule "apps/studio/v1"]
+	path = apps/studio/v1
+	url = https://github.com/odysseus-dev/odysseus.git

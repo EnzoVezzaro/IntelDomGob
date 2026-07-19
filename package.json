@@ -11,6 +11,7 @@
     "services",
     "services/*",
     "apps/*",
+    "apps/studio/v0",
     "workers/*"
   ],
   "scripts": {
