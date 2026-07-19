@@ -52,7 +52,11 @@ const log = createLogger("orchestrator");
  * Otherwise, classify the query text to determine which tools to activate.
  */
 function detectScope(query: string, explicit?: string): string {
-  if (explicit && explicit !== "all") return explicit;
+  if (explicit && explicit !== "all") {
+    // Normalize aliases so downstream checks (scope === "sil") always match.
+    if (explicit === "legislativo") return "sil";
+    return explicit;
+  }
   const q = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   // Specific intent patterns (order matters: more specific first).
   if (/\b(diputado|legislador|representante)\b/.test(q)) return "diputado";

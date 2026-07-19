@@ -268,7 +268,7 @@ export function buildOpenApiSpec(version = "v1"): Record<string, unknown> {
             model: { type: "string" },
             provider: { type: "string" },
             apiKey: { type: "string" },
-            scope: { type: "string", enum: ["all", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"], description: "Intent-based source scope. Auto-detected from query when omitted." },
+            scope: { type: "string", enum: ["all", "legislativo", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"], description: "Intent-based source scope. Auto-detected from query when omitted." },
             responseLang: { type: "string" },
             search: { type: "object" },
           },

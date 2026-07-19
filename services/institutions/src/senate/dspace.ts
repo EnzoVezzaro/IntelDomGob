@@ -16,13 +16,52 @@ import { relevanceScore, isNumberQuery, numeroMatchesQuery } from "../shared";
 //     - query=dc.identifier.govdoc:<val> : exact field-scoped match (precision tool)
 //     - size capped at 100 returned objects
 //     - filter/fq/appliedFilters: IGNORED by this server
+//
+// COMMUNITY TREE (discovered 2026-07-19):
+//   fc1aa418 — Memoria Histórica del Senado (root, ~32k items)
+//   ├── 23b462cd — Cronológico de Senadores (direct collection)
+//   ├── dfb768ab — Cronológico de Senadores (sub-community)
+//   │   └── 9dbd1125 — Documentos Institucionales
+//   │       ├── 11e2a6b9 — Boletín Informativo El Amanecer del Senado
+//   │       ├── 89fc04ee — Informe Actas de Comisiones
+//   │       └── 2b70d40c — Libros
+//   ├── 78245c69 — Documentos Legislativos
+//   │   ├── b610c353 — Actas Asamblea Nacional
+//   │   ├── 71941293 — Colección de Leyes, Decretos y Resoluciones
+//   │   └── 8ad172cc — Constitución Dominicana
+//   ├── 9799f9b1 — Iniciativas Legislativas  ← PRIMARY SCOPE (current code)
+//   │   ├── e6547d61 — Acuerdos internacionales
+//   │   ├── 21ba5374 — Contratos: préstamos, financiamientos
+//   │   └── 7e7fa91f — Contratos: venta de inmuebles, enmiendas
+//   └── 8b07cd61 — Rendición de Cuentas (empty)
+//
+// WORKING ENDPOINTS (200 OK):
+//   SINGLE  /core/communities/{uuid}
+//   LIST    /core/communities/{uuid}/subcommunities?page=0&size=N
+//   LIST    /core/communities/{uuid}/collections?page=0&size=N
+//   SINGLE  /core/communities/{uuid}/parentCommunity
+//   SINGLE  /core/collections/{uuid}
+//   SINGLE  /core/collections/{uuid}/license
+//   LIST    /discover/search/objects?query={q}&scope={uuid}&dsoType=ITEM&page=0&size=N
+//   ACTION  /statistics/viewevents (POST)
+//
+// 404 (not available on this instance):
+//   /core/collections/{uuid}/items  ← items only via /discover/search/objects
+//   /core/collections/{uuid}/metadata
+//   /core/communities/{uuid}/metadata
+//   /harvest/*
 
 const DSPACE_HOST = "https://memoriahistorica.senadord.gob.do";
 const SEARCH_URL = `${DSPACE_HOST}/server/api/discover/search/objects`;
 
-// Scope to Iniciativas Legislativas community (contains Proyectos de Ley,
-// Resoluciones, Contratos, etc.) — excludes Boletines/Actas/Año.
-const SENATE_SCOPE_INICIATIVAS = "9799f9b1-556e-4dc5-82a7-c3f52454749b";
+// Scope: Iniciativas Legislativas community (Proyectos de Ley, Resoluciones,
+// Contratos, Acuerdos internacionales). Highest precision for legislation.
+export const SENATE_SCOPE_INICIATIVAS = "9799f9b1-556e-4dc5-82a7-c3f52454749b";
+
+// Scope: Root community (Memoria Histórica del Senado). Contains ALL items
+// across all sub-communities (~32k). Use for broader searches that need to
+// cover Boletines, Actas, Libros, Documentos Institucionales, etc.
+export const SENATE_SCOPE_ROOT = "fc1aa418-1f3f-46ee-a300-6d6047e53d01";
 
 // ---- In-memory cache (5-minute TTL) --------------------------------------
 // Keyed by normalized query string. Prevents redundant DSpace calls within

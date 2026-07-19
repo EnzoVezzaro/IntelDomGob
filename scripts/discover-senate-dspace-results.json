@@ -1,0 +1,428 @@
+{
+  "discoveredAt": "2026-07-19T16:29:43.850Z",
+  "community": "fc1aa418-1f3f-46ee-a300-6d6047e53d01",
+  "host": "https://memoriahistorica.senadord.gob.do",
+  "endpoints": [
+    {
+      "path": "/core/communities/{uuid}",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/fc1aa418-1f3f-46ee-a300-6d6047e53d01",
+      "type": "SINGLE",
+      "description": "Community metadata (name, handle, logo, metadata)",
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/communities/fc1aa418-1f3f-46ee-a300-6d6047e53d01/subcommunities",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/fc1aa418-1f3f-46ee-a300-6d6047e53d01/subcommunities?page=0&size=5",
+      "type": "LIST",
+      "description": "Sub-communities of community",
+      "itemCount": 5,
+      "fields": [
+        "dc.description",
+        "dc.description.abstract",
+        "dc.description.tableofcontents",
+        "dc.identifier.uri",
+        "dc.rights",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/communities/fc1aa418-1f3f-46ee-a300-6d6047e53d01/collections",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/fc1aa418-1f3f-46ee-a300-6d6047e53d01/collections?page=0&size=5",
+      "type": "LIST",
+      "description": "Collections in community",
+      "itemCount": 1,
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/collections/{uuid}",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/23b462cd-b19a-439b-a3b8-189b2bba1ce3",
+      "type": "SINGLE",
+      "description": "Collection metadata — Cronológico de Senadores",
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/collections/23b462cd-b19a-439b-a3b8-189b2bba1ce3/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/23b462cd-b19a-439b-a3b8-189b2bba1ce3/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/communities/dfb768ab-841a-40ec-9edd-6cf9b2c5490a/subcommunities",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/dfb768ab-841a-40ec-9edd-6cf9b2c5490a/subcommunities?page=0&size=5",
+      "type": "LIST",
+      "description": "Sub-communities of community",
+      "itemCount": 0,
+      "fields": []
+    },
+    {
+      "path": "/core/communities/dfb768ab-841a-40ec-9edd-6cf9b2c5490a/collections",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/dfb768ab-841a-40ec-9edd-6cf9b2c5490a/collections?page=0&size=5",
+      "type": "LIST",
+      "description": "Collections in community",
+      "itemCount": 4,
+      "fields": [
+        "dc.description",
+        "dc.description.abstract",
+        "dc.description.tableofcontents",
+        "dc.identifier.uri",
+        "dc.rights",
+        "dc.rights.license",
+        "dc.title",
+        "dspace.entity.type"
+      ]
+    },
+    {
+      "path": "/core/communities/dfb768ab-841a-40ec-9edd-6cf9b2c5490a/parentCommunity",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/dfb768ab-841a-40ec-9edd-6cf9b2c5490a/parentCommunity",
+      "type": "SINGLE",
+      "description": "Parent community",
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/collections/98dc3b59-0df6-4923-976e-ff61d7b9f9dc/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/98dc3b59-0df6-4923-976e-ff61d7b9f9dc/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/collections/452151f5-e01a-42b8-b5da-668582346ce9/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/452151f5-e01a-42b8-b5da-668582346ce9/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/collections/221e3a37-a431-4366-aa58-606bf1ab14cc/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/221e3a37-a431-4366-aa58-606bf1ab14cc/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/communities/9dbd1125-acf3-45c2-bdda-db5177802ec2/subcommunities",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/9dbd1125-acf3-45c2-bdda-db5177802ec2/subcommunities?page=0&size=5",
+      "type": "LIST",
+      "description": "Sub-communities of community",
+      "itemCount": 0,
+      "fields": []
+    },
+    {
+      "path": "/core/communities/9dbd1125-acf3-45c2-bdda-db5177802ec2/collections",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/9dbd1125-acf3-45c2-bdda-db5177802ec2/collections?page=0&size=5",
+      "type": "LIST",
+      "description": "Collections in community",
+      "itemCount": 4,
+      "fields": [
+        "dc.description",
+        "dc.description.abstract",
+        "dc.description.tableofcontents",
+        "dc.identifier.uri",
+        "dc.rights",
+        "dc.rights.license",
+        "dc.title",
+        "dspace.entity.type"
+      ]
+    },
+    {
+      "path": "/core/communities/9dbd1125-acf3-45c2-bdda-db5177802ec2/parentCommunity",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/9dbd1125-acf3-45c2-bdda-db5177802ec2/parentCommunity",
+      "type": "SINGLE",
+      "description": "Parent community",
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/collections/11e2a6b9-b6d9-4a23-b4d7-d6c8ed1bc0bc/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/11e2a6b9-b6d9-4a23-b4d7-d6c8ed1bc0bc/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/collections/89fc04ee-a014-4b73-a448-5ad3bafa111e/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/89fc04ee-a014-4b73-a448-5ad3bafa111e/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/collections/2b70d40c-e007-4014-8bbe-ed7db7b6eac5/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/2b70d40c-e007-4014-8bbe-ed7db7b6eac5/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/communities/78245c69-a76d-488d-9143-722c7cc89f1c/subcommunities",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/78245c69-a76d-488d-9143-722c7cc89f1c/subcommunities?page=0&size=5",
+      "type": "LIST",
+      "description": "Sub-communities of community",
+      "itemCount": 1,
+      "fields": [
+        "dc.description",
+        "dc.description.abstract",
+        "dc.description.tableofcontents",
+        "dc.identifier.uri",
+        "dc.rights",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/communities/78245c69-a76d-488d-9143-722c7cc89f1c/collections",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/78245c69-a76d-488d-9143-722c7cc89f1c/collections?page=0&size=5",
+      "type": "LIST",
+      "description": "Collections in community",
+      "itemCount": 5,
+      "fields": [
+        "dc.description",
+        "dc.description.abstract",
+        "dc.description.tableofcontents",
+        "dc.identifier.uri",
+        "dc.rights",
+        "dc.rights.license",
+        "dc.title",
+        "dspace.entity.type"
+      ]
+    },
+    {
+      "path": "/core/communities/78245c69-a76d-488d-9143-722c7cc89f1c/parentCommunity",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/78245c69-a76d-488d-9143-722c7cc89f1c/parentCommunity",
+      "type": "SINGLE",
+      "description": "Parent community",
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/collections/b610c353-ef72-45c6-aef5-ebc230ce99a8/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/b610c353-ef72-45c6-aef5-ebc230ce99a8/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/collections/71941293-a966-4c55-ab9d-421bf195048b/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/71941293-a966-4c55-ab9d-421bf195048b/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/collections/8ad172cc-a4e2-46af-b139-ee15c5ea00d2/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/8ad172cc-a4e2-46af-b139-ee15c5ea00d2/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/communities/9799f9b1-556e-4dc5-82a7-c3f52454749b/subcommunities",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/9799f9b1-556e-4dc5-82a7-c3f52454749b/subcommunities?page=0&size=5",
+      "type": "LIST",
+      "description": "Sub-communities of community",
+      "itemCount": 0,
+      "fields": []
+    },
+    {
+      "path": "/core/communities/9799f9b1-556e-4dc5-82a7-c3f52454749b/collections",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/9799f9b1-556e-4dc5-82a7-c3f52454749b/collections?page=0&size=5",
+      "type": "LIST",
+      "description": "Collections in community",
+      "itemCount": 8,
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/communities/9799f9b1-556e-4dc5-82a7-c3f52454749b/parentCommunity",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/9799f9b1-556e-4dc5-82a7-c3f52454749b/parentCommunity",
+      "type": "SINGLE",
+      "description": "Parent community",
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/collections/e6547d61-38ee-4262-ad99-ad51aee30fd7/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/e6547d61-38ee-4262-ad99-ad51aee30fd7/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/collections/21ba5374-fb58-4cb5-889e-c1ebac0b244e/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/21ba5374-fb58-4cb5-889e-c1ebac0b244e/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/collections/7e7fa91f-b049-49c5-8c7a-dc84bd8866b5/license",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/collections/7e7fa91f-b049-49c5-8c7a-dc84bd8866b5/license?page=0&size=5",
+      "type": "SINGLE",
+      "description": "License of collection",
+      "fields": [
+        "custom",
+        "text",
+        "type",
+        "_links"
+      ]
+    },
+    {
+      "path": "/core/communities/8b07cd61-9927-4ad6-b37d-dc25fe9ef092/subcommunities",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/8b07cd61-9927-4ad6-b37d-dc25fe9ef092/subcommunities?page=0&size=5",
+      "type": "LIST",
+      "description": "Sub-communities of community",
+      "itemCount": 4,
+      "fields": [
+        "dc.description",
+        "dc.description.abstract",
+        "dc.description.tableofcontents",
+        "dc.identifier.uri",
+        "dc.rights",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/core/communities/8b07cd61-9927-4ad6-b37d-dc25fe9ef092/collections",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/8b07cd61-9927-4ad6-b37d-dc25fe9ef092/collections?page=0&size=5",
+      "type": "LIST",
+      "description": "Collections in community",
+      "itemCount": 0,
+      "fields": []
+    },
+    {
+      "path": "/core/communities/8b07cd61-9927-4ad6-b37d-dc25fe9ef092/parentCommunity",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/core/communities/8b07cd61-9927-4ad6-b37d-dc25fe9ef092/parentCommunity",
+      "type": "SINGLE",
+      "description": "Parent community",
+      "fields": [
+        "dc.description.abstract",
+        "dc.identifier.uri",
+        "dc.title"
+      ]
+    },
+    {
+      "path": "/discover/search/objects?query={q}&scope={scope}&dsoType={type}&page={p}&size={s}",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/discover/search/objects?query=leyes&scope=fc1aa418-1f3f-46ee-a300-6d6047e53d01&dsoType=ITEM&page=0&size=2",
+      "type": "LIST",
+      "description": "Full-text search within scope (dsoType filter, pagination)",
+      "itemCount": 32244,
+      "fields": [
+        "dc.date.accessioned",
+        "dc.date.available",
+        "dc.date.issued",
+        "dc.date.quadrennium",
+        "dc.description",
+        "dc.description.sponsorship",
+        "dc.format",
+        "dc.identifier.govdoc",
+        "dc.identifier.isbn",
+        "dc.identifier.issn",
+        "dc.identifier.uri",
+        "dc.provenance",
+        "dc.publisher",
+        "dc.title",
+        "dc.type.initiative"
+      ]
+    },
+    {
+      "path": "/statistics/viewevents",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/statistics/viewevents",
+      "type": "ACTION",
+      "description": "Record view events (POST body: resource UUID + target)"
+    },
+    {
+      "path": "/statistics",
+      "url": "https://memoriahistorica.senadord.gob.do/server/api/statistics",
+      "type": "LIST",
+      "description": "Statistics overview"
+    }
+  ]
+}

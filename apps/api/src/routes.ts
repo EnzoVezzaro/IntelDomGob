@@ -337,6 +337,76 @@ export function createRouter(deps: RouterDeps): Router {
     }
   });
 
+  // Senado DSpace full-text search (scopeable to root community or sub-trees).
+  router.get("/sil/senado/search", async (req, res: Response) => {
+    try {
+      const { searchExpedientes, SENATE_SCOPE_ROOT, SENATE_SCOPE_INICIATIVAS } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const scopeParam = String(req.query.scope || "root");
+      const maxResults = Math.min(Number(req.query.maxResults) || 20, 100);
+      const scope = scopeParam === "iniciativas" ? SENATE_SCOPE_INICIATIVAS
+        : scopeParam === "all" ? undefined
+        : SENATE_SCOPE_ROOT;
+      const results = await searchExpedientes(q, { maxResults, scope });
+      res.json({ total: results.length, scope: scopeParam, results });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Senado DSpace community tree (sub-communities + collections).
+  router.get("/sil/senado/communities", async (req, res: Response) => {
+    try {
+      const dspaceHost = "https://memoriahistorica.senadord.gob.do";
+      const base = `${dspaceHost}/server/api`;
+      const parentId = String(req.query.parentId || "fc1aa418-1f3f-46ee-a300-6d6047e53d01");
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      const [subRes, colRes] = await Promise.all([
+        fetch(`${base}/core/communities/${parentId}/subcommunities?page=0&size=100`, {
+          signal: ctrl.signal, headers: { Accept: "application/json", "User-Agent": "IntelDomGob/1.0" },
+        }).then((r) => r.json()).catch(() => null),
+        fetch(`${base}/core/communities/${parentId}/collections?page=0&size=100`, {
+          signal: ctrl.signal, headers: { Accept: "application/json", "User-Agent": "IntelDomGob/1.0" },
+        }).then((r) => r.json()).catch(() => null),
+      ]);
+      clearTimeout(timer);
+      const extractList = (data: any, key: string): any[] => {
+        if (!data) return [];
+        if (Array.isArray(data)) return data;
+        if (data._embedded?.searchResult?._embedded?.objects)
+          return data._embedded.searchResult._embedded.objects.map((o: any) => o._embedded?.indexableObject).filter(Boolean);
+        if (data._embedded?.[key]) return data._embedded[key];
+        if (data.page?._embedded?.[key]) return data.page._embedded[key];
+        return [];
+      };
+      const subCommunities = extractList(subRes, "subcommunities").map((c: any) => ({
+        id: c.id, name: c.name || c.metadata?.["dc.title"]?.[0]?.value || "Unknown",
+        collections: 0,
+      }));
+      const collections = extractList(colRes, "collections").map((c: any) => ({
+        id: c.id, name: c.name || c.metadata?.["dc.title"]?.[0]?.value || "Unknown",
+      }));
+      res.json({ parentId, subCommunities, collections });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Senado DSpace collection items (search within a specific collection).
+  router.get("/sil/senado/collections/:collectionId/items", async (req, res: Response) => {
+    try {
+      const { searchExpedientes } = await import("@intel.dom.gob/service-institutions");
+      const collectionId = req.params.collectionId;
+      const q = String(req.query.query || "");
+      const maxResults = Math.min(Number(req.query.maxResults) || 20, 100);
+      const results = await searchExpedientes(q, { maxResults, scope: collectionId });
+      res.json({ collectionId, total: results.length, results });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // --- Knowledge Graph --------------------------------------------------------
   // Knowledge Graph: build/merge a graph from an IntelligenceResult packet and
   // return the current graph (or the neighborhood of a given entity).
@@ -885,7 +955,7 @@ export function createRouter(deps: RouterDeps): Router {
             properties: {
               query: { type: "string" },
               institutions: { type: "array", items: { type: "string" } },
-              scope: { type: "string", enum: ["all", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"] },
+              scope: { type: "string", enum: ["all", "legislativo", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"] },
             },
             required: ["query"],
           },
@@ -1004,6 +1074,40 @@ export function createRouter(deps: RouterDeps): Router {
             type: "object",
             properties: { query: { type: "string" } },
             required: ["query"],
+          },
+        },
+        {
+          name: "senado_search",
+          description: "Full-text search across the entire Senado DSpace repository (~32k items). Covers iniciativas, resoluciones, boletines, actas, contratos, acuerdos, libros, documentos institucionales. scope='iniciativas' for legislative only.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string" },
+              scope: { type: "string", enum: ["root", "iniciativas", "all"] },
+              maxResults: { type: "number" },
+            },
+            required: ["query"],
+          },
+        },
+        {
+          name: "senado_communities",
+          description: "Browse the Senado DSpace community tree. Returns sub-communities and collections.",
+          inputSchema: {
+            type: "object",
+            properties: { parentId: { type: "string" } },
+          },
+        },
+        {
+          name: "senado_collections",
+          description: "List items within a specific Senado DSpace collection by UUID.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              collectionId: { type: "string" },
+              query: { type: "string" },
+              maxResults: { type: "number" },
+            },
+            required: ["collectionId"],
           },
         },
       ],

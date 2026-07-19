@@ -46,13 +46,13 @@ export function registerTool(tool: McpTool): void {
 
 registerTool({
   name: "query",
-  description: "Run a full multi-agent intelligence query. Auto-detects intent and routes to the right tools. Use 'scope' to force: 'sil' (Congress records), 'senate'/'camara' (specific chamber), 'senate-news'/'camara-news' (press only), 'diputado' (legislator profile). Emits progress notifications during execution.",
+  description: "Run a full multi-agent intelligence query. Auto-detects intent and routes to the right tools. Use 'scope' to force: 'legislativo'/'sil' (Congress records), 'senate'/'camara' (specific chamber), 'senate-news'/'camara-news' (press only), 'diputado' (legislator profile). Emits progress notifications during execution.",
   inputSchema: {
     type: "object",
     properties: {
       query: { type: "string" },
       institutions: { type: "array", items: { type: "string" } },
-      scope: { type: "string", enum: ["all", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"] },
+      scope: { type: "string", enum: ["all", "legislativo", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"] },
     },
     required: ["query"],
   },
@@ -241,7 +241,7 @@ registerTool({
 
 registerTool({
   name: "sil_camara_legislador",
-  description: "Search for a specific Cámara legislator (diputado) by name. Returns their profile, party, district, and contact info. Use for queries like 'hablame del diputado Musa' or 'quién es el representante por Santiago'.",
+  description: "Search for a specific Cámara legislator (diputado) by name. Returns their profile, party, district, and contact info. Use for queries like 'hablame del diputado Musa', 'quién es el representante por Santiago', 'datos del diputado Juan Perez'. ALWAYS use this tool when the user asks about a specific diputado/legislador/representante.",
   inputSchema: {
     type: "object",
     properties: {
@@ -258,7 +258,7 @@ registerTool({
 
 registerTool({
   name: "sil_senado_iniciativas",
-  description: "Search Senado de la República SIL (DSpace) for legislative initiatives and resolutions. Use for queries about Senate bills, projects, or initiatives by keyword.",
+  description: "Search Senado de la República SIL (DSpace) for legislative initiatives and resolutions ONLY. Use for queries like 'hablame de la iniciativa XXX', 'proyectos de ley del senado', 'qué proyectos tiene el senado'. For broader searches across ALL document types (boletines, actas, contratos, libros), use senado_search instead.",
   inputSchema: {
     type: "object",
     properties: {
@@ -274,7 +274,7 @@ registerTool({
 
 registerTool({
   name: "sil_senado_boletines",
-  description: "Search Senado SIL (DSpace) for official bulletins (boletines), session records (actas), and reports (informes). Use for official Senate SIL publications.",
+  description: "Search Senado SIL (DSpace) for official bulletins (boletines), session records (actas), and reports (informes). Use for queries like 'boletines del senado', 'actas de sesiones del senado', 'informes del senado'.",
   inputSchema: {
     type: "object",
     properties: {
@@ -317,6 +317,61 @@ registerTool({
   async run(args, client, notify) {
     if (notify) notify("info", `Searching Senado news for: ${args.query}`);
     return client.senadoNews(args.query);
+  },
+});
+
+registerTool({
+  name: "senado_search",
+  description: "Full-text search across the entire Senado DSpace repository (Memoria Histórica del Senado, ~32k items). Covers ALL document types: iniciativas, resoluciones, boletines, actas, contratos, acuerdos internacionales, libros, documentos institucionales. Use scope='iniciativas' to narrow to legislative initiatives only. Use scope='root' for the broadest search across everything.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Search keyword (e.g. 'presupuesto 2024', 'contrato', 'acta senado')" },
+      scope: { type: "string", enum: ["root", "iniciativas", "all"], description: "Search scope: 'root' (all items ~32k, default), 'iniciativas' (legislative only), 'all' (no scope filter)" },
+      maxResults: { type: "number", description: "Max results to return (default 20, max 100)" },
+    },
+    required: ["query"],
+  },
+  async run(args, client, notify) {
+    if (notify) notify("info", `Searching Senado DSpace (scope: ${args.scope ?? "root"}) for: ${args.query}`);
+    const result = await client.silSenadoSearch(args.query, args.scope ?? "root", args.maxResults ?? 20);
+    if (notify) notify("info", `Found ${result.total} results in Senado DSpace`);
+    return result;
+  },
+});
+
+registerTool({
+  name: "senado_communities",
+  description: "Browse the Senado DSpace community tree (Memoria Histórica). Returns sub-communities and collections for a given parent. Use to discover what document categories are available: Cronológico de Senadores, Documentos Institucionales (boletines, actas, libros), Documentos Legislatives (leyes, constitución), Iniciativas Legislativas (proyectos, contratos), Rendición de Cuentas.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      parentId: { type: "string", description: "Parent community UUID (omit for root: fc1aa418-1f3f-46ee-a300-6d6047e53d01)" },
+    },
+  },
+  async run(args, client, notify) {
+    if (notify) notify("info", args.parentId ? `Fetching Senado sub-communities for: ${args.parentId}` : "Fetching Senado community tree (root)...");
+    return client.silSenadoCommunities(args.parentId);
+  },
+});
+
+registerTool({
+  name: "senado_collections",
+  description: "List items within a specific Senado DSpace collection. Use senado_communities first to discover collection IDs, then call this with the collection UUID to browse its documents. Each collection represents a specific document category (e.g. 'Actas Asamblea Nacional', 'Leyes Decretos Resoluciones', 'Contratos').",
+  inputSchema: {
+    type: "object",
+    properties: {
+      collectionId: { type: "string", description: "Collection UUID (from senado_communities)" },
+      query: { type: "string", description: "Optional keyword filter within the collection" },
+      maxResults: { type: "number", description: "Max results (default 20, max 100)" },
+    },
+    required: ["collectionId"],
+  },
+  async run(args, client, notify) {
+    if (notify) notify("info", `Fetching items from Senado collection: ${args.collectionId}`);
+    const result = await client.silSenadoCollectionItems(args.collectionId, args.query ?? "", args.maxResults ?? 20);
+    if (notify) notify("info", `Found ${result.total} items in collection`);
+    return result;
   },
 });
 

@@ -258,6 +258,29 @@ export class IntelDomGobClient {
     return (await res.json()) as { total: number; results: any[] };
   }
 
+  /** Full-text search across Senado DSpace (Memoria Histórica). scope: 'root' (all ~32k items), 'iniciativas' (legislative only), or 'all' (no scope filter). */
+  async silSenadoSearch(query: string, scope: "root" | "iniciativas" | "all" = "root", maxResults = 20): Promise<{ total: number; scope: string; results: any[] }> {
+    const params = new URLSearchParams({ query, scope, maxResults: String(maxResults) });
+    const res = await this.fetchImpl(this.url(`/sil/senado/search?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; scope: string; results: any[] };
+  }
+
+  /** Browse the Senado DSpace community tree (sub-communities and collections). parentId defaults to root. */
+  async silSenadoCommunities(parentId?: string): Promise<{ parentId: string; subCommunities: any[]; collections: any[] }> {
+    const params = new URLSearchParams();
+    if (parentId) params.set("parentId", parentId);
+    const qs = params.toString();
+    const res = await this.fetchImpl(this.url(`/sil/senado/communities${qs ? "?" + qs : ""}`), { headers: this.headers() });
+    return (await res.json()) as { parentId: string; subCommunities: any[]; collections: any[] };
+  }
+
+  /** List items in a specific Senado DSpace collection. */
+  async silSenadoCollectionItems(collectionId: string, query = "", maxResults = 20): Promise<{ collectionId: string; total: number; results: any[] }> {
+    const params = new URLSearchParams({ query, maxResults: String(maxResults) });
+    const res = await this.fetchImpl(this.url(`/sil/senado/collections/${collectionId}/items?${params}`), { headers: this.headers() });
+    return (await res.json()) as { collectionId: string; total: number; results: any[] };
+  }
+
   /** Query the Knowledge Graph (optionally the neighborhood of one entity). */
   async graph(entity?: string): Promise<{ graph: any; neighbors?: any[] }> {
     const qs = entity ? `?entity=${encodeURIComponent(entity)}` : "";

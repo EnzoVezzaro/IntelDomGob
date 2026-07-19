@@ -34,6 +34,7 @@ export { senateApi, senateService } from "./senate";
 export { chamberService } from "./chamber";
 export { chamberApi, getComisiones, getComisionTipos, getComisionesByTipo, getIniciativaCount, getIniciativaGrupos, getIniciativaMaterias, getIniciativasFiltered, getGruposParlamentarios, getSesiones, getLegislador } from "./chamber";
 export { searchExpedientes, searchSenadoConcepts } from "./senate/dspace";
+export { SENATE_SCOPE_ROOT, SENATE_SCOPE_INICIATIVAS } from "./senate/dspace";
 export { presidencyService } from "./presidency";
 export { judiciaryService } from "./judiciary";
 export { dgcpService } from "./dgcp";

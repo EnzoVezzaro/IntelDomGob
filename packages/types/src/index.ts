@@ -222,13 +222,14 @@ export interface QueryRequest {
    * "diputado" → diputado, …). Explicit values:
    *   all          — full multi-agent retrieval (default)
    *   sil          — only Congress legislative records (Cámara + Senado SIL)
+   *   legislativo  — alias for 'sil' (Congress legislative records)
    *   senate       — Senado only (iniciativas + portal news)
    *   camara       — Cámara only (iniciativas + portal news + legisladores)
    *   senate-news  — only Senado press/blog + Senado-filtered web search
    *   camara-news  — only Cámara portal news + Cámara-filtered web search
    *   diputado     — only Cámara legislador profile + authored iniciativas
    */
-  scope?: "all" | "sil" | "senate" | "camara" | "senate-news" | "camara-news" | "diputado";
+  scope?: "all" | "sil" | "legislativo" | "senate" | "camara" | "senate-news" | "camara-news" | "diputado";
   search?: {
     lang?: string;
     category?: string;
