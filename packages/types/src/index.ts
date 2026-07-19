@@ -229,7 +229,7 @@ export interface QueryRequest {
    *   camara-news  — only Cámara portal news + Cámara-filtered web search
    *   diputado     — only Cámara legislador profile + authored iniciativas
    */
-  scope?: "all" | "sil" | "legislativo" | "senate" | "camara" | "senate-news" | "camara-news" | "diputado";
+  scope?: "all" | "sil" | "legislativo" | "legislative_search" | "legislative" | "senate" | "camara" | "senate-news" | "camara-news" | "diputado";
   search?: {
     lang?: string;
     category?: string;

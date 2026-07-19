@@ -50,9 +50,18 @@ export class IntelDomGobClient {
     return h;
   }
 
+  /** Check that a fetch response is OK; throw a meaningful error otherwise. */
+  private async requireOk(res: Response): Promise<any> {
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      throw new Error(body.message ?? body.error ?? `HTTP ${res.status} ${res.statusText}`);
+    }
+    return res.json();
+  }
+
   async health(): Promise<HealthStatus> {
     const res = await this.fetchImpl(this.url("/health"), { headers: this.headers() });
-    return (await res.json()) as HealthStatus;
+    return this.requireOk(res);
   }
 
   /** Dynamic discovery of institution plugins. */
@@ -75,7 +84,7 @@ export class IntelDomGobClient {
     if (opts.portals && opts.portals.length) params.set("portals", opts.portals.join(","));
     const qs = params.toString();
     const res = await this.fetchImpl(this.url(`/url-tree${qs ? "?" + qs : ""}`), { headers: this.headers() });
-    return (await res.json()) as { portals: any[] };
+    return this.requireOk(res);
   }
 
   /** Run a multi-agent intelligence query. Returns the full structured result. */
@@ -151,13 +160,13 @@ export class IntelDomGobClient {
   /** Fetch the auto-generated OpenAPI document. */
   async openApi(): Promise<Record<string, unknown>> {
     const res = await this.fetchImpl(this.url("/openapi.json"), { headers: this.headers() });
-    return (await res.json()) as Record<string, unknown>;
+    return this.requireOk(res);
   }
 
   /** List the tools exposed by the INTEL.DOM.GOB MCP server. */
   async mcpTools(): Promise<{ server: string; transport: string; tools: any[] }> {
     const res = await this.fetchImpl(this.url("/mcp/tools"), { headers: this.headers() });
-    return (await res.json()) as { server: string; transport: string; tools: any[] };
+    return this.requireOk(res);
   }
 
   // --- Direct institution data methods (for MCP tools) --------------------------
@@ -169,7 +178,33 @@ export class IntelDomGobClient {
   async silCamaraIniciativas(query: string, periodoId = 0): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ query, periodoId: String(periodoId) });
     const res = await this.fetchImpl(this.url(`/sil/camara/iniciativas?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
+  }
+
+  /** Fetch the full detail of a single Cámara SIL initiative by its numeric ID. */
+  async silCamaraIniciativaDetalle(id: number, periodoId = 0): Promise<any> {
+    const params = new URLSearchParams({ periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/${id}?${params}`), { headers: this.headers() });
+    return this.requireOk(res);
+  }
+
+  /** Fetch the FULL detail of a Cámara SIL initiative: base object + proponentes, historicos, comisiones, documentos, votaciones. */
+  async silCamaraIniciativaCompleta(id: number, periodoId = 0): Promise<any> {
+    const params = new URLSearchParams({ periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/${id}/completa?${params}`), { headers: this.headers() });
+    return this.requireOk(res);
+  }
+
+  /**
+   * Fetch a SINGLE related sub-resource of a Cámara SIL initiative by ID,
+   * without pulling the whole bundle. sub ∈ proponentes | historicos |
+   * comisiones | actividades | documentos | votaciones. Use this for specific
+   * questions (e.g. "list the documents of this initiative").
+   */
+  async silCamaraIniciativaSub(sub: string, id: number, periodoId = 0): Promise<any> {
+    const params = new URLSearchParams({ periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/${id}/${sub}?${params}`), { headers: this.headers() });
+    return this.requireOk(res);
   }
 
   /** List Cámara SIL comisiones by tipo. */
@@ -177,42 +212,42 @@ export class IntelDomGobClient {
     const params = new URLSearchParams({ periodoId: String(periodoId) });
     if (tipoId) params.set("tipoId", String(tipoId));
     const res = await this.fetchImpl(this.url(`/sil/camara/comisiones?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** List Cámara SIL committee types (Permanentes, Especiales, etc.). */
   async silCamaraComisionTipos(periodoId = 0): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ periodoId: String(periodoId) });
     const res = await this.fetchImpl(this.url(`/sil/camara/comision/tipo?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Get total count of Cámara SIL initiatives. */
   async silCamaraIniciativaCount(periodoId = 0): Promise<{ total: number }> {
     const params = new URLSearchParams({ periodoId: String(periodoId) });
     const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/count?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number };
+    return this.requireOk(res);
   }
 
   /** List Cámara SIL initiative topic groups (15 groups). */
   async silCamaraIniciativaGrupos(periodoId = 0): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ periodoId: String(periodoId) });
     const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/grupos?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** List Cámara SIL matters (materias) within a topic group. */
   async silCamaraIniciativaMaterias(grupo: number, periodoId = 0): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ grupo: String(grupo), periodoId: String(periodoId) });
     const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/materias?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Search Cámara SIL sesiones by keyword. */
   async silCamaraSesiones(query: string, periodoId = 0): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ query, periodoId: String(periodoId) });
     const res = await this.fetchImpl(this.url(`/sil/camara/sesiones?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** List or search Cámara SIL grupos parlamentarios. */
@@ -220,49 +255,49 @@ export class IntelDomGobClient {
     const params = new URLSearchParams({ periodoId: String(periodoId) });
     if (keyword) params.set("query", keyword);
     const res = await this.fetchImpl(this.url(`/sil/camara/grupos?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Search Cámara SIL legisladores by name. */
   async silCamaraLegislador(query: string, periodoId = 0): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ query, periodoId: String(periodoId) });
     const res = await this.fetchImpl(this.url(`/sil/camara/legislador?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Search Senado SIL (DSpace) iniciativas + resoluciones. */
   async silSenadoIniciativas(query: string): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ query });
     const res = await this.fetchImpl(this.url(`/sil/senado/iniciativas?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Search Senado SIL (DSpace) boletines + actas + informes. */
   async silSenadoBoletines(query: string): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ query });
     const res = await this.fetchImpl(this.url(`/sil/senado/boletines?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Search Senado SIL (DSpace) resoluciones only. */
   async silSenadoResoluciones(query: string): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ query });
     const res = await this.fetchImpl(this.url(`/sil/senado/resoluciones?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Search Senado WordPress press/news (not SIL). */
   async senadoNews(query: string): Promise<{ total: number; results: any[] }> {
     const params = new URLSearchParams({ query });
     const res = await this.fetchImpl(this.url(`/senado/news?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Full-text search across Senado DSpace (Memoria Histórica). scope: 'root' (all ~32k items), 'iniciativas' (legislative only), or 'all' (no scope filter). */
   async silSenadoSearch(query: string, scope: "root" | "iniciativas" | "all" = "root", maxResults = 20): Promise<{ total: number; scope: string; results: any[] }> {
     const params = new URLSearchParams({ query, scope, maxResults: String(maxResults) });
     const res = await this.fetchImpl(this.url(`/sil/senado/search?${params}`), { headers: this.headers() });
-    return (await res.json()) as { total: number; scope: string; results: any[] };
+    return this.requireOk(res);
   }
 
   /** Browse the Senado DSpace community tree (sub-communities and collections). parentId defaults to root. */
@@ -271,21 +306,60 @@ export class IntelDomGobClient {
     if (parentId) params.set("parentId", parentId);
     const qs = params.toString();
     const res = await this.fetchImpl(this.url(`/sil/senado/communities${qs ? "?" + qs : ""}`), { headers: this.headers() });
-    return (await res.json()) as { parentId: string; subCommunities: any[]; collections: any[] };
+    return this.requireOk(res);
   }
 
   /** List items in a specific Senado DSpace collection. */
   async silSenadoCollectionItems(collectionId: string, query = "", maxResults = 20): Promise<{ collectionId: string; total: number; results: any[] }> {
     const params = new URLSearchParams({ query, maxResults: String(maxResults) });
     const res = await this.fetchImpl(this.url(`/sil/senado/collections/${collectionId}/items?${params}`), { headers: this.headers() });
-    return (await res.json()) as { collectionId: string; total: number; results: any[] };
+    return this.requireOk(res);
+  }
+
+  // --- Cronológico de Senadores (senator directory) ------------------------
+
+  /** Search senators by name across all periods, or within one period (e.g. "2020-2024"). Returns name, party, province, quadrennium and photo. */
+  async silSenadoSenadores(query: string, periodo?: string, maxResults = 20): Promise<{ total: number; periodo: string; results: any[] }> {
+    const params = new URLSearchParams({ query, maxResults: String(maxResults) });
+    if (periodo) params.set("periodo", periodo);
+    const res = await this.fetchImpl(this.url(`/sil/senado/senadores?${params}`), { headers: this.headers() });
+    return this.requireOk(res);
+  }
+
+  /** List the available constitutional periods with a senator count for each. */
+  async silSenadoSenadoresPeriodos(): Promise<{ total: number; periodos: Array<{ periodo: string; collectionId: string; total: number }> }> {
+    const res = await this.fetchImpl(this.url("/sil/senado/senadores/periodos"), { headers: this.headers() });
+    return this.requireOk(res);
+  }
+
+  /** List all senators for a given constitutional period (paginated). */
+  async silSenadoSenadoresPeriodo(periodo: string, page = 0, size = 40): Promise<{ periodo: string; total: number; results: any[] }> {
+    const params = new URLSearchParams({ page: String(page), size: String(size) });
+    const res = await this.fetchImpl(this.url(`/sil/senado/senadores/periodo/${encodeURIComponent(periodo)}?${params}`), { headers: this.headers() });
+    return this.requireOk(res);
+  }
+
+  /** Fetch a single senator's full record by DSpace item UUID. */
+  async silSenadoSenador(itemId: string): Promise<any> {
+    const res = await this.fetchImpl(this.url(`/sil/senado/senadores/${encodeURIComponent(itemId)}`), { headers: this.headers() });
+    return this.requireOk(res);
+  }
+
+  /**
+   * Fetch a SINGLE Senado DSpace expediente by its item UUID — full metadata
+   * plus attached PDFs — without running a broad search. Use for a specific
+   * known record (e.g. "dame el detalle del expediente X").
+   */
+  async silSenadoExpediente(itemId: string): Promise<any> {
+    const res = await this.fetchImpl(this.url(`/sil/senado/expediente/${encodeURIComponent(itemId)}`), { headers: this.headers() });
+    return this.requireOk(res);
   }
 
   /** Query the Knowledge Graph (optionally the neighborhood of one entity). */
   async graph(entity?: string): Promise<{ graph: any; neighbors?: any[] }> {
     const qs = entity ? `?entity=${encodeURIComponent(entity)}` : "";
     const res = await this.fetchImpl(this.url(`/graph${qs}`), { headers: this.headers() });
-    return (await res.json()) as { graph: any; neighbors?: any[] };
+    return this.requireOk(res);
   }
 
   /** Ingest an IntelligenceResult packet into the Knowledge Graph. */
@@ -295,7 +369,7 @@ export class IntelDomGobClient {
       headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify(result),
     });
-    return (await res.json()) as { entities: number; relations: number };
+    return this.requireOk(res);
   }
 }
 

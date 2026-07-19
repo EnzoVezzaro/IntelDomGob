@@ -6,6 +6,7 @@ import type { Orchestrator } from "@intel.dom.gob/service-orchestrator";
 import type { SearchService } from "@intel.dom.gob/service-search";
 import type { AuthService } from "@intel.dom.gob/service-auth";
 import { registerAllInstitutions, describeAll } from "@intel.dom.gob/service-institutions";
+import { tools as mcpTools } from "@intel.dom.gob/service-mcp";
 import { buildCategorizedUrlTree } from "@intel.dom.gob/service-crawler";
 import { parseBearer, AuthError } from "@intel.dom.gob/service-auth";
 import type { QueryRequest, ChatRequest } from "@intel.dom.gob/types";
@@ -249,6 +250,60 @@ export function createRouter(deps: RouterDeps): Router {
     }
   });
 
+  // Cámara SIL: detalle COMPLETO de una iniciativa (base + proponentes,
+  // historicos, comisiones, documentos, votaciones) en un solo objeto.
+  router.get("/sil/camara/iniciativa/:id/completa", async (req, res: Response) => {
+    try {
+      const { getIniciativaCompleta } = await import("@intel.dom.gob/service-institutions");
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid iniciativa id" });
+      const periodoId = Number(req.query.periodoId || 0);
+      const iniciativa = await getIniciativaCompleta(id, periodoId);
+      if (!iniciativa) return res.status(404).json({ error: "Iniciativa not found" });
+      res.json(iniciativa);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Cámara SIL: sub-recurso individual de una iniciativa (solo el dato pedido,
+  // sin traer todo el bundle). sub ∈ {proponentes, historicos, comisiones,
+  // actividades, documentos, votaciones}. Evita llamar a /completa para
+  // preguntas específicas (p.ej. "dame los documentos de esta iniciativa").
+  router.get("/sil/camara/iniciativa/:id/:sub", async (req, res: Response) => {
+    try {
+      const { getIniciativaSub, INICIATIVA_SUB_RECURSOS } = await import("@intel.dom.gob/service-institutions");
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid iniciativa id" });
+      const sub = String(req.params.sub);
+      if (!(INICIATIVA_SUB_RECURSOS as string[]).includes(sub)) {
+        return res.status(404).json({ error: `Unknown sub-resource: ${sub}` });
+      }
+      const periodoId = Number(req.query.periodoId || 0);
+      const items = await getIniciativaSub(sub as any, id, periodoId);
+      if (!items) return res.status(404).json({ error: "Sub-resource not found" });
+      const total = Array.isArray((items as any[])) ? (items as any[]).length : 0;
+      res.json({ sub, id, total, periodoId, results: items });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Cámara SIL: detalle de una iniciativa por ID (solo objeto base)
+  router.get("/sil/camara/iniciativa/:id", async (req, res: Response) => {
+    try {
+      const { getIniciativaDetalle } = await import("@intel.dom.gob/service-institutions");
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid iniciativa id" });
+      const periodoId = Number(req.query.periodoId || 0);
+      const iniciativa = await getIniciativaDetalle(id, periodoId);
+      if (!iniciativa) return res.status(404).json({ error: "Iniciativa not found" });
+      res.json(iniciativa);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Cámara SIL: Sesiones
   router.get("/sil/camara/sesiones", async (req, res: Response) => {
     try {
@@ -402,6 +457,75 @@ export function createRouter(deps: RouterDeps): Router {
       const maxResults = Math.min(Number(req.query.maxResults) || 20, 100);
       const results = await searchExpedientes(q, { maxResults, scope: collectionId });
       res.json({ collectionId, total: results.length, results });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // --- Cronológico de Senadores (senator directory) -------------------------
+  // Senators grouped by constitutional period (2010-2028). Each senator has
+  // name, party, province, quadrennium and photo.
+
+  // Search senators by name (across all periods, or within one via ?periodo).
+  router.get("/sil/senado/senadores", async (req, res: Response) => {
+    try {
+      const { searchSenadores } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const periodo = req.query.periodo ? String(req.query.periodo) : undefined;
+      const maxResults = Math.min(Number(req.query.maxResults) || 20, 100);
+      const results = await searchSenadores(q, { periodo, maxResults });
+      res.json({ total: results.length, periodo: periodo ?? "all", results });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // List available constitutional periods with senator counts.
+  router.get("/sil/senado/senadores/periodos", async (_req, res: Response) => {
+    try {
+      const { listSenadoresPeriodos } = await import("@intel.dom.gob/service-institutions");
+      const periodos = await listSenadoresPeriodos();
+      res.json({ total: periodos.length, periodos });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // List all senators for a specific constitutional period (paginated).
+  router.get("/sil/senado/senadores/periodo/:periodo", async (req, res: Response) => {
+    try {
+      const { listSenadoresByPeriodo } = await import("@intel.dom.gob/service-institutions");
+      const periodo = String(req.params.periodo);
+      const page = Math.max(Number(req.query.page) || 0, 0);
+      const size = Math.min(Number(req.query.size) || 40, 100);
+      const result = await listSenadoresByPeriodo(periodo, { page, size });
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Fetch a single senator's full record by DSpace item UUID.
+  router.get("/sil/senado/senadores/:itemId", async (req, res: Response) => {
+    try {
+      const { getSenador } = await import("@intel.dom.gob/service-institutions");
+      const senador = await getSenador(String(req.params.itemId));
+      if (!senador) return res.status(404).json({ error: "Senador not found" });
+      res.json(senador);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Senado DSpace: expediente individual por UUID (fetch granular de UN solo
+  // registro, con su metadata y PDFs, sin correr una búsqueda amplia).
+  router.get("/sil/senado/expediente/:itemId", async (req, res: Response) => {
+    try {
+      const { getExpediente } = await import("@intel.dom.gob/service-institutions");
+      const itemId = String(req.params.itemId);
+      const expediente = await getExpediente(itemId);
+      if (!expediente) return res.status(404).json({ error: "Expediente not found" });
+      res.json(expediente);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -946,171 +1070,12 @@ export function createRouter(deps: RouterDeps): Router {
     res.json({
       server: "intel-dom-gob-mcp",
       transport: "http",
-      tools: [
-        {
-          name: "query",
-          description: "Full multi-agent intelligence query with intent-based scope routing. Auto-detects from query text which tools to activate. Emits progress notifications.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              query: { type: "string" },
-              institutions: { type: "array", items: { type: "string" } },
-              scope: { type: "string", enum: ["all", "legislativo", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"] },
-            },
-            required: ["query"],
-          },
-        },
-        {
-          name: "chat",
-          description: "Context-grounded follow-up chat over a completed intelligence result.",
-          inputSchema: {
-            type: "object",
-            properties: { context: { type: "object" }, message: { type: "string" }, history: { type: "array" } },
-            required: ["context", "message"],
-          },
-        },
-        {
-          name: "list_institutions",
-          description: "List the registered DR government institution sources.",
-          inputSchema: { type: "object", properties: {} },
-        },
-        {
-          name: "sil_camara_iniciativas",
-          description: "Search Cámara de Diputados SIL for legislative initiatives by keyword or expediente number.",
-          inputSchema: {
-            type: "object",
-            properties: { query: { type: "string" }, periodoId: { type: "number" } },
-            required: ["query"],
-          },
-        },
-        {
-          name: "sil_camara_comisiones",
-          description: "List Cámara committees. With tipoId filters by type (974=Permanentes, 975=Especiales, etc.).",
-          inputSchema: {
-            type: "object",
-            properties: { tipoId: { type: "number" }, periodoId: { type: "number" } },
-          },
-        },
-        {
-          name: "sil_camara_comision_tipos",
-          description: "List Cámara committee types (Permanentes, Especiales, Bicamerales, Coordinadora). Returns type IDs.",
-          inputSchema: { type: "object", properties: { periodoId: { type: "number" } } },
-        },
-        {
-          name: "sil_camara_iniciativa_count",
-          description: "Get total count of all Cámara SIL initiatives.",
-          inputSchema: { type: "object", properties: { periodoId: { type: "number" } } },
-        },
-        {
-          name: "sil_camara_iniciativa_grupos",
-          description: "List 15 Cámara initiative topic groups (Administración, Economía, Educación, etc.).",
-          inputSchema: { type: "object", properties: { periodoId: { type: "number" } } },
-        },
-        {
-          name: "sil_camara_iniciativa_materias",
-          description: "List matters within a Cámara initiative topic group. Requires grupo ID from sil_camara_iniciativa_grupos.",
-          inputSchema: {
-            type: "object",
-            properties: { grupo: { type: "number" }, periodoId: { type: "number" } },
-            required: ["grupo"],
-          },
-        },
-        {
-          name: "sil_camara_sesiones",
-          description: "List or look up Cámara SIL sessions. Empty query = all sessions. With session number (e.g. '00042-2026-PLO') = specific session.",
-          inputSchema: {
-            type: "object",
-            properties: { query: { type: "string", description: "Session number (e.g. '00042-2026-PLO') or empty for all" }, periodoId: { type: "number" } },
-          },
-        },
-        {
-          name: "sil_camara_grupos",
-          description: "List all Cámara parliamentary groups (59 total: parties, PARLACEN, nationality groups).",
-          inputSchema: {
-            type: "object",
-            properties: { query: { type: "string" }, periodoId: { type: "number" } },
-          },
-        },
-        {
-          name: "sil_camara_legislador",
-          description: "Search for a specific Cámara legislator (diputado) by name. Returns profile, party, district.",
-          inputSchema: {
-            type: "object",
-            properties: { query: { type: "string" }, periodoId: { type: "number" } },
-            required: ["query"],
-          },
-        },
-        {
-          name: "sil_senado_iniciativas",
-          description: "Search Senado SIL (DSpace) for legislative initiatives and resolutions.",
-          inputSchema: {
-            type: "object",
-            properties: { query: { type: "string" } },
-            required: ["query"],
-          },
-        },
-        {
-          name: "sil_senado_boletines",
-          description: "Search Senado SIL (DSpace) for bulletins, session records, and reports.",
-          inputSchema: {
-            type: "object",
-            properties: { query: { type: "string" } },
-            required: ["query"],
-          },
-        },
-        {
-          name: "sil_senado_resoluciones",
-          description: "Search Senado SIL (DSpace) specifically for resolutions.",
-          inputSchema: {
-            type: "object",
-            properties: { query: { type: "string" } },
-            required: ["query"],
-          },
-        },
-        {
-          name: "senado_news",
-          description: "Search Senado WordPress press/news and blog posts (not SIL).",
-          inputSchema: {
-            type: "object",
-            properties: { query: { type: "string" } },
-            required: ["query"],
-          },
-        },
-        {
-          name: "senado_search",
-          description: "Full-text search across the entire Senado DSpace repository (~32k items). Covers iniciativas, resoluciones, boletines, actas, contratos, acuerdos, libros, documentos institucionales. scope='iniciativas' for legislative only.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              query: { type: "string" },
-              scope: { type: "string", enum: ["root", "iniciativas", "all"] },
-              maxResults: { type: "number" },
-            },
-            required: ["query"],
-          },
-        },
-        {
-          name: "senado_communities",
-          description: "Browse the Senado DSpace community tree. Returns sub-communities and collections.",
-          inputSchema: {
-            type: "object",
-            properties: { parentId: { type: "string" } },
-          },
-        },
-        {
-          name: "senado_collections",
-          description: "List items within a specific Senado DSpace collection by UUID.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              collectionId: { type: "string" },
-              query: { type: "string" },
-              maxResults: { type: "number" },
-            },
-            required: ["collectionId"],
-          },
-        },
-      ],
+      tools: mcpTools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema ?? { type: "object", properties: {} },
+        ...(t.annotations ? { annotations: t.annotations } : {}),
+      })),
     });
   });
 

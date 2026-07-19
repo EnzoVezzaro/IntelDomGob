@@ -87,8 +87,10 @@ async function dispatch(req: JsonRpcRequest, client: any, sendNotification?: (no
       });
 
     case "notifications/initialized":
+      // Notifications: spec says "The server MUST NOT respond" — always null.
+      return null;
+
     case "ping":
-      // Notifications / pings: no response body.
       return id === null ? null : ok(id, {});
 
     case "tools/list":
@@ -130,17 +132,69 @@ async function dispatch(req: JsonRpcRequest, client: any, sendNotification?: (no
  * @param basePath   mount path (default "/mcp")
  */
 export function mountMcpProtocol(app: Express, makeClient: () => any, basePath = "/mcp"): void {
-  // SSE transport (legacy MCP "sse" used by Odysseus `--transport sse`):
-  //   1. Client opens GET /mcp  → server sends `event: endpoint` with a
-  //      session-scoped POST URL (containing ?sessionId=), and keeps the
-  //      stream open.
-  //   2. Client POSTs JSON-RPC messages to that URL → server dispatches and
-  //      writes the JSON-RPC response back onto the open SSE stream.
-  // This matches the MCP SSE client contract (responses arrive in-order on
-  // the originating SSE connection, not on the POST response body).
-  const sessions = new Map<string, { res: any; ping: NodeJS.Timeout }>();
+  // Two transports share this mount point:
+  //
+  //  A) Legacy MCP "sse" (used by Odysseus `--transport sse`):
+  //     1. Client opens GET /mcp (no session id) → server sends `event: endpoint`
+  //        with a session-scoped POST URL (?sessionId=) and keeps the stream open.
+  //     2. Client POSTs JSON-RPC to that URL → responses stream back on the GET SSE.
+  //
+  //  B) Streamable HTTP (2025-03-26; used by claude code, opencode, the official
+  //     `mcp` SDK, and stock Odysseus-over-HTTP):
+  //     1. Client POSTs `initialize` → server replies (SSE or JSON) with an
+  //        `Mcp-Session-Id` response header.
+  //     2. Client opens GET /mcp WITH that `Mcp-Session-Id` header → server streams
+  //        server→client messages (`event: message`) on this SSE connection. This is
+  //        REQUIRED by the spec: the client keeps this stream open for the whole
+  //        session and reads server-initiated notifications here.
+  //     3. Client POSTs requests (tools/list, tools/call, …) with the same header;
+  //        the JSON-RPC response is returned on the POST response itself.
+  const sseSessions = new Map<string, { res: any; ping: NodeJS.Timeout }>();
 
-  app.get(basePath, async (_req, res) => {
+  // Streamable HTTP sessions: keyed by Mcp-Session-Id. Holds the open GET SSE
+  // response (for server→client streaming) plus any messages queued before the
+  // GET stream attached.
+  const streamableSessions = new Map<string, { res: any | null; queue: any[]; ping: NodeJS.Timeout }>();
+
+  // MCP-Session-Id store: tracks session ids assigned on `initialize` (for validation).
+  const mcpSessions = new Map<string, {}>();
+
+  function writeToSession(sid: string, message: any): void {
+    const s = streamableSessions.get(sid);
+    if (!s) return;
+    const frame = `event: message\ndata: ${JSON.stringify(message)}\n\n`;
+    if (s.res) s.res.write(frame);
+    else s.queue.push(frame);
+  }
+
+  app.get(basePath, async (req, res) => {
+    const headerSessionId = String(req.headers["mcp-session-id"] ?? "");
+    console.error("MCP GET", { headerSessionId: headerSessionId || "(none)", hasStreamSession: streamableSessions.has(headerSessionId) });
+
+    // ── Streamable HTTP mode: client attached with a session id ──────────────
+    if (headerSessionId && streamableSessions.has(headerSessionId)) {
+      const s = streamableSessions.get(headerSessionId)!;
+      console.error("MCP GET streamable-attach", { headerSessionId });
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "Mcp-Session-Id": headerSessionId,
+      });
+      // Flush anything queued before this GET stream attached.
+      for (const frame of s.queue) res.write(frame);
+      s.queue = [];
+      s.res = res;
+      const ping = setInterval(() => { if (s.res) s.res.write(": ping\n\n"); }, 15000);
+      s.ping = ping;
+      res.on("close", () => {
+        clearInterval(ping);
+        s.res = null; // keep the session entry so POST responses still validate
+      });
+      return;
+    }
+
+    // ── Legacy SSE handshake ─────────────────────────────────────────────────
     const sessionId = randomUUID();
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -152,10 +206,10 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
     res.write(`event: endpoint\ndata: ${basePath}?sessionId=${sessionId}\n\n`);
 
     const ping = setInterval(() => res.write(": ping\n\n"), 15000);
-    sessions.set(sessionId, { res, ping });
+    sseSessions.set(sessionId, { res, ping });
     res.on("close", () => {
       clearInterval(ping);
-      sessions.delete(sessionId);
+      sseSessions.delete(sessionId);
     });
   });
 
@@ -164,9 +218,38 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
   // inline as SSE (modern Streamable HTTP clients).
   app.post(basePath, async (req, res) => {
     const wantsSse = String(req.headers.accept ?? "").includes("text/event-stream");
-    const sessionId = String(req.query?.sessionId ?? "");
+    const legacySessionId = String(req.query?.sessionId ?? "");
+    const headerSessionId = String(req.headers["mcp-session-id"] ?? "");
     const body = req.body as JsonRpcRequest | JsonRpcRequest[];
     const requests = Array.isArray(body) ? body : [body];
+    const firstMethod = requests[0]?.method ?? "";
+
+    console.error("MCP POST", { method: firstMethod, headerSessionId: headerSessionId || "(none)", legacy: legacySessionId || "(none)", wantsSse });
+
+    // Validate incoming Mcp-Session-Id header on non-initialize requests (MCP 2025-03-26).
+    // Allow absent header for legacy/SSE clients; reject unknown values.
+    if (headerSessionId && firstMethod !== "initialize") {
+      if (!mcpSessions.has(headerSessionId)) {
+        res.status(401).json({ error: "Invalid or expired Mcp-Session-Id" });
+        return;
+      }
+    }
+
+    // Resolve the active Streamable-HTTP session id (assigned at initialize, or
+    // passed in by the client on subsequent requests). Used to route server→client
+    // notifications onto the client's open GET SSE stream.
+    const activeSid = (firstMethod === "initialize" && !headerSessionId)
+      ? randomUUID()
+      : (headerSessionId || "");
+
+    // Register the session BEFORE we send the initialize response. The client
+    // opens its GET /mcp (server→client SSE) immediately after receiving the
+    // Mcp-Session-Id header, so the entry must exist by then — otherwise the GET
+    // falls through to the legacy handshake and the transport tears down.
+    if (firstMethod === "initialize" && !headerSessionId) {
+      mcpSessions.set(activeSid, {});
+      streamableSessions.set(activeSid, { res: null, queue: [], ping: setInterval(() => {}, 1e9) });
+    }
 
     const respond = async (sendNotification?: (n: JsonRpcResponse) => void): Promise<JsonRpcResponse[]> => {
       const client = makeClient();
@@ -178,13 +261,13 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
       return results;
     };
 
-    const session = sessionId ? sessions.get(sessionId) : undefined;
-    if (session) {
+    const sseSession = legacySessionId ? sseSessions.get(legacySessionId) : undefined;
+    if (sseSession) {
       // Legacy SSE: stream the response(s) back on the open GET connection.
       // Notifications are sent as SSE events during tool execution.
-      const results = await respond((n) => session.res.write(`event: message\ndata: ${JSON.stringify(n)}\n\n`));
+      const results = await respond((n) => sseSession.res.write(`event: message\ndata: ${JSON.stringify(n)}\n\n`));
       for (const r of results) {
-        session.res.write(`event: message\ndata: ${JSON.stringify(r)}\n\n`);
+        sseSession.res.write(`event: message\ndata: ${JSON.stringify(r)}\n\n`);
       }
       res.status(202).end();
       return;
@@ -195,10 +278,10 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
-        "Mcp-Session-Id": randomUUID(),
+        "Mcp-Session-Id": activeSid,
       });
-      // Notifications are sent as SSE events during tool execution.
-      const results = await respond((n) => res.write(`event: message\ndata: ${JSON.stringify(n)}\n\n`));
+      // Notifications stream to the client's open GET /mcp (Streamable HTTP) stream.
+      const results = await respond((n) => writeToSession(activeSid, n));
       for (const r of results) {
         res.write(`event: message\ndata: ${JSON.stringify(r)}\n\n`);
       }
@@ -207,14 +290,26 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
     }
 
     // Plain JSON: notifications can't be streamed — tool runs synchronously.
-    const results = await respond();
+    const allNotifications = requests.every((r) => r.id === null || r.id === undefined);
+    const results = await respond((n) => writeToSession(activeSid, n));
+
+    // Per MCP 2025-03-26 spec §2: "A notification is a JSON-RPC request with
+    // id = null ... The server MUST NOT respond to a notification."
+    if (allNotifications) {
+      res.status(204).end();
+      return;
+    }
+
     res.setHeader("Content-Type", "application/json");
-    res.setHeader("Mcp-Session-Id", randomUUID());
+
+    if (activeSid) res.setHeader("Mcp-Session-Id", activeSid);
+
     res.json(Array.isArray(body) ? results : results[0] ?? ok(null, {}));
   });
 
-  app.delete(basePath, (_req, res) => {
-    res.setHeader("Mcp-Session-Id", randomUUID());
+  app.delete(basePath, (req, res) => {
+    const headerSessionId = String(req.headers["mcp-session-id"] ?? "");
+    if (headerSessionId) mcpSessions.delete(headerSessionId);
     res.status(200).end();
   });
 }

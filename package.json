@@ -1,6 +1,6 @@
 {
   "name": "intel.dom.gob",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "private": true,
   "description": "INTEL.DOM.GOB — API-first open-source AI platform for Government Intelligence.",
   "license": "MIT",

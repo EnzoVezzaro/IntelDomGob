@@ -477,3 +477,340 @@ export async function searchSenadoConcepts(
 
   return map;
 }
+
+// ===========================================================================
+// CRONOLÓGICO DE SENADORES (Senator directory)
+// ===========================================================================
+//
+// The "Cronológico de Senadores" community groups senators by constitutional
+// period. Each senator is a DSpace ITEM (not a Person entity) with rich
+// metadata: dc.title (name), local.politicalparty, local.province,
+// dc.date.quadrennium, dc.identifier.uri (handle), plus a thumbnail photo.
+//
+//   Community (Cronológico de Senadores): dfb768ab-841a-40ec-9edd-6cf9b2c5490a
+//     ├─ Collection "Período constitucional, 2010-2016": 98dc3b59-0df6-4923-976e-ff61d7b9f9dc
+//     ├─ Collection "Período constitucional, 2016-2020": 452151f5-e01a-42b8-b5da-668582346ce9
+//     ├─ Collection "Período constitucional, 2020-2024": 221e3a37-a431-4366-aa58-606bf1ab14cc
+//     └─ Collection "Período constitucional, 2024-2028": cd9b2852-2b16-448b-a409-306adb857e1f
+//
+// Search across all periods uses scope = the community UUID; a single period
+// uses scope = the collection UUID.
+
+/** Scope: Cronológico de Senadores community (all senators, all periods). */
+export const SENATE_SCOPE_SENADORES = "dfb768ab-841a-40ec-9edd-6cf9b2c5490a";
+
+/** Constitutional period → collection UUID. Ordered oldest → newest. */
+export const SENATE_PERIODOS: Array<{ periodo: string; collectionId: string }> = [
+  { periodo: "2010-2016", collectionId: "98dc3b59-0df6-4923-976e-ff61d7b9f9dc" },
+  { periodo: "2016-2020", collectionId: "452151f5-e01a-42b8-b5da-668582346ce9" },
+  { periodo: "2020-2024", collectionId: "221e3a37-a431-4366-aa58-606bf1ab14cc" },
+  { periodo: "2024-2028", collectionId: "cd9b2852-2b16-448b-a409-306adb857e1f" },
+];
+
+export interface Senador {
+  id: string;
+  nombre: string;
+  partido: string;
+  provincia: string;
+  periodo: string;
+  uri: string;
+  foto: string;
+}
+
+/** Map a DSpace senator ITEM (with optional embedded thumbnail) to a Senador. */
+function dspaceToSenador(obj: any): Senador {
+  const meta: Record<string, any[]> = obj?.metadata ?? {};
+  const thumbHref =
+    obj?._embedded?.thumbnail?._links?.content?.href ?? "";
+  return {
+    id: obj?.id ?? "",
+    nombre: getMeta(meta, "dc.title") || obj?.name || "",
+    partido: getMeta(meta, "local.politicalparty"),
+    provincia: getMeta(meta, "local.province"),
+    periodo: getMeta(meta, "dc.date.quadrennium"),
+    uri: getMeta(meta, "dc.identifier.uri"),
+    foto: thumbHref,
+  };
+}
+
+/**
+ * Fetch a page of senator ITEMs from DSpace discover, embedding thumbnails so
+ * each result carries a photo URL. Unlike fetchDSpacePage this sorts by score
+ * (relevance) for name queries and by title for browsing, and always embeds
+ * the thumbnail bitstream.
+ */
+async function fetchSenadoresPage(
+  scope: string,
+  query = "",
+  size = 40,
+  page = 0,
+): Promise<{ objects: any[]; total: number }> {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(Math.min(size, 100)),
+    dsoType: "ITEM",
+    scope,
+    embed: "thumbnail",
+    sort: query ? "score,DESC" : "dc.title,ASC",
+  });
+  if (query) params.set("query", query);
+  const url = `${SEARCH_URL}?${params}`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!resp.ok) return { objects: [], total: 0 };
+    const data = await resp.json();
+    const sr = data?._embedded?.searchResult;
+    const objects =
+      sr?._embedded?.objects?.map((o: any) => o._embedded?.indexableObject) ?? [];
+    const total = sr?.page?.totalElements ?? objects.length;
+    return { objects, total };
+  } catch {
+    clearTimeout(timer);
+    return { objects: [], total: 0 };
+  }
+}
+
+/**
+ * Search senators by name across all periods (or within one period when a
+ * collectionId scope is given). Returns senators with party, province,
+ * quadrennium and photo.
+ */
+export async function searchSenadores(
+  query: string,
+  opts: { periodo?: string; maxResults?: number } = {},
+): Promise<Senador[]> {
+  const max = Math.min(opts.maxResults ?? 20, 100);
+  const scope = opts.periodo
+    ? SENATE_PERIODOS.find((p) => p.periodo === opts.periodo)?.collectionId ??
+      SENATE_SCOPE_SENADORES
+    : SENATE_SCOPE_SENADORES;
+  const { objects } = await fetchSenadoresPage(scope, query, max, 0);
+  return objects.filter((o) => o?.id).map(dspaceToSenador);
+}
+
+/**
+ * List all senators for a given constitutional period (e.g. "2020-2024"),
+ * paginated. Returns { periodo, total, results }.
+ */
+export async function listSenadoresByPeriodo(
+  periodo: string,
+  opts: { page?: number; size?: number } = {},
+): Promise<{ periodo: string; total: number; results: Senador[] }> {
+  const entry = SENATE_PERIODOS.find((p) => p.periodo === periodo);
+  if (!entry) return { periodo, total: 0, results: [] };
+  const { objects, total } = await fetchSenadoresPage(
+    entry.collectionId,
+    "",
+    opts.size ?? 40,
+    opts.page ?? 0,
+  );
+  return {
+    periodo,
+    total,
+    results: objects.filter((o) => o?.id).map(dspaceToSenador),
+  };
+}
+
+/**
+ * List the available constitutional periods with a senator count for each.
+ */
+export async function listSenadoresPeriodos(): Promise<
+  Array<{ periodo: string; collectionId: string; total: number }>
+> {
+  return Promise.all(
+    SENATE_PERIODOS.map(async (p) => {
+      const { total } = await fetchSenadoresPage(p.collectionId, "", 1, 0);
+      return { periodo: p.periodo, collectionId: p.collectionId, total };
+    }),
+  );
+}
+
+/**
+ * Fetch a single senator's full record by DSpace item UUID, including photo.
+ */
+export async function getSenador(itemId: string): Promise<Senador | null> {
+  const base = `${DSPACE_HOST}/server/api`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const resp = await fetch(
+      `${base}/core/items/${encodeURIComponent(itemId)}?embed=thumbnail`,
+      {
+        headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+        signal: ctrl.signal,
+      },
+    );
+    clearTimeout(timer);
+    if (!resp.ok) return null;
+    const obj = await resp.json();
+    if (!obj?.id) return null;
+    return dspaceToSenador(obj);
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
+// ---- Single expediente fetch (granular: one item by UUID) -----------------
+// The Senado DSpace has no SIL-style sub-resource endpoints (no separate
+// proponentes / historicos / votaciones calls). A single item already carries
+// all its metadata; the related resources we enrich with are:
+//   - owningCollection (+ parentCommunity chain) → legislative classification
+//   - bundles → bitstreams (the PDFs), with a canDownload check per bitstream
+//   - relationships / mappedCollections → related items (usually empty)
+// This mirrors the Cámara "granular tool": ask about ONE specific record →
+// hit one endpoint, not a broad search.
+
+export interface SenadoExpedienteDocumento {
+  nombre: string;
+  formato: string;
+  sizeBytes: number;
+  url: string;
+  canDownload: boolean;
+}
+
+export interface SenadoExpediente {
+  id: string;
+  numero: string | null;
+  tipo: string;
+  descripcion: string;
+  estado: string | null;
+  fecha: string | null;
+  materia: string | null;
+  url: string;
+  coleccion: string | null;
+  comunidad: string | null;
+  repositorio: string | null;
+  documentos: SenadoExpedienteDocumento[];
+  relaciones: any[];
+  coleccionesMapeadas: string[];
+}
+
+async function dspaceGetJson(url: string, timeoutMs = 15000): Promise<any | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
+/** Fetch the PDF bitstreams of an item by walking its bundles. Tolerant. */
+async function fetchItemBitstreams(itemId: string): Promise<SenadoExpedienteDocumento[]> {
+  const base = `${DSPACE_HOST}/server/api`;
+  const bundlesData = await dspaceGetJson(`${base}/core/items/${encodeURIComponent(itemId)}/bundles`);
+  const bundles: any[] = bundlesData?._embedded?.bundles ?? [];
+  const out: SenadoExpedienteDocumento[] = [];
+  for (const bundle of bundles) {
+    const bundleId = bundle?.uuid;
+    if (!bundleId) continue;
+    const bitsData = await dspaceGetJson(
+      `${base}/core/bundles/${encodeURIComponent(bundleId)}/bitstreams?page=0&size=20`,
+    );
+    const bits: any[] = bitsData?._embedded?.bitstreams ?? [];
+    for (const b of bits) {
+      const bsId = b?.uuid ?? b?.id;
+      const href = b?._links?.content?.href ?? "";
+      if (!href || !bsId) continue;
+      // DSpace leaves bitstream.format/mimeType null; derive a label from the
+      // file extension so the consumer knows what kind of document this is.
+      const fname: string = b?.name ?? "";
+      const ext = fname.includes(".") ? fname.split(".").pop()!.toUpperCase() : "DESCONOCIDO";
+      // canDownload: the authorization endpoint returns a row when granted.
+      const auth = await dspaceGetJson(
+        `${base}/authz/authorizations/search/object?uri=${encodeURIComponent(`${base}/core/bitstreams/${bsId}`)}&feature=canDownload&embed=feature`,
+      );
+      const canDownload = Array.isArray(auth?._embedded?.authorizations)
+        ? auth!._embedded!.authorizations.length > 0
+        : false;
+      out.push({
+        nombre: fname || bundle?.name || "documento",
+        formato: ext,
+        sizeBytes: typeof b?.sizeBytes === "number" ? b.sizeBytes : 0,
+        url: href,
+        canDownload,
+      });
+    }
+  }
+  return out;
+}
+
+/** Resolve the owning collection chain (collection → community → community). */
+async function fetchItemProvenance(itemId: string): Promise<{
+  coleccion: string | null;
+  comunidad: string | null;
+  repositorio: string | null;
+}> {
+  const base = `${DSPACE_HOST}/server/api`;
+  const col = await dspaceGetJson(
+    `${base}/core/items/${encodeURIComponent(itemId)}/owningCollection?embed=parentCommunity/parentCommunity`,
+  );
+  if (!col) return { coleccion: null, comunidad: null, repositorio: null };
+  const coleccion = col?.name ?? null;
+  const comunidad = col?._embedded?.parentCommunity?.name ?? null;
+  const repositorio = col?._embedded?.parentCommunity?._embedded?.parentCommunity?.name ?? null;
+  return { coleccion, comunidad, repositorio };
+}
+
+/**
+ * Fetch a SINGLE Senado DSpace expediente by its item UUID — full metadata plus
+ * its collection provenance, attached PDFs (each with a canDownload flag), and
+ * related items, with no broad search. Returns null if not found.
+ */
+export async function getExpediente(itemId: string): Promise<SenadoExpediente | null> {
+  if (!itemId) return null;
+  const base = `${DSPACE_HOST}/server/api`;
+  const obj = await dspaceGetJson(
+    `${base}/core/items/${encodeURIComponent(itemId)}?embed=thumbnail`,
+  );
+  if (!obj?.id) return null;
+  const md = obj.metadata ?? {};
+  const numero = getMeta(md, "dc.identifier.govdoc");
+  const tipo = deriveTipo(md);
+  const estado = getMeta(md, "dc.format");
+  const descripcion = getMeta(md, "dc.description") || getMeta(md, "dc.title") || obj.name || "";
+  const fecha = getMeta(md, "dc.date.issued");
+  const materia = getMeta(md, "dc.publisher");
+  const uri = getMeta(md, "dc.identifier.uri");
+  const handleUrl = uri || `${DSPACE_HOST}/handle/123456789/${obj.id}`;
+
+  const [documentos, provenance, relData, mappedData] = await Promise.all([
+    fetchItemBitstreams(itemId),
+    fetchItemProvenance(itemId),
+    dspaceGetJson(`${base}/core/items/${encodeURIComponent(itemId)}/relationships`),
+    dspaceGetJson(`${base}/core/items/${encodeURIComponent(itemId)}/mappedCollections?page=0&size=5`),
+  ]);
+  const relaciones = relData?._embedded?.relationships ?? [];
+  const coleccionesMapeadas = (mappedData?._embedded?.collections ?? []).map((c: any) => c.name).filter(Boolean);
+
+  return {
+    id: obj.id,
+    numero: numero || null,
+    tipo,
+    descripcion: descripcion.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+    estado: estado || null,
+    fecha: fecha || null,
+    materia: materia || null,
+    url: handleUrl,
+    coleccion: provenance.coleccion,
+    comunidad: provenance.comunidad,
+    repositorio: provenance.repositorio,
+    documentos,
+    relaciones,
+    coleccionesMapeadas,
+  };
+}

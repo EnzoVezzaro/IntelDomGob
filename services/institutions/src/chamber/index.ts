@@ -261,6 +261,153 @@ export async function getIniciativasFiltered(opts: {
   return { total: data?.total ?? 0, results: data?.results ?? [] };
 }
 
+// ---- Iniciativa detalle (single initiative by ID) -------------------------
+// /sil/api/iniciativa/iniciativa/{id}?periodoId=0 → full initiative object
+// (tipo, numero, descripcion, estado, condicion, materia, grupo, fechas,
+// legislatura, promulgación, origen, etc.). Returns null on 404/error.
+
+export async function getIniciativaDetalle(
+  id: number,
+  periodoId = 0,
+): Promise<SilRaw | null> {
+  const url = `${SIL_HOST}/sil/api/iniciativa/iniciativa/${id}?periodoId=${periodoId}`;
+  const data = (await fetchJson(url)) as SilRaw | null;
+  // A valid detail response always carries an id; guard against empty/error bodies.
+  if (!data || typeof (data as any).id !== "number") return null;
+  return data;
+}
+
+// ---- Iniciativa completa (detail + related sub-resources) -----------------
+// The SIL detail view (public page /sil/iniciativa/{id}) loads the base object
+// PLUS several related sub-resources, each paginated as ?page=N&id={id}:
+//   /sil/api/iniciativa/proponentes  → authors/sponsors (diputado, party, prov)
+//   /sil/api/iniciativa/historicos   → status history / trámites
+//   /sil/api/iniciativa/comisiones   → committees it was sent to
+//   /sil/api/iniciativa/Actividades  → committee activities / sesiones
+//   /sil/api/iniciativa/documentos   → attached documents (PDFs)
+//   /sil/api/iniciativa/votaciones   → votes
+// Document download URLs are NOT present in the documento records (ruta is null);
+// they are assembled from comun/GetRutaDocumento/?periodoId=0 + the documento id.
+// (Endpoint names reverse-engineered from the SIL Angular bundle's
+//  iniciativaService.getProponentes/getHistoricos/getComisiones/... methods.)
+
+/** Memoized base path for downloading SIL documents (per periodoId). */
+const rutaDocumentoCache = new Map<number, string>();
+async function getRutaDocumento(periodoId = 0): Promise<string> {
+  const cached = rutaDocumentoCache.get(periodoId);
+  if (cached !== undefined) return cached;
+  const url = `${SIL_HOST}/sil/api/comun/GetRutaDocumento/?periodoId=${periodoId}`;
+  const data = (await fetchJson(url)) as string | null;
+  const ruta = typeof data === "string" && data ? data : "";
+  rutaDocumentoCache.set(periodoId, ruta);
+  return ruta;
+}
+
+export type IniciativaSubRecurso =
+  | "proponentes"
+  | "historicos"
+  | "comisiones"
+  | "actividades"
+  | "documentos"
+  | "votaciones";
+
+export const INICIATIVA_SUB_RECURSOS: IniciativaSubRecurso[] = [
+  "proponentes",
+  "historicos",
+  "comisiones",
+  "actividades",
+  "documentos",
+  "votaciones",
+];
+
+/**
+ * Fetch a paginated SIL sub-resource and follow pages until the full `total`
+ * is collected (the API caps each page at SIL_PAGE_SIZE=10). Failures on a
+ * page degrade to whatever was collected so far rather than throwing.
+ */
+export async function getIniciativaSubRecurso(
+  sub: IniciativaSubRecurso,
+  id: number,
+  periodoId = 0,
+): Promise<any[]> {
+  const action = sub === "actividades" ? "Actividades" : sub;
+  const collected: any[] = [];
+  let page = 1;
+  const MAX_PAGES = 20; // hard cap to avoid runaway loops
+  while (page <= MAX_PAGES) {
+    const url = `${SIL_HOST}/sil/api/iniciativa/${action}?page=${page}&id=${id}&periodoId=${periodoId}`;
+    const data = (await fetchJson(url)) as SilPage | null;
+    if (!data || !Array.isArray(data.results)) break;
+    collected.push(...data.results);
+    const total = typeof data.total === "number" ? data.total : collected.length;
+    if (collected.length >= total || data.results.length === 0) break;
+    page++;
+  }
+  return collected;
+}
+
+/**
+ * Fetch ONE related sub-resource of an initiative by its ID (e.g. only the
+ * documentos, or only the votaciones) — without pulling the whole bundle.
+ * For "documentos" each item is annotated with a resolved `urlDescarga`.
+ * Returns null if the sub type is unknown.
+ */
+export async function getIniciativaSub(
+  sub: IniciativaSubRecurso,
+  id: number,
+  periodoId = 0,
+): Promise<any[] | null> {
+  if (!INICIATIVA_SUB_RECURSOS.includes(sub)) return null;
+  const items = await getIniciativaSubRecurso(sub, id, periodoId);
+  if (sub === "documentos") {
+    const ruta = await getRutaDocumento(periodoId);
+    return items.map((doc) => ({
+      ...doc,
+      urlDescarga: doc.id != null && ruta ? `${ruta}${doc.id}` : undefined,
+    }));
+  }
+  return items;
+}
+
+export interface IniciativaCompleta extends SilRaw {
+  proponentes: any[];
+  historicos: any[];
+  comisiones: any[];
+  actividades: any[];
+  documentos: (any & { urlDescarga?: string })[];
+  votaciones: any[];
+}
+
+/**
+ * Fetch the FULL detail of an initiative: the base object plus all related
+ * sub-resources (proponentes, historicos, comisiones, actividades, documentos,
+ * votaciones) in a single combined object. Each documento is annotated with a
+ * resolved `urlDescarga`. Returns null if the base initiative is not found.
+ * Sub-resource failures degrade to empty arrays rather than failing.
+ */
+export async function getIniciativaCompleta(
+  id: number,
+  periodoId = 0,
+): Promise<IniciativaCompleta | null> {
+  const detalle = await getIniciativaDetalle(id, periodoId);
+  if (!detalle) return null;
+  const [proponentes, historicos, comisiones, actividades, documentos, votaciones] =
+    await Promise.all([
+      getIniciativaSubRecurso("proponentes", id, periodoId),
+      getIniciativaSubRecurso("historicos", id, periodoId),
+      getIniciativaSubRecurso("comisiones", id, periodoId),
+      getIniciativaSubRecurso("actividades", id, periodoId),
+      getIniciativaSubRecurso("documentos", id, periodoId),
+      getIniciativaSubRecurso("votaciones", id, periodoId),
+    ]);
+  const rutaDocumento = await getRutaDocumento(periodoId);
+  const documentosConUrl = documentos.map((doc) => ({
+    ...doc,
+    urlDescarga: doc.id != null && rutaDocumento ? `${rutaDocumento}${doc.id}` : undefined,
+  }));
+  return { ...detalle, proponentes, historicos, comisiones, actividades, documentos: documentosConUrl, votaciones };
+}
+
 // ---- Grupos Parlamentarios (structured JSON) -----------------------------
 // Endpoint: /sil/api/GruposParlamentarios/Index?periodoId=0
 

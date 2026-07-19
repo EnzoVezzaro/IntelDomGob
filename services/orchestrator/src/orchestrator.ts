@@ -51,10 +51,16 @@ const log = createLogger("orchestrator");
  * If an explicit scope is already set in the request, use it.
  * Otherwise, classify the query text to determine which tools to activate.
  */
+const VALID_SCOPES = new Set(["all", "sil", "legislativo", "legislative_search", "legislative", "senate", "camara", "senate-news", "camara-news", "diputado"]);
+
 function detectScope(query: string, explicit?: string): string {
   if (explicit && explicit !== "all") {
     // Normalize aliases so downstream checks (scope === "sil") always match.
-    if (explicit === "legislativo") return "sil";
+    if (explicit === "legislativo" || explicit === "legislative_search" || explicit === "legislative") return "sil";
+    if (!VALID_SCOPES.has(explicit)) {
+      log.warn("Unknown scope, defaulting to 'all'", { explicit, query: query.slice(0, 80) });
+      return "all";
+    }
     return explicit;
   }
   const q = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");

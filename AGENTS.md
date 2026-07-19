@@ -31,22 +31,33 @@ Every request flows top-down. **Never skip a layer.**
 | `packages/utils` | Framework-agnostic helpers (text, fetch, dedupe) | types |
 | `packages/sdk` | The ONLY client surface for talking to the API | types |
 | `packages/database` | ORM-free Postgres pool + idempotent migrations | config, logger |
+| `packages/events` | Event bus over DragonflyDB (Redis Streams) + in-memory fallback | logger |
+| `packages/ui` | Shared brutalist Panel + Button primitives for UI clients | — |
 | `providers/*` | Adapters to external systems (search, AI, OCR, presentation) | providers, packages |
 | `services/orchestrator` | Multi-agent reasoning, result assembly, SSE streaming | everything below |
 | `services/search` | Web/news retrieval via Search Provider | providers, packages |
 | `services/ai` | Model calls via AI Provider | providers, packages |
-| `services/institutions` | Pluggable DR government sources | types, packages |
+| `services/institutions` | Pluggable DR government sources (8 plugins) | types, packages |
 | `services/crawler` | URL-tree builder | packages |
-| `services/auth` | API keys, JWT, orgs (identity & access) | database, logger |
-| `services/embeddings` | Text embeddings + similarity | logger |
+| `services/auth` | API keys, JWT, orgs, RBAC/ABAC (identity & access) | database, logger |
+| `services/embeddings` | Text embeddings + similarity (Gemini semantic, hash fallback) | logger |
 | `services/rag` | Retrieval-augmented generation over indexed docs | embeddings, ai |
 | `services/memory` | Structured codebase/architecture memory | logger |
 | `services/documents` | Document chunking/cleaning | logger |
 | `services/ocr` | OCR delegation to an OcrProvider | providers |
 | `services/scheduler` | In-process job scheduler | logger |
 | `services/evaluation` | Answer faithfulness / quality evaluators | types, logger |
-| `services/storage` | Object storage abstraction | logger |
-| `services/presentation` | Shareable presentation artifacts | providers |
+| `services/storage` | Object storage abstraction (local fs, pluggable S3/GCS) | logger |
+| `services/presentation` | Shareable presentation artifacts via PresentationProvider | providers |
+| `services/knowledge-graph` | Entity-relationship graph over intelligence results | logger |
+| `services/entities` | Rule-based entity extraction (People, Orgs, Laws, Institutions) | logger |
+| `services/document-intelligence` | Full pipeline: Storage → OCR → Entities → Embeddings → KG | storage, ocr, entities, embeddings, knowledge-graph |
+| `services/workflow` | DAG execution engine with retries, checkpoints, approvals/HITL | logger |
+| `services/tool-registry` | Declarative, discoverable tools for agents / MCP | — |
+| `services/prompts` | Versioned prompt templates with `{{var}}` rendering | — |
+| `services/observability` | In-process metrics + tracing, Prometheus text export | logger |
+| `services/tenancy` | Multi-tenant resolution + data isolation | service-auth |
+| `services/plugins` | Guarded plugin extension registry with timeout executor | logger |
 | `services/mcp` | MCP server — a pure SDK client of the API. Exposes BOTH a legacy JSON-RPC surface (`POST /`) and the official MCP protocol (`/mcp`, Streamable HTTP + SSE), reusing one tool registry. | sdk, logger |
 | `apps/api` | Express gateway, routes, health, OpenAPI, SSE, rate-limit | services, providers, packages |
 | `apps/studio/v0` | Legacy React SPA client (preserved for rollback) | sdk, types |
@@ -54,6 +65,11 @@ Every request flows top-down. **Never skip a layer.**
 | `apps/web` | Lightweight no-JS web client (SDK only) | sdk, logger |
 | `apps/admin` | Operator/admin console (SDK only) | sdk, logger |
 | `apps/cli` | Command-line client (SDK only) | sdk |
+| `workers/ocr-worker` | Async OCR processing via DragonflyDB Streams event bus | — |
+| `workers/embedding-worker` | Async embedding generation via event bus | — |
+| `workers/document-worker` | Async document intelligence pipeline via event bus | — |
+| `workers/crawler-worker` | Async URL-tree crawling via event bus | — |
+| `workers/ai-worker` | Async AI generation tasks via event bus | — |
 
 ---
 
@@ -72,7 +88,7 @@ Every request flows top-down. **Never skip a layer.**
 
 * TypeScript, ESM, `strict` off but `noImplicitAny` respected; prefer explicit types from `packages/types`.
 * Service classes are named `<Capability>Service` (e.g. `SearchService`, `AiService`).
-* Provider classes implement `SearchProvider` / `AiProvider` from `@intel.dom.gob/providers`.
+* Provider classes implement `SearchProvider` / `AiProvider` / `OcrProvider` / `PresentationProvider` from `@intel.dom.gob/providers`.
 * Every log line uses `createLogger("<layer>:<concern>")`.
 * Never duplicate logic that already lives in `packages/utils` or `packages/*`.
 
@@ -89,9 +105,25 @@ export class XProvider implements SearchProvider | AiProvider | OcrProvider | Pr
 ```
 
 * Provider contracts live in `providers/src/index.ts`: `SearchProvider`, `AiProvider` (with optional `stream()`), `OcrProvider`, `PresentationProvider`, plus a `ProviderRegistry` with `registerSearch/registerAi/registerOcr/registerPresentation`.
-* Register in `apps/api/src/index.ts`. Optional providers (OpenAI, Anthropic, Unlimited-OCR) are registered only when their env keys/URLs are present, so missing keys never crash boot.
+* Register in `apps/api/src/index.ts`. Optional providers (OpenAI, Anthropic, Unlimited-OCR, Brave, Tavily, Exa, DeepSeek, Ollama) are registered only when their env keys/URLs are present, so missing keys never crash boot.
 * The default providers are **SearXNG** (search) and **Gemini** (AI, with `stream()`).
 * A new provider is invisible to the rest of the platform — it only plugs into the registry.
+
+### Currently Registered Providers
+
+| Kind | Provider | Default | Env Var |
+|------|----------|---------|---------|
+| Search | SearXNG | ✅ | — (always on) |
+| Search | Brave | optional | `BRAVE_API_KEY` |
+| Search | Tavily | optional | `TAVILY_API_KEY` |
+| Search | Exa | optional | `EXA_API_KEY` |
+| AI | Gemini | ✅ | `GEMINI_API_KEY` |
+| AI | OpenAI | optional | `OPENAI_API_KEY` |
+| AI | Anthropic | optional | `ANTHROPIC_API_KEY` |
+| AI | DeepSeek | optional | `DEEPSEEK_API_KEY` |
+| AI | Ollama | optional | `OLLAMA_BASE_URL` |
+| OCR | Unlimited-OCR | optional | `UNLIMITED_OCR_URL` |
+| Presentation | HyperFrames | optional | `HYPERFRAMES_URL` |
 
 ---
 
@@ -128,7 +160,7 @@ No other file changes.
 
 1. Add a route in `apps/api/src/routes.ts` under the `/v1` router.
 2. Delegate to the Orchestrator or a Service. **No business logic in the route.**
-3. Document it in `README.md` and `docs/api.md`.
+3. Document it in `docs/api.md`.
 
 ---
 
@@ -136,7 +168,25 @@ No other file changes.
 
 1. The MCP server is a client — call the API via `@intel.dom.gob/sdk`.
 2. Do NOT call services/providers directly from MCP code.
-3. Register the tool in the MCP server's tool registry (future).
+3. Register the tool in `services/mcp/src/index.ts` via `registerTool({...})`.
+4. Tool `annotations` (title, readOnlyHint, etc.) follow the MCP 2025-03-26 spec.
+
+---
+
+## How to add a Workflow Step
+
+1. POST to `/v1/workflows` with a `name` and `steps` array.
+2. Each step declares `id`, optional `deps` (step ids that must complete first), `action` + `params` (resolved server-side by the engine adapter), optional `requiresApproval`, `retries`, `timeoutMs`.
+3. Steps with `requiresApproval: true` pause the workflow and emit `workflow.approval_requested`. Call `POST /v1/workflows/:id/approve` or `/deny` to resume/abort.
+4. The engine topologically sorts steps (Kahn's algorithm), executes with retries + backoff, and checkpoints state.
+
+---
+
+## How to add a Plugin
+
+1. Implement the `Plugin` interface from `services/plugins` with a `manifest` and `invoke`.
+2. Register it with `plugins.register(plugin)` at boot.
+3. Discoverable via `GET /v1/plugins`, invokable via `POST /v1/plugins/:id/run`.
 
 ---
 
@@ -177,6 +227,36 @@ as a git submodule at `apps/studio/v1` (AGPL-3.0 — kept separate from the MIT 
   for reference / rollback.
 * Custom "skin" work belongs in the Odysseus submodule fork/overlay — never mixed into the
   MIT `packages/*` or `services/*` code.
+
+---
+
+## Event Bus & Workers
+
+Heavy work (OCR, embeddings, crawling, batch AI) is offloaded to async workers via
+DragonflyDB (Redis-compatible) Streams:
+
+```
+API / Service  →  Event Bus (DragonflyDB)  →  Worker Consumer
+```
+
+Canonical events: `document.uploaded`, `ocr.started/completed`, `embedding.started/completed`,
+`entity.extracted`, `document.intelligence.completed`, `crawl.completed`, `workflow.*`.
+
+Workers run as independent Docker Compose services. Each consumes from specific event channels.
+When no DragonflyDB is available, the event bus falls back to in-memory publish/subscribe.
+
+---
+
+## Workflow Engine
+
+The workflow engine (`services/workflow`) executes multi-step intelligence pipelines as a DAG:
+
+* **Steps** have `id`, `deps`, `run`, `retries`, `timeoutMs`, `requiresApproval`.
+* **Topological ordering** (Kahn's algorithm) ensures dependencies execute first.
+* **Human-in-the-loop**: steps with `requiresApproval` pause the workflow and emit
+  `workflow.approval_requested`. Call `approve()` or `deny()` to resume/abort.
+* **Checkpoints**: workflow state is persisted in-memory (swap for DB later).
+* API: `POST /v1/workflows`, `GET /v1/workflows/:id`, `POST /v1/workflows/:id/approve`, `POST /v1/workflows/:id/deny`.
 
 ---
 

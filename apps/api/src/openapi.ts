@@ -161,6 +161,42 @@ export function buildOpenApiSpec(version = "v1"): Record<string, unknown> {
           responses: { "200": { description: "Matching initiatives" } },
         },
       },
+      [`/${version}/sil/camara/iniciativa/{id}`]: {
+        get: {
+          tags: ["sil"],
+          summary: "Get full detail of a single Cámara SIL initiative by ID",
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "number" } },
+            { name: "periodoId", in: "query", schema: { type: "number" } },
+          ],
+          responses: { "200": { description: "Initiative detail" }, "404": { description: "Iniciativa not found" } },
+        },
+      },
+      [`/${version}/sil/camara/iniciativa/{id}/completa`]: {
+        get: {
+          tags: ["sil"],
+          summary: "Get full detail of a Cámara SIL initiative + related sub-resources",
+          description: "Base object plus proponentes, historicos, comisiones, actividades, documentos (each with a resolved urlDescarga PDF link) and votaciones. Sub-resources are paginated to include the complete set.",
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "number" } },
+            { name: "periodoId", in: "query", schema: { type: "number" } },
+          ],
+          responses: { "200": { description: "Initiative full detail" }, "404": { description: "Iniciativa not found" } },
+        },
+      },
+      [`/${version}/sil/camara/iniciativa/{id}/{sub}`]: {
+        get: {
+          tags: ["sil"],
+          summary: "Get a single related sub-resource of a Cámara SIL initiative",
+          description: "Fetch ONLY one related sub-resource by ID without pulling the whole bundle. sub ∈ proponentes | historicos | comisiones | actividades | documentos | votaciones. documentos entries include a resolved urlDescarga link. Use for specific questions instead of /completa.",
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "number" } },
+            { name: "sub", in: "path", required: true, schema: { type: "string", enum: ["proponentes", "historicos", "comisiones", "actividades", "documentos", "votaciones"] } },
+            { name: "periodoId", in: "query", schema: { type: "number" } },
+          ],
+          responses: { "200": { description: "Sub-resource results" }, "404": { description: "Iniciativa or sub-resource not found" } },
+        },
+      },
       [`/${version}/sil/camara/sesiones`]: {
         get: {
           tags: ["sil"],
@@ -236,6 +272,58 @@ export function buildOpenApiSpec(version = "v1"): Record<string, unknown> {
           responses: { "200": { description: "Matching Senado news" } },
         },
       },
+      [`/${version}/sil/senado/senadores`]: {
+        get: {
+          tags: ["senado"],
+          summary: "Search the senator directory (Cronológico de Senadores) by name",
+          parameters: [
+            { name: "query", in: "query", required: true, schema: { type: "string" } },
+            { name: "periodo", in: "query", required: false, schema: { type: "string", enum: ["2010-2016", "2016-2020", "2020-2024", "2024-2028"] } },
+            { name: "maxResults", in: "query", required: false, schema: { type: "integer", default: 20 } },
+          ],
+          responses: { "200": { description: "Matching senators (name, party, province, period, photo)" } },
+        },
+      },
+      [`/${version}/sil/senado/senadores/periodos`]: {
+        get: {
+          tags: ["senado"],
+          summary: "List constitutional periods with senator counts",
+          responses: { "200": { description: "Available periods and counts" } },
+        },
+      },
+      [`/${version}/sil/senado/senadores/periodo/{periodo}`]: {
+        get: {
+          tags: ["senado"],
+          summary: "List all senators for a constitutional period (paginated)",
+          parameters: [
+            { name: "periodo", in: "path", required: true, schema: { type: "string", enum: ["2010-2016", "2016-2020", "2020-2024", "2024-2028"] } },
+            { name: "page", in: "query", required: false, schema: { type: "integer", default: 0 } },
+            { name: "size", in: "query", required: false, schema: { type: "integer", default: 40 } },
+          ],
+          responses: { "200": { description: "Senators for the period" } },
+        },
+      },
+      [`/${version}/sil/senado/senadores/{itemId}`]: {
+        get: {
+          tags: ["senado"],
+          summary: "Get a single senator's full record by DSpace item UUID",
+          parameters: [
+            { name: "itemId", in: "path", required: true, schema: { type: "string" } },
+          ],
+          responses: { "200": { description: "Senator record" }, "404": { description: "Senator not found" } },
+        },
+      },
+      [`/${version}/sil/senado/expediente/{itemId}`]: {
+        get: {
+          tags: ["senado"],
+          summary: "Get a single Senado DSpace expediente by item UUID (metadata + PDFs)",
+          description: "Fetch one expediente (iniciativa / proyecto de ley / resolución) by its DSpace item UUID: metadata, legislative classification (colección/comunidad/repositorio), attached PDF documentos (with canDownload), and related items. Use for a specific known record instead of senado_search.",
+          parameters: [
+            { name: "itemId", in: "path", required: true, schema: { type: "string" } },
+          ],
+          responses: { "200": { description: "Senado expediente with documentos" }, "404": { description: "Expediente not found" } },
+        },
+      },
     },
     components: {
       schemas: {
@@ -268,7 +356,7 @@ export function buildOpenApiSpec(version = "v1"): Record<string, unknown> {
             model: { type: "string" },
             provider: { type: "string" },
             apiKey: { type: "string" },
-            scope: { type: "string", enum: ["all", "legislativo", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"], description: "Intent-based source scope. Auto-detected from query when omitted." },
+            scope: { type: "string", enum: ["all", "legislativo", "legislative_search", "legislative", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"], description: "Intent-based source scope. Auto-detected from query when omitted." },
             responseLang: { type: "string" },
             search: { type: "object" },
           },
