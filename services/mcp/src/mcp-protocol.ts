@@ -16,7 +16,7 @@
 
 import type { Express } from "express";
 import { randomUUID } from "node:crypto";
-import { tools, type McpTool } from "./index";
+import { tools, type McpTool, type ProgressNotifier } from "./index";
 
 interface JsonRpcRequest {
   jsonrpc?: string;
@@ -60,10 +60,23 @@ function err(id: JsonRpcResponse["id"], code: number, message: string): JsonRpcR
 
 // Dispatch a single JSON-RPC request according to the MCP method set.
 // Returns null for notifications (no id) where no response should be sent.
-async function dispatch(req: JsonRpcRequest, client: any): Promise<JsonRpcResponse | null> {
+// `sendNotification` writes MCP notifications/message to the transport.
+async function dispatch(req: JsonRpcRequest, client: any, sendNotification?: (notification: JsonRpcResponse) => void): Promise<JsonRpcResponse | null> {
   const id = req.id ?? null;
   const method = req.method ?? "";
   const params = req.params ?? {};
+
+  // Build a ProgressNotifier that sends notifications/message to the client.
+  const notify: ProgressNotifier | undefined = sendNotification
+    ? (level, message, extra) => {
+        sendNotification({
+          jsonrpc: "2.0",
+          id: null, // notification (no response expected)
+          method: "notifications/message",
+          result: { level, data: message, ...extra },
+        } as any);
+      }
+    : undefined;
 
   switch (method) {
     case "initialize":
@@ -91,7 +104,7 @@ async function dispatch(req: JsonRpcRequest, client: any): Promise<JsonRpcRespon
       const tool = tools.find((t: McpTool) => t.name === params?.name);
       if (!tool) return err(id, -32601, `Unknown tool ${params?.name ?? "(none)"}`);
       try {
-        const output = await tool.run(params?.arguments ?? {}, client);
+        const output = await tool.run(params?.arguments ?? {}, client, notify);
         // Guard against a tool returning undefined/null (which would otherwise
         // serialize to `{}` and confuse MCP clients). Emit a clear placeholder.
         const safe = output === undefined || output === null ? "<no result>" : output;
@@ -155,11 +168,11 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
     const body = req.body as JsonRpcRequest | JsonRpcRequest[];
     const requests = Array.isArray(body) ? body : [body];
 
-    const respond = async (): Promise<JsonRpcResponse[]> => {
+    const respond = async (sendNotification?: (n: JsonRpcResponse) => void): Promise<JsonRpcResponse[]> => {
       const client = makeClient();
       const results: JsonRpcResponse[] = [];
       for (const r of requests) {
-        const out = await dispatch(r, client);
+        const out = await dispatch(r, client, sendNotification);
         if (out) results.push(out);
       }
       return results;
@@ -168,7 +181,8 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
     const session = sessionId ? sessions.get(sessionId) : undefined;
     if (session) {
       // Legacy SSE: stream the response(s) back on the open GET connection.
-      const results = await respond();
+      // Notifications are sent as SSE events during tool execution.
+      const results = await respond((n) => session.res.write(`event: message\ndata: ${JSON.stringify(n)}\n\n`));
       for (const r of results) {
         session.res.write(`event: message\ndata: ${JSON.stringify(r)}\n\n`);
       }
@@ -183,7 +197,8 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
         Connection: "keep-alive",
         "Mcp-Session-Id": randomUUID(),
       });
-      const results = await respond();
+      // Notifications are sent as SSE events during tool execution.
+      const results = await respond((n) => res.write(`event: message\ndata: ${JSON.stringify(n)}\n\n`));
       for (const r of results) {
         res.write(`event: message\ndata: ${JSON.stringify(r)}\n\n`);
       }
@@ -191,6 +206,7 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
       return;
     }
 
+    // Plain JSON: notifications can't be streamed — tool runs synchronously.
     const results = await respond();
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Mcp-Session-Id", randomUUID());

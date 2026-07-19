@@ -336,3 +336,105 @@ export function expedienteToResult(exp: SenateExpediente): InstitutionResult {
     institution: "Senado de la República",
   };
 }
+
+export function expedienteToBulletin(exp: SenateExpediente): BulletinDoc {
+  return {
+    title: (exp.descripcion || exp.numero || "Documento del Senado").slice(0, 200),
+    url: exp.url,
+    date: exp.fecha,
+    tipo: exp.tipo || "Senado",
+    snippet: [exp.numero ? `Núm: ${exp.numero}` : "", exp.estado ? `Estado: ${exp.estado}` : ""]
+      .filter(Boolean).join(" | "),
+  };
+}
+
+// ---- Concept classification --------------------------------------------
+
+export type SenateConcept =
+  | "iniciativas"
+  | "resoluciones"
+  | "boletines"
+  | "actas"
+  | "informes";
+
+/**
+ * Classify a Senado DSpace item into a legislative concept, strictly by signal:
+ *   - govdock number prefix (PLO/SLO → iniciativas, RES/APL → resoluciones)
+ *   - dc.type.initiative ("Proyectos De Ley" → iniciativas, "Resolución" → resoluciones)
+ *   - title keywords (Boletín → boletines, Acta → actas, Discurso/Informe → informes)
+ * Falls back to "informes" for anything unrecognized so nothing is dropped.
+ */
+export function classifyConcept(exp: SenateExpediente): SenateConcept {
+  const num = (exp.numero || "").toUpperCase();
+  if (/-PLO-SE$/.test(num) || /-SLO-SE$/.test(num) || num.endsWith("-CD")) return "iniciativas";
+  if (/-RES-SE$/.test(num) || /-APL-SE$/.test(num)) return "resoluciones";
+  const tipo = (exp.tipo || "").toLowerCase();
+  if (tipo.includes("proyecto")) return "iniciativas";
+  if (tipo.includes("resolución") || tipo.includes("resolucion") || tipo.includes("aprobada")) return "resoluciones";
+  const title = (exp.descripcion || "").toLowerCase();
+  if (title.startsWith("boletín") || title.startsWith("boletin")) return "boletines";
+  if (title.startsWith("acta")) return "actas";
+  if (title.startsWith("discurso") || title.startsWith("informe")) return "informes";
+  if (num) return "iniciativas";
+  return "informes";
+}
+
+export type SenateConceptMap = Record<SenateConcept, SenateExpediente[]>;
+
+/**
+ * Search the full Senado DSpace repository (all communities, not just
+ * Iniciativas) and separate results by legislative concept. The Iniciativas
+ * community is searched first (scoped, highest precision) and the rest come
+ * from an unscoped full-text pass that is then classified. Iniciativas are
+ * always surfaced with priority; the other concepts are supplementary.
+ */
+export async function searchSenadoConcepts(
+  query: string,
+  opts: { maxPerConcept?: number } = {},
+): Promise<SenateConceptMap> {
+  const maxPerConcept = opts.maxPerConcept ?? 8;
+  const map: SenateConceptMap = {
+    iniciativas: [],
+    resoluciones: [],
+    boletines: [],
+    actas: [],
+    informes: [],
+  };
+
+  // Phase 1 — scoped Iniciativas (precision): reuse the ranked expedientes.
+  const iniciativas = await searchExpedientes(query, { maxResults: maxPerConcept * 2 });
+  for (const exp of iniciativas) {
+    if (map.iniciativas.length < maxPerConcept * 2) map.iniciativas.push(exp);
+  }
+
+  // Phase 2 — unscoped full-text across all communities (Boletines/Actas/etc).
+  const objects = await fetchDSpacePage(query, 100);
+  const seen = new Set<string>(map.iniciativas.map((e) => e.idExpediente));
+  const buckets: Record<SenateConcept, SenateExpediente[]> = {
+    iniciativas: [],
+    resoluciones: [],
+    boletines: [],
+    actas: [],
+    informes: [],
+  };
+  for (const obj of objects) {
+    if (!obj?.id || seen.has(obj.id)) continue;
+    seen.add(obj.id);
+    const exp = dspaceToExpediente(obj);
+    const concept = classifyConcept(exp);
+    if (buckets[concept].length < maxPerConcept * 2) buckets[concept].push(exp);
+  }
+
+  // Merge supplementary buckets (avoid duplicating scoped iniciativas).
+  for (const concept of ["resoluciones", "boletines", "actas", "informes"] as const) {
+    for (const exp of buckets[concept]) {
+      if (map[concept].length < maxPerConcept) map[concept].push(exp);
+    }
+  }
+  // Allow a few extra iniciativas from the unscoped pass if scoped was thin.
+  for (const exp of buckets.iniciativas) {
+    if (map.iniciativas.length < maxPerConcept * 2) map.iniciativas.push(exp);
+  }
+
+  return map;
+}

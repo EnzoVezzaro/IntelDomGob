@@ -60,16 +60,15 @@ export const chamberApi = {
    */
   async getLaws(keyword: string, periodoId = 0, maxResults = 30): Promise<InstitutionLaw[]> {
     const raw = (keyword || "").trim();
-    // The SIL API does phrase/AND matching on the keyword, so a multi-word raw
-    // query (e.g. "3 causales en la reforma penal") returns nothing. We therefore
-    // query with individual meaningful tokens (most-specific first) and let the
-    // shared relevanceScorer decide which returned records are actually on-topic.
-    // Also extract number-like patterns (e.g. "50-88") so they are searched with
-    // hyphens preserved.
-    const tokens = tokenizeQuery(raw);
+    // The SIL keyword search matches ACCENTED substrings in numero + descripcion +
+    // tipo + materia (e.g. searching "codigo" returns 0 but "código" returns 53).
+    // So we must search with the ORIGINAL accented text, never accent-stripped.
+    // We also search meaningful multi-word phrases (bigrams) first — the API does
+    // phrase matching, so "código penal" returns the right iniciativas directly.
+    const attempts = buildSilSearchAttempts(raw);
     const numberPatterns = (raw.match(/\d+\s*[-–]\s*\d+/g) || []).map((m) => m.replace(/\s+/g, ""));
-    const attempts: string[] = Array.from(new Set([...tokens, ...numberPatterns])).sort((a, b) => b.length - a.length);
-    
+    for (const n of numberPatterns) if (!attempts.includes(n)) attempts.push(n);
+
     const byId = new Map<number, { law: InstitutionLaw; score: number }>();
     for (const kw of attempts) {
       if (!kw || byId.size >= maxResults * 3) continue;
@@ -131,6 +130,230 @@ export const chamberApi = {
   },
 };
 
+const SIL_STOP = new Set([
+  "de", "la", "el", "los", "las", "y", "en", "a", "del", "por", "para", "con", "que", "su", "se",
+  "un", "una", "uno", "lo", "al", "es", "son", "sobre", "cual", "este", "esta", "estado", "estados",
+  "republica", "dominicana", "dominicano", "modificacion", "modificación", "the", "of", "and", "to",
+  "in", "for", "is", "on", "with",
+]);
+
+/**
+ * Build Cámara SIL search keywords from a raw user query.
+ *
+ * The SIL keyword endpoint does ACCENTED substring matching, so we keep the
+ * original accents and never strip diacritics. We emit the most-specific probes
+ * first: the full phrase, then meaningful bigrams ("código penal", "causales
+ * aborto"), then individual meaningful words. Stopwords and very short tokens
+ * are dropped, but multi-word phrases are preserved so the API's phrase matcher
+ * returns the right iniciativas instead of nothing.
+ */
+function buildSilSearchAttempts(raw: string): string[] {
+  const cleaned = (raw || "").trim().replace(/\s+/g, " ").toLowerCase();
+  if (!cleaned) return [];
+  const words = cleaned.split(" ").filter((w) => w.length > 1 && !SIL_STOP.has(w));
+  const attempts: string[] = [];
+  // Full phrase (most specific, keeps accents).
+  if (words.length >= 2) attempts.push(words.join(" "));
+  // Bigrams of consecutive meaningful words.
+  for (let i = 0; i + 1 < words.length; i++) attempts.push(`${words[i]} ${words[i + 1]}`);
+  // Single meaningful words (accented, as typed).
+  for (const w of words) attempts.push(w);
+  return Array.from(new Set(attempts)).sort((a, b) => b.length - a.length);
+}
+
+// ---- Comisiones (structured JSON) --------------------------------------
+// Endpoint returns { page, pageSize, total, results }. Each item has `comision`
+// (e.g. "03313-2024-2028-CD Comisión especial ..."), `tipo`, `fecha`, etc.
+
+interface CamaraComision {
+  id?: number;
+  comision?: string;
+  tipo?: string;
+  fecha?: string;
+  fechaDesignacion?: string;
+  estado?: string;
+  presidente?: string;
+  [k: string]: any;
+}
+
+export async function getComisiones(periodoId = 0): Promise<CamaraComision[]> {
+  const url = `${SIL_HOST}/sil/api/comision/comisiones?page=1&keyword=&periodoId=${periodoId}`;
+  const data = await fetchJson(url);
+  if (Array.isArray(data)) return data as CamaraComision[];
+  return ((data && (data as any).results) || []) as CamaraComision[];
+}
+
+// ---- Comisiones: tipo listing + filtered ----------------------------------
+// /sil/api/comision/tipo?periodoId=0 → [{id, descripcion, icono}]
+// /sil/api/comision/comisiones?tipoId=X&periodoId=0 → committees of that type
+
+interface CamaraComisionTipo {
+  id: number;
+  descripcion: string;
+  icono?: string;
+}
+
+export async function getComisionTipos(periodoId = 0): Promise<CamaraComisionTipo[]> {
+  const url = `${SIL_HOST}/sil/api/comision/tipo?periodoId=${periodoId}`;
+  const data = await fetchJson(url);
+  return Array.isArray(data) ? (data as CamaraComisionTipo[]) : [];
+}
+
+export async function getComisionesByTipo(tipoId: number, periodoId = 0): Promise<CamaraComision[]> {
+  const url = `${SIL_HOST}/sil/api/comision/comisiones?tipoId=${tipoId}&periodoId=${periodoId}`;
+  const data = await fetchJson(url);
+  return Array.isArray(data) ? (data as CamaraComision[]) : [];
+}
+
+// ---- Iniciativas: count, grupos, materias, filtered search ----------------
+// /sil/api/iniciativa/CountIniciativas?periodoId=0 → number (total)
+// /sil/api/iniciativa/Grupos?periodoId=0 → [{id, descripcion, icono}] (15 topic groups)
+// /sil/api/iniciativa/Materias?grupo=X&periodoId=0 → [{id, descripcion}]
+// /sil/api/iniciativa/iniciativas?page=X&grupo=X&tipo=true&perimidas=false&keyword=X&periodoId=0
+
+interface CamaraIniciativaGrupo {
+  id: number;
+  descripcion: string;
+  icono?: string;
+}
+
+interface CamaraIniciativaMateria {
+  id: number;
+  descripcion: string;
+}
+
+export async function getIniciativaCount(periodoId = 0): Promise<number> {
+  const url = `${SIL_HOST}/sil/api/iniciativa/CountIniciativas?periodoId=${periodoId}`;
+  const data = await fetchJson(url);
+  return typeof data === "number" ? data : 0;
+}
+
+export async function getIniciativaGrupos(periodoId = 0): Promise<CamaraIniciativaGrupo[]> {
+  const url = `${SIL_HOST}/sil/api/iniciativa/Grupos?periodoId=${periodoId}`;
+  const data = await fetchJson(url);
+  return Array.isArray(data) ? (data as CamaraIniciativaGrupo[]) : [];
+}
+
+export async function getIniciativaMaterias(grupo: number, periodoId = 0): Promise<CamaraIniciativaMateria[]> {
+  const url = `${SIL_HOST}/sil/api/iniciativa/Materias?grupo=${grupo}&periodoId=${periodoId}`;
+  const data = await fetchJson(url);
+  return Array.isArray(data) ? (data as CamaraIniciativaMateria[]) : [];
+}
+
+export async function getIniciativasFiltered(opts: {
+  page?: number;
+  grupo?: number;
+  tipo?: boolean;
+  perimidas?: boolean;
+  keyword?: string;
+  periodoId?: number;
+} = {}): Promise<{ total: number; results: SilRaw[] }> {
+  const params = new URLSearchParams({
+    page: String(opts.page ?? 1),
+    periodoId: String(opts.periodoId ?? 0),
+  });
+  if (opts.grupo != null) params.set("grupo", String(opts.grupo));
+  if (opts.tipo != null) params.set("tipo", String(opts.tipo));
+  if (opts.perimidas != null) params.set("perimidas", String(opts.perimidas));
+  if (opts.keyword) params.set("keyword", opts.keyword);
+  const url = `${SIL_HOST}/sil/api/iniciativa/iniciativas?${params}`;
+  const data = (await fetchJson(url)) as SilPage | null;
+  return { total: data?.total ?? 0, results: data?.results ?? [] };
+}
+
+// ---- Grupos Parlamentarios (structured JSON) -----------------------------
+// Endpoint: /sil/api/GruposParlamentarios/Index?periodoId=0
+
+interface CamaraGrupo {
+  id?: string;
+  nombreGrupo?: string;
+  descripcionActividad?: string;
+  fechaDesignacion?: string;
+  presidente?: string;
+  [k: string]: any;
+}
+
+export async function getGruposParlamentarios(periodoId = 0, keyword = ""): Promise<CamaraGrupo[]> {
+  const params = new URLSearchParams({ periodoId: String(periodoId) });
+  if (keyword) params.set("keyword", keyword);
+  const url = `${SIL_HOST}/sil/api/GruposParlamentarios/Index?${params}`;
+  const data = await fetchJson(url);
+  return Array.isArray(data) ? (data as CamaraGrupo[]) : [];
+}
+
+// ---- Sesiones (structured JSON) -----------------------------------------
+// Endpoint returns { page, pageSize, total, results }. Each sesion has
+// numeroSesion, fecha, tipo, estado, lugar, legislatura.
+
+interface CamaraSesion {
+  sesionId?: string;
+  numeroSesion?: string;
+  fecha?: string;
+  tipo?: string;
+  estado?: string;
+  lugar?: string;
+  legislatura?: string;
+  [k: string]: any;
+}
+
+export async function getSesiones(keyword = "", periodoId = 0, page = 1): Promise<CamaraSesion[]> {
+  const url = `${SIL_HOST}/sil/api/sesion/sesiones?page=${page}&keyword=${encodeURIComponent(keyword)}&periodoId=${periodoId}`;
+  const data = await fetchJson(url);
+  return (data && Array.isArray((data as any).results) ? (data as any).results : []) as CamaraSesion[];
+}
+
+// ---- Legislador (per-diputado profile, structured JSON) -----------------
+// Endpoint: /sil/api/legislador/legisladores?page=&keyword=&periodoId=0
+
+interface CamaraLegislador {
+  legisladorId?: string;
+  nombreCompleto?: string;
+  nombres?: string;
+  apellidos?: string;
+  partido?: string | { nombre?: string };
+  provincia?: string;
+  circunscripcion?: string;
+  cargo?: string;
+  funcion?: string;
+  correoInstitucional?: string;
+  telefonoOficina?: string;
+  [k: string]: any;
+}
+
+function partidoNombre(p: CamaraLegislador["partido"]): string {
+  if (!p) return "";
+  if (typeof p === "string") return p;
+  return p.nombre || "";
+}
+
+export async function getLegislador(keyword: string, periodoId = 0, page = 1): Promise<CamaraLegislador[]> {
+  const kw = extractLegisladorName(keyword);
+  if (!kw) return [];
+  const url = `${SIL_HOST}/sil/api/legislador/legisladores?page=${page}&keyword=${encodeURIComponent(kw)}&periodoId=${periodoId}`;
+  const data = await fetchJson(url);
+  return (data && Array.isArray((data as any).results) ? (data as any).results : []) as CamaraLegislador[];
+}
+
+const LEGISLADOR_FILLER = new Set([
+  "hablame", "habla", "hablame", "dime", "cuente", "informacion", "sobre", "del",
+  "de", "la", "el", "los", "las", "y", "un", "una", "por", "para", "con",
+  "diputado", "diputada", "legislador", "legisladora", "representante", "senador", "senadora",
+  "que", "es", "escribe", "busca", "encuentra", "quien", "quién",
+]);
+
+/**
+ * Extract the meaningful name tokens from a "hablame del diputado XXX" query,
+ * stripping filler words so the legislador endpoint gets a clean keyword.
+ */
+function extractLegisladorName(query: string): string {
+  const words = (query || "")
+    .toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ""))
+    .filter((w) => w.length > 1 && !LEGISLADOR_FILLER.has(w));
+  return words.join(" ").trim();
+}
+
 function lawToResult(law: InstitutionLaw): InstitutionResult {
   const snippet = [
     law.tipo,
@@ -187,6 +410,75 @@ class ChamberService implements InstitutionService {
   /** Structured Cámara SIL laws/iniciativas for a keyword. */
   async getLaws(query: string): Promise<InstitutionLaw[]> {
     return chamberApi.getLaws(query, 0, chamberConfig.silContextMax);
+  }
+
+  /**
+   * Broad Cámara SIL scrape, separated by concept. SIL iniciativas are the
+   * highest-priority concept; comisiones and sesiones are supplementary and
+   * are returned only when the query is topical (not a bare number lookup).
+   * `iniciativas` comes from the (accent-aware) SIL keyword search; comisiones
+   * and sesiones are pulled from their own structured endpoints.
+   */
+  async getConcepts(query: string): Promise<{
+    iniciativas: InstitutionLaw[];
+    comisiones: InstitutionResult[];
+    sesiones: InstitutionResult[];
+    legisladores: InstitutionResult[];
+    gruposParlamentarios: InstitutionResult[];
+  }> {
+    const iniciativas = await chamberApi.getLaws(query, 0, chamberConfig.silContextMax).catch(() => [] as InstitutionLaw[]);
+
+    const isNum = isNumberQuery(query);
+    let comisiones: InstitutionResult[] = [];
+    let sesiones: InstitutionResult[] = [];
+    let legisladores: InstitutionResult[] = [];
+    let gruposParlamentarios: InstitutionResult[] = [];
+
+    if (!isNum) {
+      const [coms, sess, legs, grupos] = await Promise.all([
+        getComisiones(0).catch(() => [] as CamaraComision[]),
+        getSesiones("", 0, 1).catch(() => [] as CamaraSesion[]),
+        getLegislador(query, 0, 1).catch(() => [] as CamaraLegislador[]),
+        getGruposParlamentarios(0).catch(() => [] as CamaraGrupo[]),
+      ]);
+      comisiones = coms.slice(0, 12).map((c) => ({
+        title: (c.comision || "Comisión").replace(/\s+/g, " ").trim(),
+        url: `${CHAMBER_HOST}/sil/comision`,
+        snippet: [c.tipo ? `Tipo: ${c.tipo}` : "", c.fechaDesignacion ? `Designada: ${c.fechaDesignacion.slice(0, 10)}` : "", c.estado ? `Estado: ${c.estado}` : ""]
+          .filter(Boolean).join(" | "),
+        engine: "camara-comision",
+        institution: chamberConfig.name,
+      }));
+      sesiones = sess.slice(0, 12).map((s) => ({
+        title: `Sesión ${s.numeroSesion || s.sesionId || ""}`.trim(),
+        url: `${CHAMBER_HOST}/sil/sesion`,
+        snippet: [s.tipo ? `Tipo: ${s.tipo}` : "", s.fecha ? `Fecha: ${s.fecha.slice(0, 10)}` : "", s.estado ? `Estado: ${s.estado}` : ""]
+          .filter(Boolean).join(" | "),
+        engine: "camara-sesion",
+        institution: chamberConfig.name,
+      }));
+      legisladores = legs.slice(0, 8).map((l) => ({
+        title: l.nombreCompleto || `${l.nombres || ""} ${l.apellidos || ""}`.trim(),
+        url: `${CHAMBER_HOST}/sil/legislador`,
+        snippet: [
+          l.partido ? `Partido: ${partidoNombre(l.partido)}` : "",
+          l.provincia ? `Prov: ${l.provincia}` : "",
+          l.circunscripcion || "",
+          l.cargo || l.funcion || "",
+        ].filter(Boolean).join(" | "),
+        engine: "camara-legislador",
+        institution: chamberConfig.name,
+      }));
+      gruposParlamentarios = grupos.slice(0, 10).map((g) => ({
+        title: g.nombreGrupo || "Grupo Parlamentario",
+        url: `${CHAMBER_HOST}/sil/gruposparlamentarios`,
+        snippet: [g.descripcionActividad || "", g.fechaDesignacion ? `Designado: ${g.fechaDesignacion.slice(0, 10)}` : ""]
+          .filter(Boolean).join(" | "),
+        engine: "camara-grupo-parlamentario",
+        institution: chamberConfig.name,
+      }));
+    }
+    return { iniciativas, comisiones, sesiones, legisladores, gruposParlamentarios };
   }
 }
 

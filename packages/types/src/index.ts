@@ -55,18 +55,52 @@ export interface SourceStreams {
   datos: SourceRef[];
   /** FLUJO D — Dominican press / media coverage (quaternary context). */
   news: SourceRef[];
-  /** Structured legislative records (SIL API). */
+  /** Structured legislative records (SIL API). Backwards-compatible aggregate. */
   laws: LawRef[];
-  /** Senado bulletins / actas / year-based documents. */
+  /** Senado bulletins / actas / year-based documents. Backwards-compatible aggregate. */
   bulletins: BulletinRef[];
   /** One stream per institution plugin. */
   perInstitution?: PerInstitutionStream;
+  /** SIL iniciativas legislativas — Senado (HIGHEST PRIORITY). */
+  senadoIniciativas: LawRef[];
+  /** SIL resoluciones / aprobadas — Senado. */
+  senadoResoluciones: LawRef[];
+  /** Boletines informativos — Senado. */
+  senadoBoletines: BulletinRef[];
+  /** Actas de sesiones — Senado. */
+  senadoActas: BulletinRef[];
+  /** Informes / discursos / rendición de cuentas — Senado. */
+  senadoInformes: BulletinRef[];
+  /** SIL iniciativas legislativas — Cámara de Diputados (HIGHEST PRIORITY). */
+  camaraIniciativas: LawRef[];
+  /** Comisiones de la Cámara de Diputados. */
+  camaraComisiones: SourceRef[];
+  /** Sesiones de la Cámara de Diputados. */
+  camaraSesiones: SourceRef[];
+  /** Grupos parlamentarios de la Cámara de Diputados. */
+  camaraGrupos: SourceRef[];
+  /** Per-diputado profiles (Cámara SIL legislador endpoint). */
+  diputados: SourceRef[];
 }
 
 export interface PlannerResult {
   intent: string;
   institutionsSelected: string[];
   plan: string;
+}
+
+/**
+ * Retrieval-facing query plan produced by the model-agnostic Query Planner.
+ * Drives the SearXNG fan-out with intent-aware, expanded search queries.
+ */
+export interface QueryPlan {
+  intent: string;
+  entities: string[];
+  dateRange?: { from?: string; to?: string };
+  jurisdictions: string[];
+  documentTypes: string[];
+  searchStrategy: string;
+  queries: string[];
 }
 
 export interface EvidenceItem {
@@ -182,6 +216,19 @@ export interface QueryRequest {
   /** AI provider id to use (e.g. "gemini", "openai", "ollama"). Defaults to the registered default. */
   provider?: string;
   apiKey?: string;
+  /**
+   * Intent-based source scope. When omitted the orchestrator auto-detects it
+   * from the query ("iniciativa" → sil, "noticias del senado" → senate-news,
+   * "diputado" → diputado, …). Explicit values:
+   *   all          — full multi-agent retrieval (default)
+   *   sil          — only Congress legislative records (Cámara + Senado SIL)
+   *   senate       — Senado only (iniciativas + portal news)
+   *   camara       — Cámara only (iniciativas + portal news + legisladores)
+   *   senate-news  — only Senado press/blog + Senado-filtered web search
+   *   camara-news  — only Cámara portal news + Cámara-filtered web search
+   *   diputado     — only Cámara legislador profile + authored iniciativas
+   */
+  scope?: "all" | "sil" | "senate" | "camara" | "senate-news" | "camara-news" | "diputado";
   search?: {
     lang?: string;
     category?: string;

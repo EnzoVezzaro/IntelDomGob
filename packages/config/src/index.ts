@@ -20,6 +20,8 @@ export interface PlatformConfig {
   /** Comma-separated list of enabled search provider ids. */
   enabledSearchProviders: string[];
   defaultAiProvider: string;
+  /** Default model used by model-agnostic agents (planner, synthesis). */
+  defaultAiModel: string;
   defaultSearchProvider: string;
   logFormat: "development" | "production";
   /** Public-facing CORS origins (comma separated). */
@@ -73,6 +75,7 @@ export function loadConfig(): PlatformConfig {
     enabledAiProviders: list(process.env.AI_PROVIDERS, ["gemini"]),
     enabledSearchProviders: list(process.env.SEARCH_PROVIDERS, ["searxng"]),
     defaultAiProvider: process.env.DEFAULT_AI_PROVIDER ?? "gemini",
+    defaultAiModel: process.env.LLM_MODEL ?? "gemini-3.1-flash-lite",
     defaultSearchProvider: process.env.DEFAULT_SEARCH_PROVIDER ?? "searxng",
     logFormat: (process.env.LOG_FORMAT as PlatformConfig["logFormat"]) ?? (env === "production" ? "production" : "development"),
     corsOrigins: list(process.env.CORS_ORIGINS, [`https://studio.${domain}`, `https://admin.${domain}`]),

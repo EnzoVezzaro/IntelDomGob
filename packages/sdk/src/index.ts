@@ -160,6 +160,104 @@ export class IntelDomGobClient {
     return (await res.json()) as { server: string; transport: string; tools: any[] };
   }
 
+  // --- Direct institution data methods (for MCP tools) --------------------------
+  // Both chambers have their own SIL (Sistema de Información Legislativa):
+  //   - Cámara SIL: diputadosrd.gob.do/sil/api/
+  //   - Senado SIL: memoriahistorica.senadord.gob.do/server/api (DSpace)
+
+  /** Search Cámara SIL for legislative initiatives by keyword. */
+  async silCamaraIniciativas(query: string, periodoId = 0): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ query, periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/iniciativas?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** List Cámara SIL comisiones by tipo. */
+  async silCamaraComisiones(tipoId?: number, periodoId = 0): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ periodoId: String(periodoId) });
+    if (tipoId) params.set("tipoId", String(tipoId));
+    const res = await this.fetchImpl(this.url(`/sil/camara/comisiones?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** List Cámara SIL committee types (Permanentes, Especiales, etc.). */
+  async silCamaraComisionTipos(periodoId = 0): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/comision/tipo?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** Get total count of Cámara SIL initiatives. */
+  async silCamaraIniciativaCount(periodoId = 0): Promise<{ total: number }> {
+    const params = new URLSearchParams({ periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/count?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number };
+  }
+
+  /** List Cámara SIL initiative topic groups (15 groups). */
+  async silCamaraIniciativaGrupos(periodoId = 0): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/grupos?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** List Cámara SIL matters (materias) within a topic group. */
+  async silCamaraIniciativaMaterias(grupo: number, periodoId = 0): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ grupo: String(grupo), periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/iniciativa/materias?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** Search Cámara SIL sesiones by keyword. */
+  async silCamaraSesiones(query: string, periodoId = 0): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ query, periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/sesiones?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** List or search Cámara SIL grupos parlamentarios. */
+  async silCamaraGrupos(periodoId = 0, keyword = ""): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ periodoId: String(periodoId) });
+    if (keyword) params.set("query", keyword);
+    const res = await this.fetchImpl(this.url(`/sil/camara/grupos?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** Search Cámara SIL legisladores by name. */
+  async silCamaraLegislador(query: string, periodoId = 0): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ query, periodoId: String(periodoId) });
+    const res = await this.fetchImpl(this.url(`/sil/camara/legislador?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** Search Senado SIL (DSpace) iniciativas + resoluciones. */
+  async silSenadoIniciativas(query: string): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ query });
+    const res = await this.fetchImpl(this.url(`/sil/senado/iniciativas?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** Search Senado SIL (DSpace) boletines + actas + informes. */
+  async silSenadoBoletines(query: string): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ query });
+    const res = await this.fetchImpl(this.url(`/sil/senado/boletines?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** Search Senado SIL (DSpace) resoluciones only. */
+  async silSenadoResoluciones(query: string): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ query });
+    const res = await this.fetchImpl(this.url(`/sil/senado/resoluciones?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
+  /** Search Senado WordPress press/news (not SIL). */
+  async senadoNews(query: string): Promise<{ total: number; results: any[] }> {
+    const params = new URLSearchParams({ query });
+    const res = await this.fetchImpl(this.url(`/senado/news?${params}`), { headers: this.headers() });
+    return (await res.json()) as { total: number; results: any[] };
+  }
+
   /** Query the Knowledge Graph (optionally the neighborhood of one entity). */
   async graph(entity?: string): Promise<{ graph: any; neighbors?: any[] }> {
     const qs = entity ? `?entity=${encodeURIComponent(entity)}` : "";

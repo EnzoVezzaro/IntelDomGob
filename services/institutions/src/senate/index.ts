@@ -4,7 +4,10 @@ import {
   searchExpedientes,
   expedienteToLaw,
   expedienteToResult,
+  expedienteToBulletin,
   fetchBulletins,
+  searchSenadoConcepts,
+  type SenateConceptMap,
 } from "./dspace";
 
 // Senado de la República.
@@ -126,6 +129,32 @@ class SenateService implements InstitutionService {
   /** Recent bulletins, session records, and year-based Senado content. */
   async getBulletins(query: string): Promise<BulletinDoc[]> {
     return fetchBulletins(query, { maxResults: 10 }).catch(() => []);
+  }
+
+  /**
+   * Broad Senado DSpace search, separated by legislative concept
+   * (iniciativas / resoluciones / boletines / actas / informes). SIL
+   * iniciativas are the highest-priority concept; the rest are supplementary.
+   * Returns streams already shaped as LawRef / BulletinRef for the response.
+   */
+  async getConcepts(query: string): Promise<{
+    iniciativas: InstitutionLaw[];
+    resoluciones: InstitutionLaw[];
+    boletines: BulletinDoc[];
+    actas: BulletinDoc[];
+    informes: BulletinDoc[];
+  }> {
+    const concept = await searchSenadoConcepts(query, { maxPerConcept: 8 }).catch(() => null);
+    if (!concept) {
+      return { iniciativas: [], resoluciones: [], boletines: [], actas: [], informes: [] };
+    }
+    return {
+      iniciativas: concept.iniciativas.map(expedienteToLaw),
+      resoluciones: concept.resoluciones.map(expedienteToLaw),
+      boletines: concept.boletines.map(expedienteToBulletin),
+      actas: concept.actas.map(expedienteToBulletin),
+      informes: concept.informes.map(expedienteToBulletin),
+    };
   }
 }
 

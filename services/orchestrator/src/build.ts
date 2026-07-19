@@ -21,6 +21,16 @@ export interface RetrievalBundle {
   newsResults: InstitutionResult[];
   silLaws: LawRef[];
   senadoBulletins: BulletinRef[];
+  /** Separated-by-concept legislative streams (highest priority first). */
+  camaraIniciativas: LawRef[];
+  senadoIniciativas: LawRef[];
+  senadoResoluciones: LawRef[];
+  senadoActas: BulletinRef[];
+  senadoInformes: BulletinRef[];
+  camaraComisiones: InstitutionResult[];
+  camaraSesiones: InstitutionResult[];
+  camaraGrupos: InstitutionResult[];
+  diputados: InstitutionResult[];
   perInstitution: Record<string, InstitutionResult[]>;
   searchQueries: string[];
 }
@@ -75,6 +85,16 @@ export function buildResult(modelJson: any, bundle: RetrievalBundle): Intelligen
     laws: bundle.silLaws,
     bulletins: bundle.senadoBulletins,
     perInstitution: perInstitutionStream,
+    senadoIniciativas: bundle.senadoIniciativas,
+    senadoResoluciones: bundle.senadoResoluciones,
+    senadoBoletines: bundle.senadoBulletins,
+    senadoActas: bundle.senadoActas,
+    senadoInformes: bundle.senadoInformes,
+    camaraIniciativas: bundle.camaraIniciativas,
+    camaraComisiones: bundle.camaraComisiones.map(mapToSource),
+    camaraSesiones: bundle.camaraSesiones.map(mapToSource),
+    camaraGrupos: bundle.camaraGrupos.map(mapToSource),
+    diputados: bundle.diputados.map(mapToSource),
   };
 
   // Citations from real retrieved sources (priority: congress/official > news).
@@ -96,6 +116,16 @@ export function buildResult(modelJson: any, bundle: RetrievalBundle): Intelligen
       date: l.fechaDeposito || "",
     })
   );
+  const allSilLaws = [...bundle.camaraIniciativas, ...bundle.senadoIniciativas, ...bundle.senadoResoluciones];
+  for (const l of allSilLaws) {
+    pushCitation({
+      title: `${l.numero} · ${l.tipo}${l.estado ? " (" + l.estado + ")" : ""}`,
+      url: l.url,
+      snippet: l.descripcion,
+      institution: `${l.url.includes("senado") ? "Senado de la República" : "Cámara de Diputados"} (SIL)`,
+      date: l.fechaDeposito || "",
+    });
+  }
   bundle.senadoBulletins.forEach((b) =>
     pushCitation({
       title: b.title,
@@ -120,6 +150,16 @@ export function buildResult(modelJson: any, bundle: RetrievalBundle): Intelligen
   };
 
   for (const l of bundle.silLaws) {
+    pushEvidence({
+      fact: `${l.numero} · ${l.tipo}${l.estado ? " — Estado: " + l.estado : ""}: ${l.descripcion}`,
+      sourceUrl: l.url,
+      institution: `${l.url.includes("senado") ? "Senado de la República" : "Cámara de Diputados"} (SIL)`,
+      date: l.fechaDeposito || "",
+      confidence: "High",
+    });
+  }
+  for (const l of allSilLaws) {
+    if (bundle.silLaws.some((x) => normUrl(x.url) === normUrl(l.url))) continue;
     pushEvidence({
       fact: `${l.numero} · ${l.tipo}${l.estado ? " — Estado: " + l.estado : ""}: ${l.descripcion}`,
       sourceUrl: l.url,
@@ -156,6 +196,9 @@ export function buildResult(modelJson: any, bundle: RetrievalBundle): Intelligen
     ...congressStream.map((r) => r.title || r.url),
     ...newsStream.map((r) => r.title || r.url),
     ...bundle.silLaws.map((l) => `${l.numero} · ${l.tipo}`),
+    ...allSilLaws.map((l) => `${l.numero} · ${l.tipo}`),
+    ...bundle.senadoActas.map((b) => b.title || b.url),
+    ...bundle.senadoInformes.map((b) => b.title || b.url),
   ];
 
   return {

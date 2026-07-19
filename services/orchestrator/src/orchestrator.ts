@@ -41,21 +41,44 @@ import {
   isDominicanSource,
   type SearchResultItem,
 } from "./classify";
+import { QueryPlanner } from "./planner";
+import { config } from "@intel.dom.gob/config";
 
 const log = createLogger("orchestrator");
+
+/**
+ * Detect the query scope from the user's natural language intent.
+ * If an explicit scope is already set in the request, use it.
+ * Otherwise, classify the query text to determine which tools to activate.
+ */
+function detectScope(query: string, explicit?: string): string {
+  if (explicit && explicit !== "all") return explicit;
+  const q = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  // Specific intent patterns (order matters: more specific first).
+  if (/\b(diputado|legislador|representante)\b/.test(q)) return "diputado";
+  if (/\b(noticias?\s+del?\s+senado|senado\s+noticias?|prensa\s+senado|blog\s+senado)\b/.test(q)) return "senate-news";
+  if (/\b(noticias?\s+de[l]?\s+c[aá]mara|c[aá]mara\s+noticias?|prensa\s+c[aá]mara)\b/.test(q)) return "camara-news";
+  if (/\b(iniciativa|proyecto\s+de\s+ley|expediente|SIL|codigo\s+penal|ley\s+org[aá]nica)\b/.test(q)) return "sil";
+  if (/\bsenado\b/.test(q) && !/\bc[aá]mara\b/.test(q)) return "senate";
+  if (/\bc[aá]mara\b/.test(q) && !/\bsenado\b/.test(q)) return "camara";
+  return "all";
+}
 
 export interface OrchestratorOptions {
   ai: AiService;
   search: SearchService;
+  defaultAiModel?: string;
 }
 
 export class Orchestrator {
   private readonly ai: AiService;
   private readonly search: SearchService;
+  private readonly planner: QueryPlanner;
 
   constructor(opts: OrchestratorOptions) {
     this.ai = opts.ai;
     this.search = opts.search;
+    this.planner = new QueryPlanner(this.ai, config);
     registerAllInstitutions();
   }
 
@@ -113,11 +136,19 @@ export class Orchestrator {
 
     const hostToPortal = buildHostToPortal(targetServices);
 
-    // Build broad + Dominican-scoped news queries.
-    const searchQueries: string[] = [req.query, `${req.query} República Dominicana`, `${req.query} gob.do`, `${req.query} sitio oficial`];
+    // Decompose the query into its principal search concepts (deterministic) so
+    // SearXNG targets the real sub-topics instead of the whole sentence as one blob.
+    const { concepts, tokens: conceptTokens } = extractSearchConcepts(req.query);
+    const conceptNeeded = conceptTokens.length <= 2 ? 1 : 2;
+
+    // Build the SearXNG fan-out from the extracted concepts.
+    const searchQueries: string[] = [];
+    for (const c of concepts) {
+      searchQueries.push(c, `${c} República Dominicana`, `${c} gob.do`, `${c} sitio oficial`);
+    }
     for (const portal of targetPortals) {
       const host = portal.url.replace(/^https?:\/\//, "");
-      searchQueries.push(`${req.query} ${host}`);
+      for (const c of concepts) searchQueries.push(`${c} ${host}`);
     }
     const DR_NEWS_HOSTS = [
       "listindiario.com", "diariolibre.com", "hoy.com.do", "elnacional.com.do", "acento.com.do",
@@ -125,7 +156,7 @@ export class Orchestrator {
       "presidencia.gob.do", "camaradediputados.gob.do", "senado.gob.do",
       "tribunalconstitucional.gob.do", "dgcp.gob.do", "consultoria.gov.do", "datos.gob.do",
     ];
-    for (const host of DR_NEWS_HOSTS) searchQueries.push(`${req.query} site:${host}`);
+    for (const host of DR_NEWS_HOSTS) for (const c of concepts) searchQueries.push(`${c} site:${host}`);
 
     // Run SearXNG fan-out (prioritize Congreso hosts).
     const congressHosts = ["senado.gob.do", "senadord.gob.do", "camaradediputados.gob.do", "diputadosrd.gob.do"];
@@ -142,22 +173,36 @@ export class Orchestrator {
     }
 
     const keepResult = (host: string) => !restricted || hostToPortal.has(host);
-    const filteredResults = searxResults.filter((r) => {
+    // Relevance gate: keep official/congress results only if they share concepts
+    // with the query. Fallback to host-only if the gate empties the pool (never
+    // return zero official sources on a sparse retrieval).
+    const gateOk = (r: SearchResultItem): boolean => {
       try {
         const host = new URL(r.url).hostname.replace(/^www\./, "");
-        return keepResult(host);
+        if (!keepResult(host)) return false;
+        if (conceptTokens.length === 0) return true;
+        return tokenOverlapLocal(`${r.title} ${r.snippet}`, conceptTokens) >= conceptNeeded;
       } catch {
         return false;
       }
-    });
+    };
+    const gated = searxResults.filter(gateOk);
+    const filteredResults =
+      gated.length > 0
+        ? gated
+        : searxResults.filter((r) => {
+            try {
+              return keepResult(new URL(r.url).hostname.replace(/^www\./, ""));
+            } catch {
+              return false;
+            }
+          });
     const newsPool = searxResults.filter((r) => {
       try {
         const host = new URL(r.url).hostname.replace(/^www\./, "");
         if (!isDominicanSource(host)) return false;
-        const toks = queryTokens(req.query);
-        if (toks.length === 0) return true;
-        const needed = toks.length <= 2 ? 1 : 2;
-        return tokenOverlapLocal(`${r.title} ${r.snippet}`, toks) >= needed;
+        if (conceptTokens.length === 0) return true;
+        return tokenOverlapLocal(`${r.title} ${r.snippet}`, conceptTokens) >= conceptNeeded;
       } catch {
         return false;
       }
@@ -177,28 +222,28 @@ export class Orchestrator {
       } catch {
         return false;
       }
-      const toks = queryTokens(req.query);
+      const toks = conceptTokens;
       if (toks.length === 0) return true;
-      const needed = toks.length <= 2 ? 1 : 2;
+      const needed = conceptNeeded;
       return tokenOverlapLocal(`${r.title} ${r.snippet}`, toks) >= needed;
     });
 
-    // SIL legislative records (Cámara + Senado).
+    // SIL legislative records (Cámara + Senado), separated by concept.
     const SIL_MAX = 12;
     const chamberSvc = targetServices.find((s) => s.id === "chamber");
-    const chamberLaws = chamberSvc && hasLegislativeCapability(chamberSvc) && isPortalAllowed("Cámara de Diputados")
-      ? (await chamberSvc.getLaws(req.query)).slice(0, SIL_MAX)
-      : [];
     const senateSvc = targetServices.find((s) => s.id === "senate");
-    const senateLaws = senateSvc && hasLegislativeCapability(senateSvc) && isPortalAllowed("Senado de la República")
-      ? (await senateSvc.getLaws(req.query)).slice(0, SIL_MAX)
-      : [];
+    const chamberConcepts = chamberSvc && isPortalAllowed("Cámara de Diputados")
+      ? await (chamberSvc as any).getConcepts?.(req.query).catch(() => null)
+      : null;
+    const senateConcepts = senateSvc && isPortalAllowed("Senado de la República")
+      ? await (senateSvc as any).getConcepts?.(req.query).catch(() => null)
+      : null;
+    const chamberLaws = chamberConcepts?.iniciativas ?? [];
+    const senateLaws = senateConcepts?.iniciativas ?? [];
     const silLaws: LawRef[] = [...chamberLaws, ...senateLaws];
 
     const BULLETIN_MAX = 10;
-    const senadoBulletins = senateSvc && hasBulletinCapability(senateSvc) && isPortalAllowed("Senado de la República")
-      ? (await senateSvc.getBulletins!(req.query)).slice(0, BULLETIN_MAX)
-      : [];
+    const senadoBulletins = senateConcepts?.boletines ?? [];
 
     // Parallel institution searches.
     const [
@@ -253,6 +298,15 @@ export class Orchestrator {
       newsResults: newsMerged,
       silLaws,
       senadoBulletins,
+      camaraIniciativas: (chamberConcepts?.iniciativas ?? []).slice(0, SIL_MAX),
+      senadoIniciativas: (senateConcepts?.iniciativas ?? []).slice(0, SIL_MAX),
+      senadoResoluciones: (senateConcepts?.resoluciones ?? []).slice(0, BULLETIN_MAX),
+      senadoActas: (senateConcepts?.actas ?? []).slice(0, BULLETIN_MAX),
+      senadoInformes: (senateConcepts?.informes ?? []).slice(0, BULLETIN_MAX),
+      camaraComisiones: (chamberConcepts?.comisiones ?? []).slice(0, BULLETIN_MAX),
+      camaraSesiones: (chamberConcepts?.sesiones ?? []).slice(0, BULLETIN_MAX),
+      camaraGrupos: (chamberConcepts?.gruposParlamentarios ?? []).slice(0, BULLETIN_MAX),
+      diputados: (chamberConcepts?.legisladores ?? []).slice(0, BULLETIN_MAX),
       perInstitution,
       searchQueries,
     };
@@ -423,6 +477,18 @@ REGLAS DE REDACCIÓN:
       targetServices = resolved.length > 0 ? resolved : ALL;
     }
 
+    // Intent-based scope: auto-detect from query or use explicit request scope.
+    const scope = detectScope(req.query, req.scope);
+
+    // Apply scope restrictions: narrow targetServices to the relevant chambers.
+    if (scope === "senate" || scope === "senate-news") {
+      targetServices = targetServices.filter((s) => s.id === "senate");
+    } else if (scope === "camara" || scope === "camara-news" || scope === "diputado") {
+      targetServices = targetServices.filter((s) => s.id === "chamber");
+    } else if (scope === "sil") {
+      targetServices = targetServices.filter((s) => s.id === "chamber" || s.id === "senate");
+    }
+
     const targetPortals = targetServices.map((s) => ({ name: s.name, url: s.url }));
     const restricted = !!(req.institutions && Array.isArray(req.institutions) && req.institutions.length > 0 && targetServices.length < ALL.length);
     const allowedPortalNames = new Set(targetServices.map((s) => s.name.toLowerCase()));
@@ -447,18 +513,47 @@ REGLAS DE REDACCIÓN:
 
     const hostToPortal = buildHostToPortal(targetServices);
 
-    const searchQueries: string[] = [req.query, `${req.query} República Dominicana`, `${req.query} gob.do`, `${req.query} sitio oficial`];
-    for (const portal of targetPortals) {
-      const host = portal.url.replace(/^https?:\/\//, "");
-      searchQueries.push(`${req.query} ${host}`);
+    // Decompose the query into its principal search concepts (deterministic) so
+    // SearXNG targets the real sub-topics instead of the whole sentence as one blob.
+    const { concepts, tokens: conceptTokens } = extractSearchConcepts(req.query);
+    const conceptNeeded = conceptTokens.length <= 2 ? 1 : 2;
+
+    // Model-agnostic Query Planner: produces intent-aware, expanded search queries
+    // driven entirely by `.env` (LLM_MODEL / DEFAULT_AI_PROVIDER). Falls back to the
+    // deterministic concept decomposition when no model is configured or the call fails.
+    const plan = await this.planner.plan(req.query, req.responseLang || "es");
+    const plannerQueries = plan?.queries ?? [];
+
+    // Build the SearXNG fan-out. Prefer the planner's queries; when the planner is
+    // unavailable, fall back to the deterministic concept expansion below.
+    // Scope-based restrictions: skip SearXNG for pure SIL lookups; restrict news
+    // hosts for chamber-specific news scopes.
+    const searchQueries: string[] = [];
+    const skipSearx = scope === "sil";
+    if (!skipSearx) {
+      if (plannerQueries.length > 0) {
+        searchQueries.push(...plannerQueries);
+      } else {
+        for (const c of concepts) {
+          searchQueries.push(c, `${c} República Dominicana`, `${c} gob.do`, `${c} sitio oficial`);
+        }
+        for (const portal of targetPortals) {
+          const host = portal.url.replace(/^https?:\/\//, "");
+          for (const c of concepts) searchQueries.push(`${c} ${host}`);
+        }
+        const DR_NEWS_HOSTS = scope === "senate-news"
+          ? ["senado.gob.do", "senadord.gob.do"]
+          : scope === "camara-news" || scope === "diputado"
+            ? ["camaradediputados.gob.do", "diputadosrd.gob.do"]
+            : [
+                "listindiario.com", "diariolibre.com", "hoy.com.do", "elnacional.com.do", "acento.com.do",
+                "elcaribe.com.do", "almomento.net", "eldia.com.do",
+                "presidencia.gob.do", "camaradediputados.gob.do", "senado.gob.do",
+                "tribunalconstitucional.gob.do", "dgcp.gob.do", "consultoria.gov.do", "datos.gob.do",
+              ];
+        for (const host of DR_NEWS_HOSTS) for (const c of concepts) searchQueries.push(`${c} site:${host}`);
+      }
     }
-    const DR_NEWS_HOSTS = [
-      "listindiario.com", "diariolibre.com", "hoy.com.do", "elnacional.com.do", "acento.com.do",
-      "elcaribe.com.do", "almomento.net", "eldia.com.do",
-      "presidencia.gob.do", "camaradediputados.gob.do", "senado.gob.do",
-      "tribunalconstitucional.gob.do", "dgcp.gob.do", "consultoria.gov.do", "datos.gob.do",
-    ];
-    for (const host of DR_NEWS_HOSTS) searchQueries.push(`${req.query} site:${host}`);
 
     const congressHosts = ["senado.gob.do", "senadord.gob.do", "camaradediputados.gob.do", "diputadosrd.gob.do"];
     const rankedQueries = [...searchQueries].sort((a, b) => {
@@ -474,22 +569,36 @@ REGLAS DE REDACCIÓN:
     }
 
     const keepResult = (host: string) => !restricted || hostToPortal.has(host);
-    const filteredResults = searxResults.filter((r) => {
+    // Relevance gate: keep official/congress results only if they share concepts
+    // with the query. Fallback to host-only if the gate empties the pool (never
+    // return zero official sources on a sparse retrieval).
+    const gateOk = (r: SearchResultItem): boolean => {
       try {
         const host = new URL(r.url).hostname.replace(/^www\./, "");
-        return keepResult(host);
+        if (!keepResult(host)) return false;
+        if (conceptTokens.length === 0) return true;
+        return tokenOverlapLocal(`${r.title} ${r.snippet}`, conceptTokens) >= conceptNeeded;
       } catch {
         return false;
       }
-    });
+    };
+    const gated = searxResults.filter(gateOk);
+    const filteredResults =
+      gated.length > 0
+        ? gated
+        : searxResults.filter((r) => {
+            try {
+              return keepResult(new URL(r.url).hostname.replace(/^www\./, ""));
+            } catch {
+              return false;
+            }
+          });
     const newsPool = searxResults.filter((r) => {
       try {
         const host = new URL(r.url).hostname.replace(/^www\./, "");
         if (!isDominicanSource(host)) return false;
-        const toks = queryTokens(req.query);
-        if (toks.length === 0) return true;
-        const needed = toks.length <= 2 ? 1 : 2;
-        return tokenOverlapLocal(`${r.title} ${r.snippet}`, toks) >= needed;
+        if (conceptTokens.length === 0) return true;
+        return tokenOverlapLocal(`${r.title} ${r.snippet}`, conceptTokens) >= conceptNeeded;
       } catch {
         return false;
       }
@@ -509,27 +618,32 @@ REGLAS DE REDACCIÓN:
       } catch {
         return false;
       }
-      const toks = queryTokens(req.query);
+      const toks = conceptTokens;
       if (toks.length === 0) return true;
-      const needed = toks.length <= 2 ? 1 : 2;
+      const needed = conceptNeeded;
       return tokenOverlapLocal(`${r.title} ${r.snippet}`, toks) >= needed;
     });
 
     const SIL_MAX = 12;
     const chamberSvc = targetServices.find((s) => s.id === "chamber");
-    const chamberLaws = chamberSvc && hasLegislativeCapability(chamberSvc) && isPortalAllowed("Cámara de Diputados")
-      ? (await chamberSvc.getLaws(req.query)).slice(0, SIL_MAX)
-      : [];
     const senateSvc = targetServices.find((s) => s.id === "senate");
-    const senateLaws = senateSvc && hasLegislativeCapability(senateSvc) && isPortalAllowed("Senado de la República")
-      ? (await senateSvc.getLaws(req.query)).slice(0, SIL_MAX)
-      : [];
+
+    // Broad legislative scrape, separated by concept. SIL iniciativas are the
+    // highest-priority source; comisiones/sesiones (Cámara) and
+    // resoluciones/boletines/actas/informes (Senado) are supplementary.
+    const chamberConcepts = chamberSvc && isPortalAllowed("Cámara de Diputados")
+      ? await (chamberSvc as any).getConcepts?.(req.query).catch(() => null)
+      : null;
+    const senateConcepts = senateSvc && isPortalAllowed("Senado de la República")
+      ? await (senateSvc as any).getConcepts?.(req.query).catch(() => null)
+      : null;
+
+    const chamberLaws = chamberConcepts?.iniciativas ?? [];
+    const senateLaws = senateConcepts?.iniciativas ?? [];
     const silLaws: LawRef[] = [...chamberLaws, ...senateLaws];
 
     const BULLETIN_MAX = 10;
-    const senadoBulletins = senateSvc && hasBulletinCapability(senateSvc) && isPortalAllowed("Senado de la República")
-      ? (await senateSvc.getBulletins!(req.query)).slice(0, BULLETIN_MAX)
-      : [];
+    const senadoBulletins = senateConcepts?.boletines ?? [];
 
     const [
       officialActivity,
@@ -583,6 +697,15 @@ REGLAS DE REDACCIÓN:
       newsResults: newsMerged,
       silLaws,
       senadoBulletins,
+      camaraIniciativas: (chamberConcepts?.iniciativas ?? []).slice(0, SIL_MAX),
+      senadoIniciativas: (senateConcepts?.iniciativas ?? []).slice(0, SIL_MAX),
+      senadoResoluciones: (senateConcepts?.resoluciones ?? []).slice(0, BULLETIN_MAX),
+      senadoActas: (senateConcepts?.actas ?? []).slice(0, BULLETIN_MAX),
+      senadoInformes: (senateConcepts?.informes ?? []).slice(0, BULLETIN_MAX),
+      camaraComisiones: (chamberConcepts?.comisiones ?? []).slice(0, BULLETIN_MAX),
+      camaraSesiones: (chamberConcepts?.sesiones ?? []).slice(0, BULLETIN_MAX),
+      camaraGrupos: (chamberConcepts?.gruposParlamentarios ?? []).slice(0, BULLETIN_MAX),
+      diputados: (chamberConcepts?.legisladores ?? []).slice(0, BULLETIN_MAX),
       perInstitution,
       searchQueries,
     };
@@ -653,6 +776,70 @@ REGLAS DE REDACCIÓN:
       plan,
     };
   }
+}
+
+/**
+ * Deterministic query → concept decomposition (zero-latency, no LLM call).
+ *
+ * Strips command/filler phrases ("busca en el mcp", "por donde va", …) and
+ * splits the question on coordinating conjunctions / prepositions so the
+ * SearXNG fan-out targets the *real* sub-topics instead of the whole sentence
+ * as one blob. For
+ *   "…las 3 causales del aborto en el proceso de modificación del código penal…"
+ * this yields ["<full query>", "3 causales del aborto", "modificación del código penal"].
+ * The original full query is always kept first as the broadest concept.
+ */
+const FILLER_PHRASES = [
+  "busca en intel dom gob", "busca en el mcp", "busca en mcp", "busca en intel dom",
+  "por donde va", "por favor", "quiero saber", "dime", "consulta sobre",
+  "investiga", "investiga sobre", "necesito saber", "me puedes decir",
+  "cual es", "cuál es", "encuentra", "busca", "hay que buscar",
+];
+
+// Remove command/filler phrases (case- and accent-insensitive) while keeping the
+// original casing/accents so the resulting string stays a good search query.
+function stripFiller(q: string): string {
+  let s = q;
+  for (const f of FILLER_PHRASES) {
+    const re = new RegExp(f.normalize("NFD").replace(/[̀-ͯ]/g, ""), "gi");
+    s = s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(re, " ");
+  }
+  return s.normalize("NFC").replace(/\s+/g, " ").replace(/^[,;|]+/, "").trim();
+}
+
+export function extractSearchConcepts(rawQuery: string): { concepts: string[]; tokens: string[] } {
+  const cleaned = stripFiller(rawQuery);
+  // Delimiters that separate independent search intents.
+  const segments = cleaned
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/,|;|\||\by\s+|\ben el proceso de\b|\bsobre\b|\bacerca de\b|\brespecto a\b|\ben cuanto a\b|\bdurante\b|\bpara\b/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const cleanSeg = (s: string): string =>
+    s.replace(/^(la|las|el|los|de|del|en|a|por|una|un|para|con|y\s+)+/g, "").replace(/[?¿.!]+$/g, "").trim();
+
+  const seen = new Set<string>();
+  const concepts: string[] = [];
+  const push = (c: string) => {
+    const cc = cleanSeg(c);
+    if (cc.length < 6) return; // ignore tiny fragments
+    const key = cc.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    concepts.push(cc);
+  };
+
+  // Full cleaned query first (broadest), then each extracted concept.
+  push(cleaned);
+  for (const seg of segments) push(seg);
+
+  const capped = concepts.slice(0, 4); // stay within the SearXNG call budget
+  const tokSet = new Set<string>();
+  for (const c of capped) for (const t of queryTokens(c)) tokSet.add(t);
+  return { concepts: capped, tokens: [...tokSet] };
 }
 
 function tokenOverlapLocal(text: string, tokens: string[]): number {

@@ -145,6 +145,199 @@ export function createRouter(deps: RouterDeps): Router {
     }
   });
 
+  // --- Institution Direct Data Endpoints ---------------------------------------
+  // Both chambers have their own SIL (Sistema de Información Legislativa):
+  //   - Cámara SIL: diputadosrd.gob.do/sil/api/
+  //   - Senado SIL: memoriahistorica.senadord.gob.do/server/api (DSpace)
+  // These bypass the full query pipeline and hit institution APIs directly.
+
+  // Cámara SIL endpoints (diputadosrd.gob.do)
+  router.get("/sil/camara/iniciativas", async (req, res: Response) => {
+    try {
+      const { chamberApi } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const periodoId = Number(req.query.periodoId || 0);
+      const result = await chamberApi.getLaws(q, periodoId);
+      res.json({ total: result.length, results: result });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Cámara SIL: Comisiones
+  router.get("/sil/camara/comision/tipo", async (req, res: Response) => {
+    try {
+      const { getComisionTipos } = await import("@intel.dom.gob/service-institutions");
+      const periodoId = Number(req.query.periodoId || 0);
+      const result = await getComisionTipos(periodoId);
+      res.json({ total: result.length, results: result });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/sil/camara/comisiones", async (req, res: Response) => {
+    try {
+      const { getComisionesByTipo, getComisiones } = await import("@intel.dom.gob/service-institutions");
+      const periodoId = Number(req.query.periodoId || 0);
+      const tipoId = Number(req.query.tipoId || 0);
+      if (tipoId) {
+        const result = await getComisionesByTipo(tipoId, periodoId);
+        res.json({ total: result.length, results: result });
+      } else {
+        const result = await getComisiones(periodoId);
+        res.json({ total: result.length, results: result });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Cámara SIL: Iniciativas — count, grupos, materias, filtered search
+  router.get("/sil/camara/iniciativa/count", async (req, res: Response) => {
+    try {
+      const { getIniciativaCount } = await import("@intel.dom.gob/service-institutions");
+      const periodoId = Number(req.query.periodoId || 0);
+      const count = await getIniciativaCount(periodoId);
+      res.json({ total: count });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/sil/camara/iniciativa/grupos", async (req, res: Response) => {
+    try {
+      const { getIniciativaGrupos } = await import("@intel.dom.gob/service-institutions");
+      const periodoId = Number(req.query.periodoId || 0);
+      const result = await getIniciativaGrupos(periodoId);
+      res.json({ total: result.length, results: result });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/sil/camara/iniciativa/materias", async (req, res: Response) => {
+    try {
+      const { getIniciativaMaterias } = await import("@intel.dom.gob/service-institutions");
+      const grupo = Number(req.query.grupo || 0);
+      const periodoId = Number(req.query.periodoId || 0);
+      if (!grupo) { res.status(400).json({ error: "grupo parameter is required" }); return; }
+      const result = await getIniciativaMaterias(grupo, periodoId);
+      res.json({ total: result.length, results: result });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/sil/camara/iniciativas", async (req, res: Response) => {
+    try {
+      const { getIniciativasFiltered, chamberApi } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const periodoId = Number(req.query.periodoId || 0);
+      const grupo = req.query.grupo ? Number(req.query.grupo) : undefined;
+      const tipo = req.query.tipo != null ? req.query.tipo !== "false" : undefined;
+      const perimidas = req.query.perimidas != null ? req.query.perimidas === "true" : undefined;
+      if (grupo != null || q) {
+        const result = await getIniciativasFiltered({ page: 1, grupo, tipo, perimidas, keyword: q || undefined, periodoId });
+        res.json(result);
+      } else {
+        const result = await chamberApi.getLaws(q, periodoId);
+        res.json({ total: result.length, results: result });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Cámara SIL: Sesiones
+  router.get("/sil/camara/sesiones", async (req, res: Response) => {
+    try {
+      const { getSesiones } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const periodoId = Number(req.query.periodoId || 0);
+      const result = await getSesiones(q, periodoId);
+      res.json({ total: result.length, results: result });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Cámara SIL: Grupos Parlamentarios
+  router.get("/sil/camara/grupos", async (req, res: Response) => {
+    try {
+      const { getGruposParlamentarios } = await import("@intel.dom.gob/service-institutions");
+      const periodoId = Number(req.query.periodoId || 0);
+      const keyword = String(req.query.query || "");
+      const result = await getGruposParlamentarios(periodoId, keyword);
+      res.json({ total: result.length, results: result });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Cámara SIL: Legisladores
+  router.get("/sil/camara/legislador", async (req, res: Response) => {
+    try {
+      const { getLegislador } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const periodoId = Number(req.query.periodoId || 0);
+      const result = await getLegislador(q, periodoId);
+      res.json({ total: result.length, results: result });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Senado SIL endpoints (memoriahistorica.senadord.gob.do — DSpace)
+  router.get("/sil/senado/iniciativas", async (req, res: Response) => {
+    try {
+      const { searchSenadoConcepts } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const concepts = await searchSenadoConcepts(q, { maxPerConcept: 20 });
+      const initiatives = [...(concepts.iniciativas || []), ...(concepts.resoluciones || [])];
+      res.json({ total: initiatives.length, results: initiatives });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/sil/senado/boletines", async (req, res: Response) => {
+    try {
+      const { searchSenadoConcepts } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const concepts = await searchSenadoConcepts(q, { maxPerConcept: 20 });
+      const bulletins = [...(concepts.boletines || []), ...(concepts.actas || []), ...(concepts.informes || [])];
+      res.json({ total: bulletins.length, results: bulletins });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get("/sil/senado/resoluciones", async (req, res: Response) => {
+    try {
+      const { searchSenadoConcepts } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const concepts = await searchSenadoConcepts(q, { maxPerConcept: 20 });
+      const resolutions = concepts.resoluciones || [];
+      res.json({ total: resolutions.length, results: resolutions });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Senado WordPress news (not SIL — press/blog from senadord.gob.do)
+  router.get("/senado/news", async (req, res: Response) => {
+    try {
+      const { senateApi } = await import("@intel.dom.gob/service-institutions");
+      const q = String(req.query.query || "");
+      const result = await senateApi.search(q, false);
+      res.json({ total: result.length, results: result });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // --- Knowledge Graph --------------------------------------------------------
   // Knowledge Graph: build/merge a graph from an IntelligenceResult packet and
   // return the current graph (or the neighborhood of a given entity).
   router.post("/graph/ingest", async (req, res) => {
@@ -685,16 +878,20 @@ export function createRouter(deps: RouterDeps): Router {
       transport: "http",
       tools: [
         {
-          name: "intel_query",
-          description: "Run a full multi-agent intelligence query and return the structured result.",
+          name: "query",
+          description: "Full multi-agent intelligence query with intent-based scope routing. Auto-detects from query text which tools to activate. Emits progress notifications.",
           inputSchema: {
             type: "object",
-            properties: { query: { type: "string" }, institutions: { type: "array", items: { type: "string" } } },
+            properties: {
+              query: { type: "string" },
+              institutions: { type: "array", items: { type: "string" } },
+              scope: { type: "string", enum: ["all", "sil", "senate", "camara", "senate-news", "camara-news", "diputado"] },
+            },
             required: ["query"],
           },
         },
         {
-          name: "intel_chat",
+          name: "chat",
           description: "Context-grounded follow-up chat over a completed intelligence result.",
           inputSchema: {
             type: "object",
@@ -706,6 +903,108 @@ export function createRouter(deps: RouterDeps): Router {
           name: "list_institutions",
           description: "List the registered DR government institution sources.",
           inputSchema: { type: "object", properties: {} },
+        },
+        {
+          name: "sil_camara_iniciativas",
+          description: "Search Cámara de Diputados SIL for legislative initiatives by keyword or expediente number.",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" }, periodoId: { type: "number" } },
+            required: ["query"],
+          },
+        },
+        {
+          name: "sil_camara_comisiones",
+          description: "List Cámara committees. With tipoId filters by type (974=Permanentes, 975=Especiales, etc.).",
+          inputSchema: {
+            type: "object",
+            properties: { tipoId: { type: "number" }, periodoId: { type: "number" } },
+          },
+        },
+        {
+          name: "sil_camara_comision_tipos",
+          description: "List Cámara committee types (Permanentes, Especiales, Bicamerales, Coordinadora). Returns type IDs.",
+          inputSchema: { type: "object", properties: { periodoId: { type: "number" } } },
+        },
+        {
+          name: "sil_camara_iniciativa_count",
+          description: "Get total count of all Cámara SIL initiatives.",
+          inputSchema: { type: "object", properties: { periodoId: { type: "number" } } },
+        },
+        {
+          name: "sil_camara_iniciativa_grupos",
+          description: "List 15 Cámara initiative topic groups (Administración, Economía, Educación, etc.).",
+          inputSchema: { type: "object", properties: { periodoId: { type: "number" } } },
+        },
+        {
+          name: "sil_camara_iniciativa_materias",
+          description: "List matters within a Cámara initiative topic group. Requires grupo ID from sil_camara_iniciativa_grupos.",
+          inputSchema: {
+            type: "object",
+            properties: { grupo: { type: "number" }, periodoId: { type: "number" } },
+            required: ["grupo"],
+          },
+        },
+        {
+          name: "sil_camara_sesiones",
+          description: "List or look up Cámara SIL sessions. Empty query = all sessions. With session number (e.g. '00042-2026-PLO') = specific session.",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string", description: "Session number (e.g. '00042-2026-PLO') or empty for all" }, periodoId: { type: "number" } },
+          },
+        },
+        {
+          name: "sil_camara_grupos",
+          description: "List all Cámara parliamentary groups (59 total: parties, PARLACEN, nationality groups).",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" }, periodoId: { type: "number" } },
+          },
+        },
+        {
+          name: "sil_camara_legislador",
+          description: "Search for a specific Cámara legislator (diputado) by name. Returns profile, party, district.",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" }, periodoId: { type: "number" } },
+            required: ["query"],
+          },
+        },
+        {
+          name: "sil_senado_iniciativas",
+          description: "Search Senado SIL (DSpace) for legislative initiatives and resolutions.",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+            required: ["query"],
+          },
+        },
+        {
+          name: "sil_senado_boletines",
+          description: "Search Senado SIL (DSpace) for bulletins, session records, and reports.",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+            required: ["query"],
+          },
+        },
+        {
+          name: "sil_senado_resoluciones",
+          description: "Search Senado SIL (DSpace) specifically for resolutions.",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+            required: ["query"],
+          },
+        },
+        {
+          name: "senado_news",
+          description: "Search Senado WordPress press/news and blog posts (not SIL).",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+            required: ["query"],
+          },
         },
       ],
     });

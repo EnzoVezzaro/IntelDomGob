@@ -30,8 +30,10 @@ export function registerAllInstitutions(): void {
 
 export * from "./registry";
 export * from "./types";
-export { senateService } from "./senate";
+export { senateApi, senateService } from "./senate";
 export { chamberService } from "./chamber";
+export { chamberApi, getComisiones, getComisionTipos, getComisionesByTipo, getIniciativaCount, getIniciativaGrupos, getIniciativaMaterias, getIniciativasFiltered, getGruposParlamentarios, getSesiones, getLegislador } from "./chamber";
+export { searchExpedientes, searchSenadoConcepts } from "./senate/dspace";
 export { presidencyService } from "./presidency";
 export { judiciaryService } from "./judiciary";
 export { dgcpService } from "./dgcp";
