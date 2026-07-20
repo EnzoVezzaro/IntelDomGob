@@ -9,39 +9,41 @@
  */
 @layer base {
   :root {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 96%;
+    /* INTEL.DOM.GOB — mirror of the public site design system:
+       near-black canvas, INTEL red (#e94e31) accent, Inter + JetBrains Mono. */
+    --background: 240 8% 4%;
+    --foreground: 240 2% 96%;
 
-    --card: 222 44% 9%;
-    --card-foreground: 210 40% 96%;
+    --card: 240 10% 8%;
+    --card-foreground: 240 2% 96%;
 
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 240 11% 11%;
+    --popover-foreground: 240 2% 96%;
 
-    --primary: 199 89% 48%;
-    --primary-foreground: 222 47% 7%;
+    --primary: 9 81% 55%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 96%;
+    --secondary: 240 11% 11%;
+    --secondary-foreground: 240 2% 96%;
 
-    --muted: 217 33% 14%;
-    --muted-foreground: 215 20% 62%;
+    --muted: 240 10% 12%;
+    --muted-foreground: 240 6% 65%;
 
-    --accent: 199 70% 22%;
-    --accent-foreground: 210 40% 96%;
+    --accent: 9 40% 16%;
+    --accent-foreground: 9 81% 62%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
-    --success: 142 71% 45%;
+    --success: 142 69% 58%;
     --warning: 38 92% 50%;
-    --info: 199 89% 55%;
+    --info: 217 91% 60%;
 
-    --border: 220 22% 17%;
-    --input: 220 22% 18%;
-    --ring: 199 89% 48%;
+    --border: 240 10% 16%;
+    --input: 240 10% 12%;
+    --ring: 9 81% 55%;
 
-    --radius: 0.4rem;
+    --radius: 1rem;
   }
 
   * {
@@ -84,5 +86,11 @@
       linear-gradient(to right, hsl(var(--border) / 0.35) 1px, transparent 1px),
       linear-gradient(to bottom, hsl(var(--border) / 0.35) 1px, transparent 1px);
     background-size: 28px 28px;
+  }
+  /* Ambient red/blue glow — mirrors the public site's .bg-glow. */
+  .bg-glow {
+    background:
+      radial-gradient(60% 50% at 50% -10%, rgba(233, 78, 49, 0.14), transparent 70%),
+      radial-gradient(40% 40% at 85% 10%, rgba(59, 130, 246, 0.07), transparent 70%);
   }
 }

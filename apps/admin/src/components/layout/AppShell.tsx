@@ -7,6 +7,7 @@ import {
   Building2,
   Layers,
   Boxes,
+  Users2,
   ScrollText,
   Activity,
   Server,
@@ -40,7 +41,10 @@ const NAV: { group: string; items: { to: string; label: string; icon: ReactNode;
   },
   {
     group: "Products",
-    items: [{ to: "/products", label: "Products", icon: <Boxes /> }],
+    items: [
+      { to: "/products", label: "Products", icon: <Boxes /> },
+      { to: "/clients", label: "Clients", icon: <Users2 /> },
+    ],
   },
   {
     group: "Observability",

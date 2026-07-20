@@ -91,6 +91,23 @@ export class AnthropicProvider implements AiProvider {
       }
     }
   }
+
+  /** Liveness probe: a minimal message (Anthropic has no models list). */
+  async health(): Promise<import("@intel.dom.gob/providers").AiProviderHealth> {
+    if (!this.apiKey) return { ok: false, model: this.defaultModel, detail: "sin API key" };
+    try {
+      const res = await fetch(`${this.baseUrl}/v1/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": this.apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: this.defaultModel, max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
+      });
+      if (res.status === 200 || res.status === 429) return { ok: true, model: this.defaultModel, detail: `modelo ${this.defaultModel}` };
+      if (res.status === 401) return { ok: false, model: this.defaultModel, detail: "API key inválida" };
+      return { ok: false, model: this.defaultModel, detail: `HTTP ${res.status}` };
+    } catch (e) {
+      return { ok: false, model: this.defaultModel, detail: String((e as Error).message ?? e) };
+    }
+  }
 }
 
 export function createAnthropicProvider(opts: AnthropicProviderOptions = {}): AnthropicProvider {

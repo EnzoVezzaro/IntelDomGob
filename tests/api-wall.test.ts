@@ -3,9 +3,8 @@ import { bootstrap } from "@intel.dom.gob/app-api";
 import request from "supertest";
 import type { AiService } from "@intel.dom.gob/service-ai";
 
-// The /query handler requires GEMINI_API_KEY (or body.apiKey) to be present;
-// set it so the preview path can be exercised without a gateway API key.
-beforeAll(() => { process.env.GEMINI_API_KEY = "test"; });
+// The /query handler requires DEFAULT_AI_API_KEY (or body.apiKey). The real
+// value is provided by .env (loaded automatically by vitest), so no fake env.
 
 const fakeAi: any = {
   providerId: "mock",

@@ -23,6 +23,15 @@ export interface SdkOptions {
   token?: string;
   /** API version prefix, defaults to "v1". */
   version?: string;
+  /**
+   * Originating client surface (studio | web | cli | mcp | sdk | admin | custom).
+   * Forwarded to the API as `X-Intel-Client` so usage is attributed to the real
+   * client, not an intermediate hop. The API treats this header as authoritative
+   * (it overrides the API key's stored product), so a client that calls *through*
+   * another client (e.g. CLI → MCP server → API) should forward the original
+   * surface rather than stamp its own.
+   */
+  product?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -30,12 +39,14 @@ export class IntelDomGobClient {
   private readonly baseUrl: string;
   private readonly token?: string;
   private readonly version: string;
+  private readonly product?: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: SdkOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.token = opts.token;
     this.version = opts.version ?? "v1";
+    this.product = opts.product;
     // Bind fetch to the global (window) so it is never invoked as a detached
     // method — calling a bare `fetch` reference later throws "Illegal invocation".
     this.fetchImpl = opts.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
@@ -47,6 +58,7 @@ export class IntelDomGobClient {
 
   private headers(extra?: Record<string, string>): Record<string, string> {
     const h: Record<string, string> = { ...extra };
+    if (this.product) h["X-Intel-Client"] = this.product;
     if (this.token) h["Authorization"] = `Bearer ${this.token}`;
     return h;
   }

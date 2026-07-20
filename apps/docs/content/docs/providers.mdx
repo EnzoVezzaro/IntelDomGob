@@ -18,13 +18,17 @@ Providers are the **only** code that touches external systems. Adding a new prov
 
 ## AI Providers
 
-| Provider | Default | Env Var | Description |
-|----------|---------|---------|-------------|
-| **Gemini** | ✅ | `GEMINI_API_KEY` | Google Gemini (with `stream()`) |
-| **OpenAI** | optional | `OPENAI_API_KEY` | OpenAI GPT models |
-| **Anthropic** | optional | `ANTHROPIC_API_KEY` | Anthropic Claude models |
-| **DeepSeek** | optional | `DEEPSEEK_API_KEY` | DeepSeek models |
-| **Ollama** | optional | `OLLAMA_BASE_URL` | Local models via Ollama |
+A single unified configuration selects and authenticates the default provider:
+`DEFAULT_AI_PROVIDER`, `DEFAULT_AI_API_KEY`, `DEFAULT_AI_MODEL`, and `DEFAULT_BASE_URL`.
+
+| Provider | `DEFAULT_AI_PROVIDER` | Notes |
+|----------|-----------------------|-------|
+| **Gemini** (default) | `gemini` | Google Gemini (with `stream()`) |
+| **OpenAI** | `openai` | OpenAI GPT models (`DEFAULT_BASE_URL` optional) |
+| **Anthropic** | `anthropic` | Anthropic Claude models |
+| **DeepSeek** | `deepseek` | DeepSeek models (`DEFAULT_BASE_URL` optional) |
+| **Ollama** | `ollama` | Local models (`DEFAULT_BASE_URL`) |
+| **Custom** | `custom` | Any OpenAI-compatible endpoint via `DEFAULT_BASE_URL` |
 
 ## OCR Providers
 
@@ -54,7 +58,7 @@ Providers are the **only** code that touches external systems. Adding a new prov
 1. Create `providers/openai/` with `package.json`
 2. Implement `AiProvider.generate()` (and `stream()` optionally)
 3. Register in `apps/api/src/index.ts`
-4. Add `"openai"` to `AI_PROVIDERS` / set `DEFAULT_AI_PROVIDER`
+4. Set `DEFAULT_AI_PROVIDER` (+ `DEFAULT_AI_API_KEY` / `DEFAULT_BASE_URL`) in `.env`
 
 ### Provider Interface
 

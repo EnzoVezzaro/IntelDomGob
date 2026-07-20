@@ -21,6 +21,9 @@ import { parseBearer, AuthError, type ApiKeyRecord, PREVIEW_RECORD } from "@inte
 import { BillingService } from "@intel.dom.gob/service-billing";
 import { METERED_SCOPES } from "@intel.dom.gob/service-billing";
 import type { TelemetryService } from "@intel.dom.gob/service-telemetry";
+import type { Database } from "@intel.dom.gob/database";
+import type { PlatformConfig } from "@intel.dom.gob/config";
+import type { StorageService } from "@intel.dom.gob/service-storage";
 import { setLogSink } from "@intel.dom.gob/logger";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { QueryRequest, ChatRequest } from "@intel.dom.gob/types";
@@ -41,6 +44,66 @@ const log = createLogger("api:routes");
 function routeLabel(req: Request): string {
   const path = (req as any).route?.path ?? req.url?.split("?")[0] ?? "/";
   return path.replace(/\/[0-9a-f]{8,}/gi, "/:id").replace(/\/[^/]+\/approve$/, "/:id/approve").replace(/\/[^/]+\/deny$/, "/:id/deny");
+}
+
+/** Best-effort client IP: honor X-Forwarded-For (Caddy), else socket peer. */
+function clientIp(req: Request): string {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.length) return fwd.split(",")[0].trim();
+  if (Array.isArray(fwd) && fwd.length) return fwd[0].trim();
+  return (req.socket?.remoteAddress ?? "unknown").replace(/^::ffff:/, "");
+}
+
+/** Classify a client into a surface type from its product (authoritative) or
+ *  User-Agent (for keyless traffic). One of: studio | cli | sdk | api | custom | unknown. */
+function classifyClientType(req: Request, product?: string): string {
+  if (product) {
+    switch (product) {
+      case "studio": return "studio";
+      case "cli": return "cli";
+      case "web": return "web";
+      case "sdk": return "sdk";
+      case "admin":
+      case "mcp": return "api";
+      case "custom": return "custom";
+      default: return "unknown";
+    }
+  }
+  const ua = (req.headers["user-agent"] ?? "").toLowerCase();
+  if (/studio|odysseus/.test(ua)) return "studio";
+  if (/cli|command-line|intel-cli/.test(ua)) return "cli";
+  if (/sdk|intel[\-.]dom[\-.]gob|inteldomgob|openai|anthropic/.test(ua)) return "sdk";
+  if (/fork/.test(ua)) return "custom";
+  if (/curl|wget|node|node-fetch|python|go-http|axios|postman|http-client|fetch|tsx|express/.test(ua)) return "api";
+  return "unknown";
+}
+
+/**
+ * Known originating client surfaces. Used to validate the `X-Intel-Client`
+ * header so a client can only attribute traffic to a real surface (telemetry
+ * only — authorization stays key-scoped, so spoofing only relabels the
+ * dashboard, never grants access).
+ */
+const KNOWN_CLIENTS = new Set(["studio", "web", "cli", "mcp", "sdk", "admin", "custom"]);
+
+/**
+ * Resolve the client surface that should be recorded for a request.
+ *
+ * Precedence (the ORIGIN wins when a request passes through multiple hops):
+ *   1. A valid `X-Intel-Client` header — set by the originating client and
+ *      forwarded unchanged by any intermediate (CLI → MCP → API records `cli`).
+ *   2. The API key's stored `product` (when the key was issued for a surface).
+ *   3. `undefined` → the tracking layer falls back to User-Agent classification.
+ *
+ * Intermediates must FORWARD the inbound header rather than overwrite it, so the
+ * first/outermost client in the chain is what ends up attributed.
+ */
+function resolveClientProduct(req: Request, keyProduct?: string): string | undefined {
+  const hdr = req.headers["x-intel-client"];
+  const v = typeof hdr === "string" ? hdr.trim().toLowerCase() : undefined;
+  if (v && KNOWN_CLIENTS.has(v)) return v;
+  if (keyProduct && KNOWN_CLIENTS.has(keyProduct)) return keyProduct;
+  return undefined;
 }
 
 const SWAGGER_UI_HTML = `<!doctype html>
@@ -79,6 +142,12 @@ export interface RouterDeps {
   plugins?: PluginRegistry;
   billing?: BillingService;
   telemetry?: TelemetryService;
+  /** Postgres handle for infrastructure health + usage persistence. */
+  database?: Database;
+  /** Resolved platform config (searxng URL, etc.) for health probes. */
+  config?: PlatformConfig;
+  /** Object storage backend (documents, exports). */
+  storage?: StorageService;
   /** Identifier of this API instance for fleet-wide log/metric attribution. */
   nodeId?: string;
 }
@@ -128,6 +197,51 @@ export function createRouter(deps: RouterDeps): Router {
     });
   }
 
+  // Per-request tracking: attribute EVERY served request to a client so the
+  // Admin console shows real numbers. Authenticated traffic is keyed by API-key
+  // id; keyless traffic falls back to its source IP (`ip:<addr>`). Counts,
+  // latency, errors, tokens and cost all flow into Telemetry + the `usage`
+  // table. Centralized here so read/public and internal routes are all covered
+  // (previously only metered scopes were recorded).
+  if (deps.billing) {
+    router.use((req: Request, res: Response, next: NextFunction) => {
+      const start = process.hrtime.bigint();
+      const r = res as Response;
+      r.on("finish", () => {
+        const ms = Number(process.hrtime.bigint() - start) / 1e6;
+        const c = (req as any).__client as
+          | { id: string; isKey: boolean; product?: string; tenantId?: string; organizationId?: string }
+          | undefined;
+        const ip = clientIp(req);
+        const isKey = c?.isKey ?? false;
+        const clientId = isKey ? c!.id : `ip:${ip}`;
+        // The origin surface (from X-Intel-Client or the key) wins over the
+        // User-Agent fallback, so a CLI → MCP → API request records as `cli`.
+        const product = resolveClientProduct(req, c?.product);
+        const type = classifyClientType(req, product);
+        const record = {
+          id: clientId,
+          name: "",
+          scopes: [] as string[],
+          active: true,
+          product,
+          tenantId: c?.tenantId,
+          organizationId: c?.organizationId,
+          plan: "",
+          paymentStatus: "ok",
+        } as unknown as import("@intel.dom.gob/service-auth").ApiKeyRecord;
+        deps.billing!.recordRequest(record, {
+          status: r.statusCode,
+          latencyMs: ms,
+          clientId,
+          isKey,
+          type,
+        }).catch(() => {});
+      });
+      next();
+    });
+  }
+
   // --- Endpoint classification ------------------------------------------------
   // The API is PRIVATE (it is our product). Our public-facing products
   // (Studio, Web, CLI, MCP, SDK) are the only clients. Two tiers:
@@ -166,23 +280,25 @@ export function createRouter(deps: RouterDeps): Router {
       (req as any).tenant = tenant;
     }
     (req as any).apiKeyRecord = record;
-    // Collect correlation fields for structured logs (consumed by the sink).
+    // Tag the request context so the log sink attributes every log line to this
+    // client, and record a lightweight client descriptor for the tracking layer.
+    const isKey = record.id !== "preview";
+    const product = resolveClientProduct(req, record.product);
     const ctx = (req as any).__ctx as Record<string, string> | undefined;
     if (ctx) {
       ctx.apiKeyId = record.id;
-      if (record.product) ctx.product = record.product;
+      if (product) ctx.product = product;
       if (record.tenantId) ctx.tenantId = record.tenantId;
       if (record.organizationId) ctx.organizationId = record.organizationId;
+      if (isKey) ctx.clientId = record.id;
     }
-    // Metering: record the served request (counts, latency, errors) on finish.
-    if (deps.billing && METERED_SCOPES.has(resolveScope(scope))) {
-      const start = process.hrtime.bigint();
-      const r = (req as any).__res as Response;
-      r.on("finish", () => {
-        const ms = Number(process.hrtime.bigint() - start) / 1e6;
-        deps.billing!.recordRequest(record, { status: r.statusCode, latencyMs: ms }).catch(() => {});
-      });
-    }
+    (req as any).__client = {
+      id: record.id,
+      isKey,
+      product,
+      tenantId: record.tenantId,
+      organizationId: record.organizationId,
+    };
   }
 
   // Public-facing READ endpoints (all GET) are gated here with the preview
@@ -743,10 +859,10 @@ export function createRouter(deps: RouterDeps): Router {
       res.status(400).json({ error: "Missing or invalid query parameter" });
       return;
     }
-    if (!process.env.GEMINI_API_KEY && !body.apiKey) {
+    if (!(process.env.DEFAULT_AI_API_KEY) && !body.apiKey) {
       res.status(400).json({
         error: "Missing API Key",
-        message: "The GEMINI_API_KEY is not configured. Provide it in settings or as an env var.",
+        message: "The DEFAULT_AI_API_KEY is not configured. Provide it in settings or as an env var.",
       });
       return;
     }
@@ -773,8 +889,8 @@ export function createRouter(deps: RouterDeps): Router {
       res.status(400).json({ error: "Missing or invalid message parameter" });
       return;
     }
-    if (!process.env.GEMINI_API_KEY && !body.apiKey && !(req as any).apiKeyRecord) {
-      res.status(400).json({ error: "Missing API Key", message: "The GEMINI_API_KEY is not configured." });
+    if (!(process.env.DEFAULT_AI_API_KEY) && !body.apiKey && !(req as any).apiKeyRecord) {
+      res.status(400).json({ error: "Missing API Key", message: "The DEFAULT_AI_API_KEY is not configured." });
       return;
     }
 
@@ -802,8 +918,8 @@ export function createRouter(deps: RouterDeps): Router {
       res.status(400).json({ error: "Missing or invalid query parameter" });
       return;
     }
-    if (!process.env.GEMINI_API_KEY && !body.apiKey) {
-      res.status(400).json({ error: "Missing API Key", message: "The GEMINI_API_KEY is not configured." });
+    if (!(process.env.DEFAULT_AI_API_KEY) && !body.apiKey) {
+      res.status(400).json({ error: "Missing API Key", message: "The DEFAULT_AI_API_KEY is not configured." });
       return;
     }
     res.writeHead(200, {
@@ -1277,6 +1393,15 @@ export function createRouter(deps: RouterDeps): Router {
       return;
     }
     (req as any).adminRecord = record;
+    // Tag the client descriptor so the request-tracking middleware attributes
+    // operator traffic to the admin key (not the anonymous-IP fallback).
+    (req as any).__client = {
+      id: record.id,
+      isKey: true,
+      product: record.product,
+      tenantId: record.tenantId,
+      organizationId: record.organizationId,
+    };
     next();
   }
 
@@ -1396,6 +1521,153 @@ export function createRouter(deps: RouterDeps): Router {
   admin.get("/nodes", async (_req, res) => {
     if (!deps.telemetry) return res.status(501).json({ error: "Telemetry unavailable" });
     res.json({ nodes: await deps.telemetry.getNodes() });
+  });
+
+  // --- Clients (per-api-key + anonymous IP) ---------------------------------
+  admin.get("/clients", async (req, res) => {
+    if (!deps.telemetry) return res.status(501).json({ error: "Telemetry unavailable" });
+    const limit = req.query.limit ? Math.min(Number(req.query.limit), 100) : 50;
+    const clients = await deps.telemetry.topClients(limit);
+    const keys = new Set(
+      (await deps.auth?.listApiKeys().catch(() => []) ?? [])
+        .filter((k) => k.id)
+        .map((k) => k.id),
+    );
+    res.json({
+      total: clients.length,
+      clients: clients.map((c) => {
+        // Backfill surface type for clients recorded before type tracking.
+        const type =
+          c.type ??
+          (c.product
+            ? { studio: "studio", cli: "cli", web: "web", sdk: "sdk", admin: "api", mcp: "api", custom: "custom" }[c.product] ?? "unknown"
+            : "unknown");
+        return {
+          ...c,
+          type,
+          // For keyed clients resolve the human name + metadata from auth.
+          knownKey: keys.has(c.id) || c.isKey,
+        };
+      }),
+    });
+  });
+
+  // --- Infrastructure health ------------------------------------------------
+  admin.get("/infrastructure", async (_req, res) => {
+    const components: Array<{
+      key: string;
+      label: string;
+      role: string;
+      managed: boolean;
+      status: "ok" | "degraded" | "down";
+      detail: string;
+      latencyMs?: number;
+    }> = [];
+
+    const probe = async (
+      key: string,
+      label: string,
+      role: string,
+      managed: boolean,
+      fn: () => Promise<{ status: "ok" | "degraded" | "down"; detail: string; latencyMs?: number }>,
+    ) => {
+      try {
+        components.push({ key, label, role, managed, ...(await fn()) });
+      } catch (e) {
+        components.push({ key, label, role, managed, status: "down", detail: String((e as Error).message ?? e) });
+      }
+    };
+
+    await probe("postgres", "PostgreSQL", "Datastore", true, async () => {
+      const t0 = Date.now();
+      await deps.database?.query("select 1").catch((e) => {
+        throw new Error(`unreachable: ${String(e)}`);
+      });
+      return { status: "ok", detail: "connected", latencyMs: Date.now() - t0 };
+    });
+
+    await probe("dragonfly", "DragonflyDB", "Cache · Event Bus · Telemetry", true, async () => {
+      const t0 = Date.now();
+      const up = await deps.telemetry?.ping().catch(() => false);
+      return up
+        ? { status: "ok", detail: "connected", latencyMs: Date.now() - t0 }
+        : { status: "down", detail: "no broker / ping failed" };
+    });
+
+    await probe("searxng", "SearXNG", "Búsqueda (default)", true, async () => {
+      const url = deps.config?.searxngUrl ?? "http://searxng:8080";
+      const t0 = Date.now();
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 3000);
+      try {
+        // Any HTTP response (even 404 on a missing /health route) means the
+        // service is reachable; only a connection failure / timeout is "down".
+        const r = await fetch(`${url}/health`, { signal: ctrl.signal }).catch(() =>
+          fetch(`${url}/search?q=test&format=json`, { signal: ctrl.signal }),
+        );
+        if (!r) return { status: "down", detail: "sin respuesta" };
+        const degraded = r.status >= 500;
+        return {
+          status: degraded ? "degraded" : "ok",
+          detail: degraded ? `HTTP ${r.status}` : `reachable (HTTP ${r.status})`,
+          latencyMs: Date.now() - t0,
+        };
+      } catch {
+        return { status: "down", detail: "no alcanzable" };
+      } finally {
+        clearTimeout(to);
+      }
+    });
+
+    await probe("api", "API Gateway", "REST · SSE", true, async () => {
+      const nodes = (await deps.telemetry?.getNodes().catch(() => [])) ?? [];
+      const self = nodes.find((n) => n.id === deps.nodeId);
+      if (!self) return { status: "degraded", detail: "no heartbeat registered" };
+      const stale = Date.now() - Date.parse(self.lastHeartbeat) > 300_000;
+      return { status: stale ? "degraded" : "ok", detail: stale ? "heartbeat stale" : `heartbeat ${self.host ?? ""}`.trim() };
+    });
+
+    await probe("caddy", "Caddy", "Reverse Proxy · TLS", true, async () => {
+      // Caddy is the public edge; if it answers at all it is serving traffic.
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 3000);
+      try {
+        const r = await fetch("http://caddy:80/", { signal: ctrl.signal, redirect: "manual" }).catch(() =>
+          fetch(`http://${deps.config?.domain ?? "localhost"}/`, { signal: ctrl.signal, redirect: "manual" }),
+        );
+        if (!r) return { status: "down", detail: "sin respuesta" };
+        return { status: "ok", detail: `escuchando (HTTP ${r.status})` };
+      } catch {
+        return { status: "down", detail: "no alcanzable" };
+      } finally {
+        clearTimeout(to);
+      }
+    });
+
+    await probe("storage", "Object Storage", "Documentos · artefactos", true, async () => {
+      if (!deps.storage) return { status: "degraded", detail: "no configurado" };
+      const t0 = Date.now();
+      await deps.storage.health();
+      return { status: "ok", detail: "round-trip ok", latencyMs: Date.now() - t0 };
+    });
+
+    await probe("ai", deps.config?.defaultAiProvider ?? deps.ai?.providerLabel ?? "IA (default)", "IA (default)", false, async () => {
+      const meta = {
+        provider: deps.config?.defaultAiProvider ?? "gemini",
+        model: deps.ai?.defaultModelName || deps.config?.defaultAiModel || "",
+        baseUrl: deps.config?.defaultBaseUrl || null,
+        keySet: Boolean(deps.config?.defaultAiApiKey),
+      };
+      const h = await deps.ai?.health();
+      if (!h) return { status: "degraded", detail: "servicio no disponible", meta };
+      return {
+        status: h.ok ? "ok" : "down",
+        detail: h.detail ?? (h.ok ? "operativo" : "caída"),
+        meta,
+      };
+    });
+
+    res.json({ components });
   });
 
   // --- Employees / orgs / tenants -------------------------------------------

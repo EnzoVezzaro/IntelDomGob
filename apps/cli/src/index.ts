@@ -55,7 +55,7 @@ const KNOWN_PROVIDERS: Record<string, string> = {
 async function fetchModels(baseUrl: string, apiKey: string): Promise<string[]> {
   try {
     const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/models`, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}`, "X-Intel-Client": "cli" } : { "X-Intel-Client": "cli" },
     });
     if (!res.ok) return [];
     const data: any = await res.json();

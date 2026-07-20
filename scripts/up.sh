@@ -23,6 +23,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
+# ---- admin token (for authenticated live checks) ---------------------------
+# Load INTEL_API_TOKEN from .env so the live checks can exercise admin-only
+# and key-required endpoints (/v1/openapi.json, /v1/workflows, /v1/evaluate/*).
+INTEL_API_TOKEN="${INTEL_API_TOKEN:-}"
+if [ -z "$INTEL_API_TOKEN" ] && [ -f "$ROOT/.env" ]; then
+  INTEL_API_TOKEN="$(grep -E '^INTEL_API_TOKEN=' "$ROOT/.env" | head -1 | cut -d= -f2- | sed -E 's/^["'\''"]//; s/["'\''"]$//')"
+fi
+
 # ---- shared banner ---------------------------------------------------------
 if [ -f "$ROOT/scripts/banner.sh" ]; then
   # shellcheck disable=SC1091
@@ -116,7 +124,7 @@ log "${C_BOLD}▶ Waiting for service healthchecks...${C_RESET}"
 probe() {
   local url="$2" b64
   b64="$(printf '%s' "$url" | base64)"
-  printf '%s' "$b64" | docker compose exec -T "$1" sh -c "echo \"\$(cat)\" | base64 -d | xargs -I{} curl -s -o /dev/null -w '%{http_code}' --max-time 8 {}" 2>/dev/null || echo "000"
+  printf '%s' "$b64" | docker compose exec -T -e "IDG_TOKEN=$INTEL_API_TOKEN" "$1" sh -c 'B=$(cat); printf "%s" "$B" | base64 -d | xargs -I{} curl -s -o /dev/null -w "%{http_code}" --max-time 8 -H "Authorization: Bearer $IDG_TOKEN" {}' 2>/dev/null || echo "000"
 }
 
 # Wait until a service answers its internal health endpoint.
@@ -134,9 +142,9 @@ wait_service() {
 # corruption across `docker compose exec`). curl reads it with @-.
 post_probe() {
   # $1 = path, $2 = json body
-  local path="$1" b64
+  local path="$1" b64 fullurl="http://api:4000$path"
   b64="$(printf '%s' "$2" | base64)"
-  printf '%s' "$b64" | docker compose exec -T api sh -c "echo \"\$(cat)\" | base64 -d | curl -s -o /dev/null -w '%{http_code}' --max-time 8 -X POST 'http://api:4000$path' -H 'content-type: application/json' --data-binary @-" 2>/dev/null || echo 000
+  printf '%s' "$b64" | docker compose exec -T -e "IDG_TOKEN=$INTEL_API_TOKEN" -e "FULLURL=$fullurl" api sh -c 'B=$(cat); printf "%s" "$B" | base64 -d | curl -s -o /dev/null -w "%{http_code}" --max-time 8 -X POST "$FULLURL" -H "content-type: application/json" -H "Authorization: Bearer $IDG_TOKEN" --data-binary @-' 2>/dev/null || echo 000
 }
 
 # Service health is read from `docker compose ps` state (fast, no in-container
@@ -145,7 +153,9 @@ post_probe() {
 # studio/v0 is the legacy React SPA, preserved for rollback only — it is NOT
 # started by default (the active Studio is v1/Odysseus), so it is excluded
 # from the required health list to avoid a false FAIL.
-ALL_SERVICES="caddy api studio odysseus studio-chromadb studio-searxng studio-ntfy docs web admin mcp searxng postgres dragonfly ocr-worker embedding-worker document-worker crawler-worker ai-worker"
+# Every service declared in docker-compose.yml (exact service names; the
+# svc_state matcher uses substring, so be precise to avoid false matches).
+ALL_SERVICES="caddy api admin web mcp docs odysseus studio-v0 studio-chromadb studio-searxng studio-ntfy postgres dragonfly searxng ocr-worker embedding-worker document-worker crawler-worker ai-worker"
 
 svc_state() {
   # $1 = service name -> prints "healthy" | "running" | "starting" | "down"
@@ -176,6 +186,9 @@ if docker compose exec -T dragonfly redis-cli ping 2>/dev/null | grep -q PONG; t
 log ""
 log "${C_BOLD}▶ Live endpoint checks (against api:4000 in-network)${C_RESET}"
 
+# Every meaningful /v1 surface exercised with the admin token loaded above.
+# (Heavy AI-generation endpoints — /query, /chat, /chat/stream — are omitted
+# from the default health battery to avoid burning tokens on a routine check.)
 CHECKS=(
   "GET  /health"
   "GET  /ready"
@@ -185,7 +198,13 @@ CHECKS=(
   "GET  /v1/prompts"
   "GET  /v1/plugins"
   "GET  /v1/metrics"
+  "GET  /v1/models"
+  "GET  /v1/mcp/tools"
+  "GET  /v1/graph"
   "GET  /v1/openapi.json"
+  "GET  /v1/admin/nodes"
+  "GET  /v1/admin/clients"
+  "GET  /v1/admin/infrastructure"
   "POST /v1/entities/extract"
   "POST /v1/evaluate/faithfulness"
   "POST /v1/workflows"

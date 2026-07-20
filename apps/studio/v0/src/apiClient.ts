@@ -43,4 +43,5 @@ export function setStoredToken(token: string | undefined): void {
 export const apiClient: IntelDomGobClient = createClient({
   baseUrl: resolveApiBaseUrl(),
   token: getStoredToken(),
+  product: "studio",
 });

@@ -117,11 +117,12 @@ export class XProvider implements SearchProvider | AiProvider | OcrProvider | Pr
 | Search | Brave | optional | `BRAVE_API_KEY` |
 | Search | Tavily | optional | `TAVILY_API_KEY` |
 | Search | Exa | optional | `EXA_API_KEY` |
-| AI | Gemini | ✅ | `GEMINI_API_KEY` |
-| AI | OpenAI | optional | `OPENAI_API_KEY` |
-| AI | Anthropic | optional | `ANTHROPIC_API_KEY` |
-| AI | DeepSeek | optional | `DEEPSEEK_API_KEY` |
-| AI | Ollama | optional | `OLLAMA_BASE_URL` |
+| AI | Gemini (default) | ✅ | `DEFAULT_AI_API_KEY` (set `DEFAULT_AI_PROVIDER=gemini`) |
+| AI | OpenAI | optional | `DEFAULT_AI_API_KEY` + `DEFAULT_AI_PROVIDER=openai` (+ `DEFAULT_BASE_URL`) |
+| AI | Anthropic | optional | `DEFAULT_AI_API_KEY` + `DEFAULT_AI_PROVIDER=anthropic` |
+| AI | DeepSeek | optional | `DEFAULT_AI_API_KEY` + `DEFAULT_AI_PROVIDER=deepseek` (+ `DEFAULT_BASE_URL`) |
+| AI | Ollama (local) | optional | `DEFAULT_AI_PROVIDER=ollama` (+ `DEFAULT_BASE_URL`) |
+| AI | Custom (OpenAI-compatible) | optional | `DEFAULT_AI_PROVIDER=custom` + `DEFAULT_BASE_URL` + `DEFAULT_AI_API_KEY` |
 | OCR | Unlimited-OCR | optional | `UNLIMITED_OCR_URL` |
 | Presentation | HyperFrames | optional | `HYPERFRAMES_URL` |
 
@@ -141,8 +142,8 @@ Nothing else changes.
 ## How to add an AI Provider
 
 1. `mkdir providers/openai`, implement `AiProvider.generate()` (and `stream()` optionally).
-2. Register in `apps/api/src/index.ts`.
-3. Add `"openai"` to `AI_PROVIDERS` / set `DEFAULT_AI_PROVIDER`.
+2. Register in `apps/api/src/index.ts` (wire it into `buildDefaultAiProvider`).
+3. Select it via `DEFAULT_AI_PROVIDER` (+ `DEFAULT_AI_API_KEY` / `DEFAULT_BASE_URL` / `DEFAULT_AI_MODEL`).
 
 ---
 
@@ -206,7 +207,7 @@ No other file changes.
 * ❌ No external system call outside `providers/*`.
 * ❌ No hardcoded ports in client URLs — use subdomains via the SDK resolver.
 * ❌ No `docker-compose.*.yml` split by environment — one `docker-compose.yml`.
-* ❌ No secrets committed — `.env` only, `GEMINI_API_KEY` never in code.
+* ❌ No secrets committed — `.env` only, `DEFAULT_AI_API_KEY` never in code.
 * ❌ No duplication of utilities already in `packages/*`.
 * ❌ Never remove or alter `docker/searxng/settings.yml` behavior (preserved infrastructure).
 

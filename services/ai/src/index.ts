@@ -41,9 +41,9 @@ export async function resolveAiProvider(opts: AiResolveOptions = {}): Promise<Ai
     const { createGeminiProvider } = await import("@intel.dom.gob/provider-gemini");
     return createGeminiProvider({ apiKey: opts.apiKey });
   }
-  const fromRegistry = providerRegistry.getAi("gemini") ?? providerRegistry.listAi()[0];
+  const fromRegistry = providerRegistry.listAi()[0];
   if (fromRegistry) return fromRegistry;
-  throw new Error("No AI provider is available. Configure GEMINI_API_KEY or register a provider.");
+  throw new Error("No AI provider is available. Configure DEFAULT_AI_API_KEY or register a provider.");
 }
 
 export class AiService {
@@ -60,6 +60,26 @@ export class AiService {
   /** The service's default provider (used by the Orchestrator for streaming). */
   get provider(): AiProvider {
     return this.defaultProvider;
+  }
+
+  /** Human label of the default provider (e.g. "OpenAI", "Google Gemini"). */
+  get providerLabel(): string {
+    return this.defaultProvider.label;
+  }
+
+  /** Default model of the default provider. */
+  get defaultModelName(): string {
+    return (this.defaultProvider as { defaultModel?: string }).defaultModel ?? "";
+  }
+
+  /** Liveness probe the default provider (any OpenAI-compatible model/provider). */
+  async health(): Promise<import("@intel.dom.gob/providers").AiProviderHealth | null> {
+    if (!this.defaultProvider.health) return null;
+    try {
+      return await this.defaultProvider.health();
+    } catch (e) {
+      return { ok: false, model: this.defaultModelName, detail: String((e as Error).message ?? e) };
+    }
   }
 
   /** Resolve the provider for a specific request (apiKey/provider override). */

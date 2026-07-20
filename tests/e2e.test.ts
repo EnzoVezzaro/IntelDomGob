@@ -12,7 +12,7 @@ import type { Orchestrator } from "@intel.dom.gob/service-orchestrator";
 import { bootstrap } from "@intel.dom.gob/app-api";
 import request from "supertest";
 
-process.env.GEMINI_API_KEY = "test";
+process.env.DEFAULT_AI_API_KEY = "test";
 
 // Use the fake auth so the SDK's Bearer token validates without a real DB.
 const adminRecord = {

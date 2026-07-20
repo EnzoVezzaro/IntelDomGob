@@ -66,11 +66,15 @@ export async function connectMcp(url: string = DEFAULT_MCP_URL): Promise<Connect
     );
     try {
       try {
-        const transport = new StreamableHTTPClientTransport(endpoint);
+        const transport = new StreamableHTTPClientTransport(endpoint, {
+          requestInit: { headers: { "X-Intel-Client": "cli" } },
+        });
         await client.connect(transport);
       } catch (e: any) {
         // Fallback to legacy SSE transport (opencode `--transport sse` style).
-        const sse = new SSEClientTransport(endpoint);
+        const sse = new SSEClientTransport(endpoint, {
+          requestInit: { headers: { "X-Intel-Client": "cli" } },
+        });
         await client.connect(sse);
       }
       const { tools } = await client.listTools();

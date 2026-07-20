@@ -129,10 +129,12 @@ async function dispatch(req: JsonRpcRequest, client: any, sendNotification?: (no
  *   DELETE /mcp         session teardown (spec-compliant no-op here)
  *
  * @param app        Express instance
- * @param makeClient factory returning a fresh SDK client per request
+ * @param makeClient factory returning a fresh SDK client per request; receives
+ *                   the originating client surface (from the inbound
+ *                   `X-Intel-Client` header) so it can be forwarded to the API.
  * @param basePath   mount path (default "/mcp")
  */
-export function mountMcpProtocol(app: Express, makeClient: () => any, basePath = "/mcp"): void {
+export function mountMcpProtocol(app: Express, makeClient: (product?: string) => any, basePath = "/mcp"): void {
   // Two transports share this mount point:
   //
   //  A) Legacy MCP "sse" (used by Odysseus `--transport sse`):
@@ -253,7 +255,11 @@ export function mountMcpProtocol(app: Express, makeClient: () => any, basePath =
     }
 
     const respond = async (sendNotification?: (n: JsonRpcResponse) => void): Promise<JsonRpcResponse[]> => {
-      const client = makeClient();
+      // Forward the originating client surface (CLI → MCP → API records `cli`).
+      // Absent header means the MCP server itself is the origin → default "mcp".
+      const inbound = req.headers["x-intel-client"];
+      const product = typeof inbound === "string" ? inbound.trim().toLowerCase() : undefined;
+      const client = makeClient(product);
       const results: JsonRpcResponse[] = [];
       for (const r of requests) {
         const out = await dispatch(r, client, sendNotification);

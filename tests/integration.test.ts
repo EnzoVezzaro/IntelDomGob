@@ -12,9 +12,9 @@ import { KnowledgeGraphService } from "@intel.dom.gob/service-knowledge-graph";
 import { bootstrap } from "@intel.dom.gob/app-api";
 import request from "supertest";
 
-// The /query and /chat handlers require GEMINI_API_KEY (or body.apiKey) to be
+// The /query and /chat handlers require DEFAULT_AI_API_KEY (or body.apiKey) to be
 // present. Set it so the preview (no-key) path can be exercised.
-process.env.GEMINI_API_KEY = "test";
+process.env.DEFAULT_AI_API_KEY = "test";
 
 // --- Mocks -----------------------------------------------------------------
 

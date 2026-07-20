@@ -7,8 +7,10 @@ import type {
   ApiKeyDetail,
   ApiKeyListResult,
   ApiKeyRecord,
+  ClientStat,
   CreateApiKeyInput,
   CreateApiKeyResult,
+  InfraComponent,
   LogQueryResult,
   MetricPoint,
   MetricScope,
@@ -62,6 +64,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     method: opts.method ?? "GET",
     headers: {
       Authorization: `Bearer ${token}`,
+      "X-Intel-Client": "admin",
       ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
@@ -113,6 +116,9 @@ export const adminApi = {
   getMetrics: (scope: MetricScope, id: string, params: Record<string, string | undefined> = {}) =>
     request<MetricPoint>("/metrics", { params: { scope, id, ...params } }),
   listNodes: () => request<{ nodes: NodeInfo[] }>("/nodes"),
+  listClients: (params: Record<string, string | number | undefined> = {}) =>
+    request<{ total: number; clients: ClientStat[] }>("/clients", { params }),
+  getInfrastructure: () => request<{ components: InfraComponent[] }>("/infrastructure"),
 
   // --- Users / orgs / tenants ----------------------------------------------
   listUsers: (organizationId?: string) =>

@@ -50,7 +50,7 @@ export class EmbeddingsService {
   /** Build an EmbeddingsService. Uses a semantic Gemini embedding model when a
    * key is configured, otherwise the deterministic hash fallback. */
   static async createDefault(): Promise<EmbeddingsService> {
-    if (process.env.GEMINI_API_KEY) {
+    if (process.env.DEFAULT_AI_API_KEY) {
       try {
         const { createGeminiEmbeddingModel } = await import("@intel.dom.gob/provider-gemini");
         return new EmbeddingsService(createGeminiEmbeddingModel());

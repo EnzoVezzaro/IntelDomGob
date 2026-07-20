@@ -52,7 +52,10 @@ services:
       DOMAIN: "${DOMAIN:-localhost}"
       API_PORT: "4000"
       SEARXNG_URL: "http://searxng:8080"
-      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      DEFAULT_AI_PROVIDER: "${DEFAULT_AI_PROVIDER:-gemini}"
+      DEFAULT_AI_API_KEY: "${DEFAULT_AI_API_KEY:-}"
+      DEFAULT_AI_MODEL: "${DEFAULT_AI_MODEL:-gemini-3.1-flash-lite}"
+      DEFAULT_BASE_URL: "${DEFAULT_BASE_URL:-}"
       INTEL_API_TOKEN: "${INTEL_API_TOKEN:-}"
       LOG_FORMAT: "${LOG_FORMAT:-development}"
     depends_on:
@@ -253,7 +256,7 @@ services:
     environment:
       WORKER: "embedding-worker"
       REDIS_URL: "redis://dragonfly:6379"
-      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      DEFAULT_AI_API_KEY: "${DEFAULT_AI_API_KEY:-}"
     depends_on:
       dragonfly:
         condition: service_healthy
@@ -296,9 +299,10 @@ services:
     environment:
       WORKER: "ai-worker"
       REDIS_URL: "redis://dragonfly:6379"
-      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
-      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
-      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      DEFAULT_AI_API_KEY: "${DEFAULT_AI_API_KEY:-}"
+      DEFAULT_AI_PROVIDER: "${DEFAULT_AI_PROVIDER:-gemini}"
+      DEFAULT_AI_MODEL: "${DEFAULT_AI_MODEL:-gemini-3.1-flash-lite}"
+      DEFAULT_BASE_URL: "${DEFAULT_BASE_URL:-}"
     depends_on:
       dragonfly:
         condition: service_healthy

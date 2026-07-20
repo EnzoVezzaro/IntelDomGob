@@ -138,7 +138,7 @@ export async function llmRewrite(
   try {
     const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "X-Intel-Client": "cli" },
       body: JSON.stringify({
         model,
         messages: [

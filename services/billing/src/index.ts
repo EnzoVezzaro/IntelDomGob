@@ -54,6 +54,13 @@ export interface RecordRequestOpts {
   tokens?: number;
   costUsd?: number;
   kind?: string;
+  /** Override the client id used for the `client` metric scope. For keyless
+   *  traffic this is `ip:<address>` so anonymous requests are still attributed. */
+  clientId?: string;
+  /** Whether the request was authenticated with an API key (vs anonymous IP). */
+  isKey?: boolean;
+  /** Surface classification: studio | cli | sdk | api | custom | unknown. */
+  type?: string;
 }
 
 export class BillingService {
@@ -66,6 +73,7 @@ export class BillingService {
     private readonly telemetry: TelemetryService,
     private readonly db?: Database,
     redisUrl?: string,
+    private readonly nodeId?: string,
   ) {
     // Start in in-memory mode. Only flip to Redis once a live connection is
     // confirmed, so the gateway never blocks on an unreachable DragonflyDB.
@@ -156,17 +164,30 @@ export class BillingService {
     }
   }
 
-  /** Record a served (metered) request across every relevant scope. */
+  /**
+   * Record a served request across every relevant scope. Called once per
+   * request from the gateway (not just metered scopes) so the Admin console can
+   * show real totals. `clientId` distinguishes API-keyed vs anonymous IP
+   * clients; `record.id` is still recorded under the `apiKey` scope (and equals
+   * `clientId` for keyed traffic, `"preview"` otherwise).
+   */
   async recordRequest(record: ApiKeyRecord, opts: RecordRequestOpts): Promise<void> {
+    const isKey = opts.isKey ?? record.id !== "preview";
+    const clientId = opts.clientId ?? record.id;
     const base = { status: opts.status, latencyMs: opts.latencyMs };
     await this.telemetry.recordRequest("global", "all", base);
     if (record.product) await this.telemetry.recordRequest("product", record.product, base);
     if (record.tenantId) await this.telemetry.recordRequest("tenant", record.tenantId, base);
     await this.telemetry.recordRequest("apiKey", record.id, { ...base, tokens: opts.tokens, costUsd: opts.costUsd });
-    if (this.db && (opts.tokens || opts.costUsd || opts.kind)) {
+    await this.telemetry.recordRequest("client", clientId, { ...base, tokens: opts.tokens, costUsd: opts.costUsd });
+    if (this.nodeId) await this.telemetry.recordRequest("node", this.nodeId, base);
+    await this.telemetry.recordClient(clientId, { isKey, product: record.product, type: opts.type });
+    // Persist a usage row for billing history. Keyed clients always; anonymous
+    // only when there is something to bill (tokens/cost) to avoid noise.
+    if (this.db && (isKey || opts.tokens || opts.costUsd || opts.kind)) {
       await this.db.query(
         `INSERT INTO usage (organization_id, user_id, kind, tokens, cost_usd) VALUES ($1, $2, $3, $4, $5)`,
-        [record.organizationId ?? null, (record as any).userId ?? null, opts.kind ?? "request", opts.tokens ?? 0, opts.costUsd ?? 0],
+        [record.organizationId ?? null, (record as any).userId ?? null, opts.kind ?? (isKey ? "request" : "anon"), opts.tokens ?? 0, opts.costUsd ?? 0],
       ).catch(() => {});
     }
   }
@@ -189,6 +210,7 @@ export function createBilling(
   telemetry: TelemetryService,
   db?: Database,
   redisUrl?: string,
+  nodeId?: string,
 ): BillingService {
-  return new BillingService(auth, telemetry, db, redisUrl);
+  return new BillingService(auth, telemetry, db, redisUrl, nodeId);
 }

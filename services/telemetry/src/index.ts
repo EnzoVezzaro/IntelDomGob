@@ -24,8 +24,13 @@ const LOG_MAXLEN = 2_000_000;
 const METRICS_PREFIX = "intel:metrics:";
 const METRICS_TTL_SECONDS = 35 * 24 * 60 * 60; // 35 days retention
 const NODES_HASH = "intel:nodes";
+// A node that misses a heartbeat for this long is gone (pruned). Matches the
+// 5-minute liveness window the Admin console uses to flag a degraded node.
+const NODE_TTL_MS = 5 * 60 * 1000;
+const CLIENTS_ZSET = "intel:clients";
+const CLIENTS_META = "intel:clients:meta";
 
-export type MetricScope = "global" | "product" | "tenant" | "apiKey" | "node";
+export type MetricScope = "global" | "product" | "tenant" | "apiKey" | "node" | "client";
 
 export interface LogQuery {
   service?: string;
@@ -64,13 +69,26 @@ export interface NodeInfo {
 
 interface RedisLike {
   xadd(stream: string, maxlen: string, maxlenVal: number, id: string, ...args: string[]): Promise<string>;
-  xrevrange(stream: string, end: string, start: string, count: number): Promise<Array<[string, string[]]>>;
+  xrevrange(stream: string, end: string, start: string, count?: number): Promise<Array<[string, string[]]>>;
   hincrby(key: string, field: string, by: number): Promise<number>;
   hgetall(key: string): Promise<Record<string, string>>;
   expire(key: string, seconds: number): Promise<number>;
   hset(key: string, field: string, value: string): Promise<number>;
+  hdel(key: string, ...fields: string[]): Promise<number>;
   hget(key: string, field: string): Promise<string | null>;
   del(key: string): Promise<number>;
+  zincrby(key: string, by: number, member: string): Promise<number>;
+  zrevrange(key: string, start: number, stop: number, withScores?: string): Promise<string[]>;
+  ping(): Promise<string>;
+}
+
+export interface ClientStat {
+  id: string;
+  requests: number;
+  isKey: boolean;
+  product?: string;
+  /** Surface classification: studio | cli | sdk | api | custom | unknown. */
+  type?: string;
 }
 
 function toMs(value: string | number | undefined): number | null {
@@ -90,6 +108,7 @@ export class TelemetryService {
   private memLogs: Array<{ id: string; fields: Record<string, string> }> = [];
   private memMetrics = new Map<string, Record<string, number>>();
   private memNodes = new Map<string, NodeInfo>();
+  private memClients = new Map<string, ClientStat>();
   private seq = 0;
 
   constructor(redisUrl?: string) {
@@ -103,10 +122,33 @@ export class TelemetryService {
       const { default: Redis } = await import("ioredis");
       this.redis = new Redis(url, { maxRetriesPerRequest: null }) as unknown as RedisLike;
       log.info("Telemetry connected to DragonflyDB", { stream: LOG_STREAM });
+      // Early writes during the init window landed in the in-memory buffers.
+      // Replay them so nothing is lost once the broker is live.
+      await this.flushBuffers();
     } catch (err) {
       log.warn("Telemetry: DragonflyDB unavailable; using in-memory fallback", { error: String(err) });
       this.inMemory = true;
     }
+  }
+
+  /** Replay in-memory buffers into Redis (called once connected). */
+  private async flushBuffers(): Promise<void> {
+    if (!this.redis) return;
+    for (const info of this.memNodes.values()) {
+      await this.redis.hset(NODES_HASH, info.id, JSON.stringify(info)).catch(() => {});
+    }
+    for (const c of this.memClients.values()) {
+      await this.redis.zincrby(CLIENTS_ZSET, c.requests, c.id).catch(() => {});
+      await this.redis.hset(CLIENTS_META, c.id, JSON.stringify({ isKey: c.isKey, product: c.product ?? null })).catch(() => {});
+    }
+    for (const entry of this.memLogs) {
+      const args: string[] = [];
+      for (const [k, v] of Object.entries(entry.fields)) args.push(k, v);
+      await this.redis.xadd(LOG_STREAM, "MAXLEN", LOG_MAXLEN, "*", ...args).catch(() => {});
+    }
+    this.memNodes.clear();
+    this.memClients.clear();
+    this.memLogs = [];
   }
 
   /** Append a structured log entry. `entry` comes straight from the logger sink. */
@@ -148,7 +190,9 @@ export class TelemetryService {
     if (this.inMemory || !this.redis) {
       raw = this.memLogs;
     } else {
-      const entries = await this.redis.xrevrange(LOG_STREAM, endId, startId, limit * 4).catch(() => []);
+      // Note: ioredis rejects a positional COUNT on xrevrange in this version,
+      // so we fetch the window and slice in JS instead.
+      const entries = await this.redis.xrevrange(LOG_STREAM, endId, startId).catch(() => []);
       raw = (entries ?? []).map(([id, f]) => {
         const fields: Record<string, string> = {};
         for (let i = 0; i < f.length; i += 2) fields[f[i]] = f[i + 1];
@@ -249,10 +293,77 @@ export class TelemetryService {
     await this.redis.hset(NODES_HASH, nodeId, JSON.stringify(info)).catch(() => {});
   }
 
+  /** Drop nodes whose last heartbeat is older than NODE_TTL_MS (orphaned containers). */
+  private pruneStaleNodes(nodes: NodeInfo[]): { live: NodeInfo[]; staleIds: string[] } {
+    const now = Date.now();
+    const live: NodeInfo[] = [];
+    const staleIds: string[] = [];
+    for (const n of nodes) {
+      const age = Date.parse(n.lastHeartbeat);
+      if (Number.isNaN(age) || now - age > NODE_TTL_MS) staleIds.push(n.id);
+      else live.push(n);
+    }
+    return { live, staleIds };
+  }
+
   async getNodes(): Promise<NodeInfo[]> {
-    if (this.inMemory || !this.redis) return [...this.memNodes.values()];
+    if (this.inMemory || !this.redis) {
+      return this.pruneStaleNodes([...this.memNodes.values()]).live;
+    }
     const raw = await this.redis.hgetall(NODES_HASH).catch(() => ({}));
-    return Object.values(raw).map((v) => JSON.parse(v) as NodeInfo);
+    const all = Object.values(raw).map((v) => JSON.parse(v) as NodeInfo);
+    const { live, staleIds } = this.pruneStaleNodes(all);
+    if (staleIds.length) {
+      // Self-cleaning: drop orphaned node records so the fleet count stays honest.
+      await this.redis.hdel(NODES_HASH, ...staleIds).catch(() => {});
+    }
+    return live;
+  }
+
+  /** Record a request attributed to a client (api-key id, or `ip:<addr>`). */
+  async recordClient(clientId: string, meta?: { isKey?: boolean; product?: string; type?: string }, by = 1): Promise<void> {
+    const isKey = meta?.isKey ?? false;
+    const product = meta?.product;
+    const type = meta?.type;
+    if (this.inMemory || !this.redis) {
+      const cur = this.memClients.get(clientId) ?? { id: clientId, requests: 0, isKey, product, type };
+      cur.requests += by;
+      cur.isKey = cur.isKey || isKey;
+      if (product) cur.product = product;
+      if (type) cur.type = type;
+      this.memClients.set(clientId, cur);
+      return;
+    }
+    await this.redis.zincrby(CLIENTS_ZSET, by, clientId).catch(() => {});
+    await this.redis.hset(CLIENTS_META, clientId, JSON.stringify({ isKey, product: product ?? null, type: type ?? null })).catch(() => {});
+    await this.redis.expire(CLIENTS_ZSET, METRICS_TTL_SECONDS).catch(() => {});
+  }
+
+  /** Top clients by total request count (api-keyed + anonymous IP clients). */
+  async topClients(limit = 20): Promise<ClientStat[]> {
+    if (this.inMemory || !this.redis) {
+      return [...this.memClients.values()].sort((a, b) => b.requests - a.requests).slice(0, limit);
+    }
+    const raw = await this.redis.zrevrange(CLIENTS_ZSET, 0, limit - 1, "WITHSCORES").catch(() => []);
+    const meta = await this.redis.hgetall(CLIENTS_META).catch(() => ({}));
+    const out: ClientStat[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      const id = raw[i];
+      const m = meta[id] ? (JSON.parse(meta[id]) as { isKey: boolean; product?: string; type?: string }) : { isKey: false };
+      out.push({ id, requests: Number(raw[i + 1]), isKey: m.isKey, product: m.product, type: m.type });
+    }
+    return out;
+  }
+
+  /** Liveness probe for the underlying DragonflyDB/Redis broker. */
+  async ping(): Promise<boolean> {
+    if (this.inMemory || !this.redis) return true;
+    try {
+      await this.redis.ping();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async close(): Promise<void> {

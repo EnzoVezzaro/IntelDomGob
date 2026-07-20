@@ -19,6 +19,8 @@ export const qk = {
   users: (orgId?: string) => ["users", orgId ?? "all"] as const,
   organizations: () => ["organizations"] as const,
   tenants: () => ["tenants"] as const,
+  clients: (limit: number) => ["clients", limit] as const,
+  infrastructure: () => ["infrastructure"] as const,
 };
 
 export function useApiKeys(filters: Record<string, string | undefined> = {}) {
@@ -86,6 +88,18 @@ export function useProducts() {
 
 export function useNodes() {
   return useQuery({ queryKey: qk.nodes(), queryFn: () => adminApi.listNodes() });
+}
+
+export function useClients(limit = 50) {
+  return useQuery({ queryKey: ["clients", limit], queryFn: () => adminApi.listClients({ limit }) });
+}
+
+export function useInfrastructure() {
+  return useQuery({
+    queryKey: ["infrastructure"],
+    queryFn: () => adminApi.getInfrastructure(),
+    refetchInterval: 15_000,
+  });
 }
 
 export function useMetrics(scope: MetricScope, id: string, range = "24h") {

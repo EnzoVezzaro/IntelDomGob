@@ -2,99 +2,145 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 
-/* ── Design tokens ─────────────────────────────────────────────────────────
-   Tailwind v4 promotes these CSS variables into utilities (bg-primary,
-   text-muted-foreground, border-border, …). The DocsLayout and the
-   landing page both rely on them, so a full palette is defined here for
-   both light and dark. Primary is a Dominican-government deep blue. */
+/* ── INTEL.DOM.GOB Docs — design system
+   Restyled to match the public web app (apps/web): dark terminal aesthetic,
+   INTEL red (#e94e31) accent, Inter + JetBrains Mono, radial bg-glow,
+   chunky 16px radii. The landing page and DocsLayout both consume the tokens
+   below (Tailwind @theme utilities + Fumadocs --color-fd-* variables). */
 
 @theme {
-  --color-background: #ffffff;
-  --color-foreground: #18181b;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Fira Code", Menlo,
+    monospace;
 
-  --color-card: #ffffff;
-  --color-card-foreground: #18181b;
+  --color-background: #0a0a0c;
+  --color-foreground: #f5f5f7;
 
-  --color-popover: #ffffff;
-  --color-popover-foreground: #18181b;
+  --color-card: #121216;
+  --color-card-foreground: #f5f5f7;
 
-  --color-primary: #1e3a8;
-  --color-primary-foreground: #f8fafc;
+  --color-popover: #18181e;
+  --color-popover-foreground: #f5f5f7;
 
-  --color-secondary: #f4f4f5;
-  --color-secondary-foreground: #18181b;
+  --color-primary: #e94e31;
+  --color-primary-foreground: #ffffff;
 
-  --color-muted: #f4f4f5;
-  --color-muted-foreground: #71717a;
+  --color-secondary: #18181e;
+  --color-secondary-foreground: #f5f5f7;
 
-  --color-accent: #f4f4f5;
-  --color-accent-foreground: #18181b;
+  --color-muted: #18121e;
+  --color-muted-foreground: #a0a0ab;
 
-  --color-destructive: #dc2626;
-  --color-destructive-foreground: #f8fafc;
+  --color-accent: rgba(233, 78, 49, 0.12);
+  --color-accent-foreground: #e94e31;
 
-  --color-border: #e4e4e7;
-  --color-input: #e4e4e7;
-  --color-ring: #1e3a8;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
 
-  --color-sidebar: #fafafa;
-  --color-sidebar-foreground: #18181b;
-  --color-sidebar-border: #e4e4e7;
-  --color-sidebar-primary: #1e3a8;
-  --color-sidebar-primary-foreground: #f8fafc;
-  --color-sidebar-accent: #f4f4f5;
-  --color-sidebar-accent-foreground: #18181b;
+  --color-border: #26262e;
+  --color-input: #26262e;
+  --color-ring: #e94e31;
 
-  --radius-lg: 0.75rem;
-  --radius-md: 0.5rem;
-  --radius-sm: 0.375rem;
+  --color-sidebar: #0d0d11;
+  --color-sidebar-foreground: #f5f5f7;
+  --color-sidebar-border: #26262e;
+  --color-sidebar-primary: #e94e31;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #18121e;
+  --color-sidebar-accent-foreground: #f5f5f7;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.7rem;
+  --radius-lg: 0.9rem;
   --radius-xl: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #0a0a0a;
-    --color-foreground: #ededed;
+/* Fumadocs component variables — dark + INTEL red, applied for both light and
+   dark so the site is always rendered in the web-app aesthetic. */
+:root,
+.dark {
+  color-scheme: dark;
 
-    --color-card: #141417;
-    --color-card-foreground: #ededed;
+  --color-fd-background: #0a0a0c;
+  --color-fd-foreground: #f5f5f7;
 
-    --color-popover: #141417;
-    --color-popover-foreground: #ededed;
+  --color-fd-muted: #18121e;
+  --color-fd-muted-foreground: #a0a0ab;
 
-    --color-primary: #3b82f6;
-    --color-primary-foreground: #0a0a0a;
+  --color-fd-popover: #18181e;
+  --color-fd-popover-foreground: #f5f5f7;
 
-    --color-secondary: #1f1f23;
-    --color-secondary-foreground: #ededed;
+  --color-fd-card: #121216;
+  --color-fd-card-foreground: #f5f5f7;
 
-    --color-muted: #1f1f23;
-    --color-muted-foreground: #a1a1aa;
+  --color-fd-border: #26262e;
 
-    --color-accent: #1f1f23;
-    --color-accent-foreground: #ededed;
+  --color-fd-primary: #e94e31;
+  --color-fd-primary-foreground: #ffffff;
 
-    --color-destructive: #ef4444;
-    --color-destructive-foreground: #0a0a0a;
+  --color-fd-secondary: #18121e;
+  --color-fd-secondary-foreground: #f5f5f7;
 
-    --color-border: #27272a;
-    --color-input: #27272a;
-    --color-ring: #3b82f6;
+  --color-fd-accent: rgba(233, 78, 49, 0.12);
+  --color-fd-accent-foreground: #e94e31;
 
-    --color-sidebar: #0f0f12;
-    --color-sidebar-foreground: #ededed;
-    --color-sidebar-border: #27272a;
-    --color-sidebar-primary: #3b82f6;
-    --color-sidebar-primary-foreground: #0a0a0a;
-    --color-sidebar-accent: #1f1f23;
-    --color-sidebar-accent-foreground: #ededed;
-  }
+  --color-fd-ring: #e94e31;
+  --color-fd-overlay: rgba(0, 0, 0, 0.6);
+
+  --color-fd-info: #60a5fa;
+  --color-fd-warning: #fbbf24;
+  --color-fd-error: #ef4444;
+  --color-fd-success: #4ade80;
+  --color-fd-idea: #e9a23b;
+  --color-fd-diff-remove: rgba(239, 68, 68, 0.12);
+  --color-fd-diff-remove-symbol: rgb(248, 113, 113);
+  --color-fd-diff-add: rgba(74, 222, 128, 0.1);
+  --color-fd-diff-add-symbol: rgb(74, 222, 128);
 }
 
+/* Sidebar surfaces (neutral.css dark override) */
+.dark #nd-sidebar {
+  --color-fd-muted: #18121e;
+  --color-fd-secondary: #18121e;
+  --color-fd-muted-foreground: #a0a0ab;
+}
+
+html {
+  background: #0a0a0c;
+}
+
+/* Radial glow behind all content (fixed, non-interactive). The page
+   background wrapper is made transparent below so the glow shows through. */
 body {
-  color: var(--color-foreground);
-  background: var(--color-background);
+  color: var(--color-fd-foreground);
+  background: transparent;
   font-feature-settings: "rlig" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 50% -10%, rgba(233, 78, 49, 0.14), transparent 70%),
+    radial-gradient(40% 40% at 85% 10%, rgba(59, 130, 246, 0.07), transparent 70%);
+}
+
+/* Let the glow show behind the docs page area. */
+.bg-fd-background {
+  background-color: transparent !important;
+}
+
+/* Brutalist red focus ring + selection to match the web app. */
+:focus-visible {
+  outline-color: var(--color-fd-ring);
+}
+::selection {
+  background: rgba(233, 78, 49, 0.25);
 }

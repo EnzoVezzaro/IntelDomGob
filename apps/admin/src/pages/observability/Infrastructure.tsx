@@ -1,9 +1,8 @@
-import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Server, Database, Boxes, Network, HardDrive, Bot, Globe, Cpu } from "lucide-react";
-import { useNodes } from "../../lib/queries";
+import { Server, Database, Boxes, Network, HardDrive, Bot, Globe, Cpu, CircleCheck, CircleAlert, CircleX } from "lucide-react";
+import { useNodes, useInfrastructure } from "../../lib/queries";
 import { PageHeader } from "../../components/common/PageHeader";
-import { LoadingState, ErrorState, EmptyState } from "../../components/common/States";
+import { LoadingState, ErrorState } from "../../components/common/States";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -18,35 +17,44 @@ import {
 import { HeartBeat } from "../../components/common/badges";
 import { formatRelative } from "../../lib/format";
 
-// Expected platform fleet. Platform *services* report heartbeats as nodes;
-// managed *infrastructure* (datastore, cache, proxy, storage) is derived from
-// the running deployment. This gives a single pane of glass over everything
-// that moves through the platform.
-const INFRA = [
-  { key: "postgres", label: "PostgreSQL", role: "Datastore", icon: Database, managed: true },
-  { key: "dragonfly", label: "DragonflyDB", role: "Cache · Event Bus · Telemetry", icon: Boxes, managed: true },
-  { key: "caddy", label: "Caddy", role: "Reverse Proxy · TLS", icon: Network, managed: true },
-  { key: "storage", label: "Object Storage", role: "Documentos · artefactos", icon: HardDrive, managed: true },
-  { key: "searxng", label: "SearXNG", role: "Búsqueda (default)", icon: Globe, managed: true },
-  { key: "gemini", label: "Gemini", role: "IA (default)", icon: Bot, managed: false },
-];
+// Icon per backend component key. The label/role/status come from the live
+// probe; only the icon is resolved client-side.
+const ICONS: Record<string, typeof Database> = {
+  postgres: Database,
+  dragonfly: Boxes,
+  caddy: Network,
+  storage: HardDrive,
+  searxng: Globe,
+  api: Server,
+  ai: Bot,
+};
+
+const STATUS_META: Record<string, { icon: typeof CircleCheck; className: string; label: string }> = {
+  ok: { icon: CircleCheck, className: "text-success", label: "operational" },
+  degraded: { icon: CircleAlert, className: "text-warning", label: "degraded" },
+  down: { icon: CircleX, className: "text-destructive", label: "down" },
+};
 
 export function Infrastructure() {
   const { data, isLoading, isError, error, refetch } = useNodes();
+  const infra = useInfrastructure();
   const navigate = useNavigate();
   const nodes = data?.nodes ?? [];
+  const components = infra.data?.components ?? [];
 
-  // Group platform nodes by logical service.
-  const liveNodeIds = useMemo(
-    () => new Set(nodes.map((n) => n.id)),
-    [nodes],
-  );
+  // Render the components exactly as reported by the live probe. The probe
+  // already supplies label, role, managed and status; we only resolve the icon
+  // and surface extra metadata (e.g. the AI provider's .env configuration).
+  const cards = components.map((c) => ({
+    ...c,
+    icon: ICONS[c.key] ?? Server,
+  }));
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="Infrastructure"
-        description="Estado de la flota de la plataforma y la infraestructura gestionada. Cada nodo reporta heartbeat a Telemetry."
+        description="Estado en vivo de la flota y la infraestructura gestionada. Cada componente es sondeado por el API."
         actions={
           <Badge variant="outline" className="gap-1">
             <Server className="h-3 w-3" /> {nodes.length} nodos
@@ -54,25 +62,50 @@ export function Infrastructure() {
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {INFRA.map((c) => {
-          const Icon = c.icon;
-          return (
-            <Card key={c.key}>
-              <CardContent className="space-y-2 pt-5">
-                <div className="flex items-center justify-between">
-                  <Icon className="h-5 w-5 text-primary" />
-                  <Badge variant={c.managed ? "secondary" : "info"}>
-                    {c.managed ? "managed" : "external"}
-                  </Badge>
-                </div>
-                <div className="text-sm font-medium">{c.label}</div>
-                <div className="text-[11px] text-muted-foreground">{c.role}</div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {infra.isLoading ? (
+        <LoadingState />
+      ) : infra.isError ? (
+        <ErrorState error={infra.error} onRetry={() => infra.refetch()} />
+      ) : (
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {cards.map((c) => {
+            const Icon = c.icon;
+            const st = c.status ?? "down";
+            const meta = STATUS_META[st];
+            const StatusIcon = meta.icon;
+            const m = c.meta;
+            return (
+              <Card key={c.key}>
+                <CardContent className="space-y-2 pt-5">
+                  <div className="flex items-center justify-between">
+                    <Icon className="h-5 w-5 text-primary" />
+                    <StatusIcon className={`h-4 w-4 ${meta.className}`} />
+                  </div>
+                  <div className="text-sm font-medium">{c.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{c.role}</div>
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <Badge variant={c.managed ? "secondary" : "info"} className="px-1.5 py-0">
+                      {c.managed ? "managed" : "external"}
+                    </Badge>
+                    <span className={meta.className}>{meta.label}</span>
+                    {c.latencyMs != null && <span className="text-muted-foreground">· {c.latencyMs}ms</span>}
+                  </div>
+                  {m && (
+                    <div className="space-y-0.5 border-t border-border pt-2 text-[10px] text-muted-foreground">
+                      {m.provider && <div><span className="text-foreground/70">provider:</span> {m.provider}</div>}
+                      {m.model && <div><span className="text-foreground/70">model:</span> {m.model}</div>}
+                      {m.baseUrl && <div><span className="text-foreground/70">baseUrl:</span> {m.baseUrl}</div>}
+                      <div className={m.keySet ? "text-success" : "text-destructive"}>
+                        {m.keySet ? "API key configurada" : "⚠ API key NO configurada"}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -89,7 +122,7 @@ export function Infrastructure() {
           ) : isError ? (
             <ErrorState error={error} onRetry={() => refetch()} />
           ) : nodes.length === 0 ? (
-            <EmptyState title="Sin nodos" description="Ningún nodo ha reportado heartbeat recientemente." />
+            <p className="py-8 text-center text-sm text-muted-foreground">Sin nodos activos.</p>
           ) : (
             <div className="rounded-lg border border-border">
               <Table>
@@ -130,12 +163,6 @@ export function Infrastructure() {
           )}
         </CardContent>
       </Card>
-
-      {liveNodeIds.size === 0 && (
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          Sugerencia: asegúrate de que los servicios llamen a <code>telemetry.heartbeat()</code> en arranque.
-        </p>
-      )}
     </div>
   );
 }

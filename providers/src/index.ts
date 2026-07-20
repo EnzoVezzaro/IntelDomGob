@@ -63,11 +63,21 @@ export interface AiResponse {
   usage?: { inputTokens?: number; outputTokens?: number };
 }
 
+/** Result of a provider liveness probe (no token cost where possible). */
+export interface AiProviderHealth {
+  ok: boolean;
+  /** The provider's default model (for display + verification). */
+  model?: string;
+  detail?: string;
+}
+
 export interface AiProvider extends ProviderDescriptor {
   /** Generate a completion. */
   generate(req: AiRequest): Promise<AiResponse>;
   /** Stream a completion token-by-token. */
   stream?(req: AiRequest): AsyncIterable<string>;
+  /** Lightweight liveness check, provider-specific (no token cost where possible). */
+  health?(): Promise<AiProviderHealth>;
 }
 
 // ---------------------------------------------------------------------------

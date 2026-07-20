@@ -646,10 +646,14 @@ registerTool({
 export class McpServer {
   private readonly client: IntelDomGobClient;
   private readonly port: number;
+  private readonly apiBaseUrl: string;
+  private readonly apiToken: string;
   private app = express();
 
   constructor(opts: McpServerOptions) {
-    this.client = createClient({ baseUrl: opts.apiBaseUrl, token: opts.token });
+    this.apiBaseUrl = opts.apiBaseUrl;
+    this.apiToken = opts.token;
+    this.client = createClient({ baseUrl: opts.apiBaseUrl, token: opts.token, product: "mcp" });
     this.port = opts.port ?? 4100;
 
     // Derive the per-institution search tools from the SDK (no service import).
@@ -666,8 +670,12 @@ export class McpServer {
 
     // Official MCP-protocol surface (Streamable HTTP + SSE) so standard MCP
     // clients like Odysseus, Claude Desktop and VS Code can connect. Reuses the
-    // exact same tool registry — no second source of truth.
-    mountMcpProtocol(this.app, () => createClient({ baseUrl: opts.apiBaseUrl, token: opts.token }));
+    // exact same tool registry — no second source of truth. The originating
+    // client surface (X-Intel-Client) is forwarded to the API so a CLI → MCP →
+    // API request is attributed to `cli`, not `mcp`.
+    mountMcpProtocol(this.app, (product) =>
+      createClient({ baseUrl: this.apiBaseUrl, token: this.apiToken, product: product || "mcp" }),
+    );
 
     this.app.get("/health", (_req, res) =>
       res.json({
@@ -682,6 +690,12 @@ export class McpServer {
 
   private async handle(request: any, res: express.Response) {
     const { id, method, params } = request;
+    // Forward the originating client surface (CLI → MCP → API records `cli`).
+    const inbound = (res.req as any)?.headers?.["x-intel-client"];
+    const product = typeof inbound === "string" ? inbound.trim().toLowerCase() : undefined;
+    const client = product
+      ? createClient({ baseUrl: this.apiBaseUrl, token: this.apiToken, product })
+      : this.client;
     try {
       if (method === "tools/list") {
         return res.json({
@@ -694,7 +708,7 @@ export class McpServer {
         const tool = tools.find((t) => t.name === params?.name);
         if (!tool) return res.json({ jsonrpc: "2.0", id, error: { code: -32601, message: `Unknown tool ${params?.name}` } });
         try {
-          const output = await tool.run(params?.arguments ?? {}, this.client);
+          const output = await tool.run(params?.arguments ?? {}, client);
           return res.json({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify(output ?? "<no result>", null, 2) }] } });
         } catch (e: any) {
           return res.json({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text: `Tool error: ${e?.message ?? String(e)}` }], isError: true } });

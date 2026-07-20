@@ -89,6 +89,17 @@ export class OllamaAiProvider implements AiProvider {
       }
     }
   }
+
+  /** Liveness probe: list local models via the Ollama tags endpoint. */
+  async health(): Promise<import("@intel.dom.gob/providers").AiProviderHealth> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/tags`);
+      if (!res.ok) return { ok: false, model: this.defaultModel, detail: `HTTP ${res.status}` };
+      return { ok: true, model: this.defaultModel, detail: `modelo ${this.defaultModel}` };
+    } catch (e) {
+      return { ok: false, model: this.defaultModel, detail: String((e as Error).message ?? e) };
+    }
+  }
 }
 
 export function createOllamaProvider(opts: OllamaProviderOptions = {}): OllamaAiProvider {

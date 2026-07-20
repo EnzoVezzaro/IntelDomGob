@@ -9,9 +9,9 @@ import os from "node:os";
 import { config } from "@intel.dom.gob/config";
 import { createLogger } from "@intel.dom.gob/logger";
 import { createSearXNGProvider } from "@intel.dom.gob/provider-searxng";
-import { createGeminiProvider } from "@intel.dom.gob/provider-gemini";
 import { providerRegistry } from "@intel.dom.gob/providers";
 import { AiService } from "@intel.dom.gob/service-ai";
+import type { AiProvider } from "@intel.dom.gob/providers";
 import { SearchService, setSearxngBaseUrl } from "@intel.dom.gob/service-search";
 import { Orchestrator } from "@intel.dom.gob/service-orchestrator";
 import { KnowledgeGraphService } from "@intel.dom.gob/service-knowledge-graph";
@@ -61,32 +61,61 @@ export interface BootstrapDeps {
   billing?: BillingService;
 }
 
+/**
+ * Build the default AI provider from environment configuration.
+ *
+ * A single configuration drives the default provider:
+ *   - DEFAULT_AI_PROVIDER  → family (gemini | openai | deepseek | anthropic | ollama | custom)
+ *   - DEFAULT_AI_API_KEY   → one API key for every provider
+ *   - DEFAULT_BASE_URL     → base URL for OpenAI-compatible / custom providers
+ *   - DEFAULT_AI_MODEL     → default model (falls back to legacy LLM_MODEL)
+ */
+async function buildDefaultAiProvider(): Promise<AiProvider> {
+  const provider = (process.env.DEFAULT_AI_PROVIDER ?? config.defaultAiProvider ?? "gemini").toLowerCase();
+  const key = process.env.DEFAULT_AI_API_KEY ?? config.defaultAiApiKey ?? "";
+  const baseUrl = process.env.DEFAULT_BASE_URL ?? config.defaultBaseUrl ?? "";
+  const model = process.env.DEFAULT_AI_MODEL ?? config.defaultAiModel ?? "";
+
+  switch (provider) {
+    case "openai":
+    case "custom": {
+      const { createOpenAiProvider } = await import("@intel.dom.gob/provider-openai");
+      return createOpenAiProvider({
+        apiKey: key,
+        baseUrl: baseUrl || (provider === "openai" ? "https://api.openai.com/v1" : undefined),
+        defaultModel: model || undefined,
+      });
+    }
+    case "deepseek": {
+      const { createDeepSeekProvider } = await import("@intel.dom.gob/provider-deepseek");
+      return createDeepSeekProvider({ apiKey: key, baseUrl: baseUrl || undefined, defaultModel: model || undefined });
+    }
+    case "anthropic": {
+      const { createAnthropicProvider } = await import("@intel.dom.gob/provider-anthropic");
+      return createAnthropicProvider({ apiKey: key, baseUrl: baseUrl || undefined, defaultModel: model || undefined });
+    }
+    case "ollama": {
+      const { createOllamaProvider } = await import("@intel.dom.gob/provider-ollama");
+      return createOllamaProvider({ baseUrl: baseUrl || undefined, defaultModel: model || undefined });
+    }
+    case "gemini":
+    default: {
+      const { createGeminiProvider } = await import("@intel.dom.gob/provider-gemini");
+      return createGeminiProvider({ apiKey: key, defaultModel: model || undefined });
+    }
+  }
+}
+
 export async function bootstrap(deps: BootstrapDeps = {}) {
   // 1. Providers
   const searxng = createSearXNGProvider({ baseUrl: config.searxngUrl });
   providerRegistry.registerSearch(searxng);
   setSearxngBaseUrl(config.searxngUrl);
 
-  const gemini = createGeminiProvider({ apiKey: process.env.GEMINI_API_KEY });
-  providerRegistry.registerAi(gemini);
-
-  // Additional AI providers are registered only when their keys are present.
-  if (process.env.OPENAI_API_KEY) {
-    const { createOpenAiProvider } = await import("@intel.dom.gob/provider-openai");
-    providerRegistry.registerAi(createOpenAiProvider({ apiKey: process.env.OPENAI_API_KEY }));
-  }
-  if (process.env.ANTHROPIC_API_KEY) {
-    const { createAnthropicProvider } = await import("@intel.dom.gob/provider-anthropic");
-    providerRegistry.registerAi(createAnthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY }));
-  }
-  if (process.env.DEEPSEEK_API_KEY) {
-    const { createDeepSeekProvider } = await import("@intel.dom.gob/provider-deepseek");
-    providerRegistry.registerAi(createDeepSeekProvider({ apiKey: process.env.DEEPSEEK_API_KEY }));
-  }
-  if (process.env.OLLAMA_BASE_URL) {
-    const { createOllamaProvider } = await import("@intel.dom.gob/provider-ollama");
-    providerRegistry.registerAi(createOllamaProvider({ baseUrl: process.env.OLLAMA_BASE_URL }));
-  }
+  // Default AI provider — configurable to any OpenAI-compatible provider or a
+  // custom base URL via DEFAULT_AI_PROVIDER / DEFAULT_AI_API_KEY / DEFAULT_BASE_URL.
+  const defaultProvider = await buildDefaultAiProvider();
+  providerRegistry.registerAi(defaultProvider);
 
   // Additional search providers are registered only when their keys are present.
   if (process.env.BRAVE_API_KEY) {
@@ -115,7 +144,7 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
   }
 
   // 2. Services
-  const ai = deps.ai ?? new AiService(gemini);
+  const ai = deps.ai ?? new AiService(defaultProvider);
   const search = deps.search ?? new SearchService({ provider: searxng });
 
   // 3. Orchestrator (the heart)
@@ -124,7 +153,7 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
   // Knowledge Graph service (proposed differentiator) — in-memory by default.
   const knowledgeGraph = deps.knowledgeGraph ?? new KnowledgeGraphService();
 
-  // Embeddings service (semantic when GEMINI_API_KEY present, hash fallback).
+  // Embeddings service (semantic when DEFAULT_AI_API_KEY present, hash fallback).
   const embeddings = deps.embeddings ?? (await EmbeddingsService.createDefault());
 
   // Document intelligence pipeline: storage + ocr + entities + kg + embeddings.
@@ -168,7 +197,7 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
   // Telemetry (logs + metrics in DragonflyDB) and Billing (entitlements + usage).
   const nodeId = process.env.NODE_ID ?? `api-${os.hostname()}-${process.pid}`;
   const telemetry = deps.telemetry ?? createTelemetry(config.redisUrl);
-  const billing = deps.billing ?? createBilling(auth, telemetry, database, config.redisUrl);
+  const billing = deps.billing ?? createBilling(auth, telemetry, database, config.redisUrl, nodeId);
 
   // Ensure an admin key exists so the Admin console can authenticate. If
   // INTEL_API_TOKEN is set it is used (so the Admin app's token works); else a
@@ -182,6 +211,13 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
 
   // Heartbeat this node for fleet-wide log/metric attribution.
   telemetry.heartbeat(nodeId, "api", os.hostname()).catch(() => {});
+  // Keep the heartbeat fresh so the node is never reported as degraded while
+  // the container is healthy. Stale/orphaned node records are pruned by the
+  // telemetry service on read.
+  const heartbeatTimer = setInterval(() => {
+    telemetry.heartbeat(nodeId, "api", os.hostname()).catch(() => {});
+  }, 30_000);
+  heartbeatTimer.unref?.();
 
   // 5. Express app
   const app = express();
@@ -200,7 +236,7 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
   );
 
   app.get("/health", (_req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString(), service: "api", apiKeyConfigured: !!process.env.GEMINI_API_KEY });
+    res.json({ status: "ok", timestamp: new Date().toISOString(), service: "api", apiKeyConfigured: !!(process.env.DEFAULT_AI_API_KEY) });
   });
   app.get("/ready", (_req, res) => res.json({ status: "ok", service: "api" }));
   app.get("/live", (_req, res) => res.json({ status: "ok", service: "api" }));
@@ -214,7 +250,7 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
     res.type("text/plain; version=0.0.4").send(observability.renderPrometheus());
   });
 
-  app.use("/v1", createRouter({ orchestrator, search, auth, knowledgeGraph, ai, embeddings, documentIntelligence, entities, workflowEngine, toolRegistry, promptService, evaluation, observability, tenancy, plugins, billing, telemetry, nodeId }));
+  app.use("/v1", createRouter({ orchestrator, search, auth, knowledgeGraph, ai, embeddings, documentIntelligence, entities, workflowEngine, toolRegistry, promptService, evaluation, observability, tenancy, plugins, billing, telemetry, database, config, storage, nodeId }));
 
   app.use((_req, res) => res.status(404).json({ error: "Not Found", message: "Unknown endpoint" }));
 

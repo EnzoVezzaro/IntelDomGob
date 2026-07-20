@@ -150,7 +150,7 @@ export interface LogQueryResult {
   logs: LogRow[];
 }
 
-export type MetricScope = "global" | "product" | "tenant" | "apiKey" | "node";
+export type MetricScope = "global" | "product" | "tenant" | "apiKey" | "client" | "node";
 
 export interface MetricPoint {
   scope: MetricScope;
@@ -168,4 +168,31 @@ export interface NodeInfo {
   service: string;
   host?: string;
   lastHeartbeat: string;
+}
+
+export interface ClientStat {
+  id: string;
+  requests: number;
+  isKey: boolean;
+  product?: string;
+  /** Surface classification: studio | cli | sdk | api | custom | unknown. */
+  type?: string;
+  /** True when the id matches a known API key (resolved server-side). */
+  knownKey?: boolean;
+}
+
+export interface InfraComponent {
+  key: string;
+  label: string;
+  role: string;
+  managed: boolean;
+  status: "ok" | "degraded" | "down";
+  detail: string;
+  latencyMs?: number;
+  meta?: {
+    provider?: string;
+    model?: string;
+    baseUrl?: string | null;
+    keySet?: boolean;
+  };
 }

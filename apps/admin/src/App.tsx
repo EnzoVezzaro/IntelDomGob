@@ -9,6 +9,7 @@ import { Users } from "./pages/Users";
 import { Organizations } from "./pages/Organizations";
 import { Tenants } from "./pages/Tenants";
 import { Products } from "./pages/Products";
+import { Clients } from "./pages/Clients";
 import { LiveLogs } from "./pages/observability/Logs";
 import { Metrics } from "./pages/observability/Metrics";
 import { Infrastructure } from "./pages/observability/Infrastructure";
@@ -43,6 +44,7 @@ export function App() {
                 <Route path="/organizations" element={<Organizations />} />
                 <Route path="/tenants" element={<Tenants />} />
                 <Route path="/products" element={<Products />} />
+                <Route path="/clients" element={<Clients />} />
                 <Route path="/observability" element={<Navigate to="/observability/logs" replace />} />
                 <Route path="/observability/logs" element={<LiveLogs />} />
                 <Route path="/observability/metrics" element={<Metrics />} />

@@ -538,7 +538,7 @@ export default function App() {
       setAgentStages(stages => stages.map(stage => stage.status === "running" ? { ...stage, status: "failed" } : stage));
       setCurrentStageIdx(-1);
       
-      const isMissingKey = err.message.includes("GEMINI_API_KEY") || err.message.includes("Missing API Key");
+      const isMissingKey = err.message.includes("DEFAULT_AI_API_KEY") || err.message.includes("Missing API Key");
       setApiError({
         error: isMissingKey ? "Missing API Key Configuration" : "Retrieval Loop Interrupted",
         message: err.message || "An unexpected error occurred during multi-agent analysis."

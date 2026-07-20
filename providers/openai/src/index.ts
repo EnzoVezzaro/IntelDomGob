@@ -84,6 +84,18 @@ export class OpenAiProvider implements AiProvider {
       }
     }
   }
+
+  /** Liveness probe (OpenAI-compatible): list models (no token cost). */
+  async health(): Promise<import("@intel.dom.gob/providers").AiProviderHealth> {
+    if (!this.apiKey) return { ok: false, model: this.defaultModel, detail: "sin API key" };
+    try {
+      const res = await fetch(`${this.baseUrl}/models`, { headers: { Authorization: `Bearer ${this.apiKey}` } });
+      if (!res.ok) return { ok: false, model: this.defaultModel, detail: `HTTP ${res.status}` };
+      return { ok: true, model: this.defaultModel, detail: `modelo ${this.defaultModel}` };
+    } catch (e) {
+      return { ok: false, model: this.defaultModel, detail: String((e as Error).message ?? e) };
+    }
+  }
 }
 
 export function createOpenAiProvider(opts: OpenAiProviderOptions = {}): OpenAiProvider {

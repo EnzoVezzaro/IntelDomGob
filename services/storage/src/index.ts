@@ -5,7 +5,7 @@
 // (default: local filesystem; swap for S3/GCS later).
 
 import { createLogger } from "@intel.dom.gob/logger";
-import { writeFile, readFile, mkdir } from "node:fs/promises";
+import { writeFile, readFile, mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 const log = createLogger("service:storage");
@@ -13,6 +13,7 @@ const log = createLogger("service:storage");
 export interface StorageBackend {
   put(key: string, data: Buffer): Promise<void>;
   get(key: string): Promise<Buffer>;
+  delete(key: string): Promise<void>;
 }
 
 export class LocalStorageBackend implements StorageBackend {
@@ -23,6 +24,9 @@ export class LocalStorageBackend implements StorageBackend {
   }
   async get(key: string) {
     return readFile(join(this.root, key));
+  }
+  async delete(key: string) {
+    await unlink(join(this.root, key)).catch(() => {});
   }
 }
 
@@ -36,5 +40,13 @@ export class StorageService {
   }
   get(key: string): Promise<Buffer> {
     return this.backend.get(key);
+  }
+  /** Health probe: round-trip a tiny object through the backend. */
+  async health(): Promise<void> {
+    const probe = "__health_check__";
+    await this.backend.put(probe, Buffer.from("ok"));
+    const got = await this.backend.get(probe);
+    if (got.toString() !== "ok") throw new Error("storage read mismatch");
+    await this.backend.delete(probe);
   }
 }

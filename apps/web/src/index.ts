@@ -15,6 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const client: IntelDomGobClient = createClient({
   baseUrl: process.env.INTEL_API_URL || "http://api:4000",
+  product: "web",
 });
 
 // Cached institution count for the live "X fuentes conectadas" line.

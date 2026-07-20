@@ -28,11 +28,17 @@ spec:
               value: {{ $.Values.domain | quote }}
             - name: REDIS_URL
               value: "redis://dragonfly:6379"
-            - name: GEMINI_API_KEY
+            - name: DEFAULT_AI_PROVIDER
+              value: {{ $.Values.ai.provider | default "gemini" | quote }}
+            - name: DEFAULT_AI_MODEL
+              value: {{ $.Values.ai.model | default "gemini-3.1-flash-lite" | quote }}
+            - name: DEFAULT_BASE_URL
+              value: {{ $.Values.ai.baseUrl | default "" | quote }}
+            - name: DEFAULT_AI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.secrets.geminiApiKey }}
-                  key: gemini-api-key
+                  name: {{ $.Values.secrets.aiApiKey }}
+                  key: ai-api-key
           resources:
             requests: { memory: {{ $svc.memory | default "512Mi" }} }
             limits: { memory: {{ $svc.memory | default "512Mi" }} }

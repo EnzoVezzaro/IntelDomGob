@@ -287,7 +287,7 @@ export class Orchestrator {
     const conceptNeeded = conceptTokens.length <= 2 ? 1 : 2;
 
     // Model-agnostic Query Planner: produces intent-aware, expanded search queries
-    // driven entirely by `.env` (LLM_MODEL / DEFAULT_AI_PROVIDER). Falls back to the
+    // driven entirely by `.env` (DEFAULT_AI_MODEL / DEFAULT_AI_PROVIDER). Falls back to the
     // deterministic concept decomposition when no model is configured or the call fails.
     const plan = await this.planner.plan(req.query, req.responseLang || "es");
     const plannerQueries = plan?.queries ?? [];

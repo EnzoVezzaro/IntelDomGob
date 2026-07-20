@@ -8,9 +8,8 @@ import { createBilling, PLANS } from "@intel.dom.gob/service-billing";
 import type { TelemetryService } from "@intel.dom.gob/service-telemetry";
 import type { Database } from "@intel.dom.gob/database";
 
-// The /query handler requires GEMINI_API_KEY (or body.apiKey) to be present;
-// set it so the public-facing path can be exercised without a gateway API key.
-beforeAll(() => { process.env.GEMINI_API_KEY = "test"; });
+// The /query handler requires DEFAULT_AI_API_KEY (or body.apiKey). The real
+// value is provided by .env (loaded automatically by vitest), so no fake env.
 
 const fakeAi: any = {
   providerId: "mock",

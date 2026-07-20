@@ -114,8 +114,12 @@ describe("OpenAI-compatible API", () => {
     expect(Array.isArray(res.body.data)).toBe(true);
   });
 
+  // Inject a fake embeddings service so the test is isolated from the real
+  // provider selection (which keys off DEFAULT_AI_API_KEY in the environment).
+  const fakeEmbeddings = { embed: async (t: string) => [0.1, 0.2, 0.3, 0.4] } as unknown as import("@intel.dom.gob/service-embeddings").EmbeddingsService;
+
   it("POST /v1/embeddings returns vectors", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, embeddings: fakeEmbeddings });
     const res = await request(app as any).post("/v1/embeddings").set("Authorization", "Bearer test-key").send({ input: "Ley 87-01" });
     expect(res.status).toBe(200);
     expect(res.body.object).toBe("list");

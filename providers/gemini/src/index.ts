@@ -34,9 +34,9 @@ export class GeminiAiProvider implements AiProvider {
   }
 
   private getClient(apiKey?: string): GoogleGenAI {
-    const key = apiKey || this.apiKey || process.env.GEMINI_API_KEY;
+    const key = apiKey || this.apiKey || (process.env.DEFAULT_AI_API_KEY);
     if (!key) {
-      throw new Error("GEMINI_API_KEY is not configured. Provide it via env or request.");
+      throw new Error("DEFAULT_AI_API_KEY is not configured. Provide it via env or request.");
     }
     if (!this.client || (apiKey && this.client["apiKey"] !== apiKey)) {
       this.client = new GoogleGenAI({
@@ -109,6 +109,19 @@ export class GeminiAiProvider implements AiProvider {
       if (text) yield text;
     }
   }
+
+  /** Liveness probe: list models (no token cost). */
+  async health(): Promise<import("@intel.dom.gob/providers").AiProviderHealth> {
+    const key = this.apiKey || (process.env.DEFAULT_AI_API_KEY);
+    if (!key) return { ok: false, model: this.defaultModel, detail: "sin API key" };
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+      if (!res.ok) return { ok: false, model: this.defaultModel, detail: `HTTP ${res.status}` };
+      return { ok: true, model: this.defaultModel, detail: `modelo ${this.defaultModel}` };
+    } catch (e) {
+      return { ok: false, model: this.defaultModel, detail: String((e as Error).message ?? e) };
+    }
+  }
 }
 
 export function createGeminiProvider(opts: GeminiProviderOptions = {}): GeminiAiProvider {
@@ -132,8 +145,8 @@ export class GeminiEmbeddingModel {
   }
 
   private getClient(): GoogleGenAI {
-    const key = this.apiKey || process.env.GEMINI_API_KEY;
-    if (!key) throw new Error("GEMINI_API_KEY is not configured for embeddings.");
+    const key = this.apiKey || (process.env.DEFAULT_AI_API_KEY);
+    if (!key) throw new Error("DEFAULT_AI_API_KEY is not configured for embeddings.");
     if (!this.client) this.client = new GoogleGenAI({ apiKey: key });
     return this.client;
   }

@@ -37,7 +37,7 @@ Reglas:
  *
  * Produces a structured {@link QueryPlan} (intent, entities, dates, jurisdictions,
  * document types, and expanded search queries) from a raw user question. The model
- * and provider are resolved entirely from configuration (`.env` `LLM_MODEL` /
+ * and provider are resolved entirely from configuration (`.env` `DEFAULT_AI_MODEL` /
  * `DEFAULT_AI_PROVIDER`), never hardcoded — so swapping to a local Ollama/Qwen or
  * DeepSeek model requires no code change.
  *

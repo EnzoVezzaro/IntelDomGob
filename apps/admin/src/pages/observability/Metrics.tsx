@@ -24,6 +24,7 @@ const SCOPES: { value: MetricScope; label: string; defaultId: string }[] = [
   { value: "product", label: "Producto", defaultId: "" },
   { value: "tenant", label: "Tenant", defaultId: "" },
   { value: "apiKey", label: "API Key", defaultId: "" },
+  { value: "client", label: "Cliente (key/IP)", defaultId: "" },
   { value: "node", label: "Nodo", defaultId: "" },
 ];
 

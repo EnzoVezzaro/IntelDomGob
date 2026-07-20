@@ -162,7 +162,7 @@ intel.dom.gob/
 # 1. Clone & configure
 git clone <repo> intel.dom.gob
 cd intel.dom.gob
-cp .env.example .env          # set GEMINI_API_KEY, DOMAIN
+cp .env.example .env          # set DEFAULT_AI_API_KEY, DOMAIN
 
 # 2. One command brings up the whole platform
 ./scripts/up.sh
@@ -254,6 +254,10 @@ All operational scripts live in `scripts/`:
 | `banner.sh` | Display startup banner |
 | `logs.sh` | Tail logs |
 | `generate-iac.sh` | Generate IaC configs |
+| `studio-up.sh` | Start the Studio (v1 / Odysseus) services; brings up the full platform first if the MCP server isn't running |
+| `studio-down.sh` | Stop only the Studio services (or the whole stack with `--all`) |
+| `studio-onboot.sh` | On-boot hook inside the Odysseus container: seeds setup, registers the INTEL.DOM.GOB MCP server by default, then starts the app |
+| `discover-senate-dspace.ts` | One-off probe of the Senado DSpace API; writes `discover-senate-dspace-results.json` |
 
 ---
 
@@ -525,13 +529,13 @@ npm test                     # all workspace tests
 Ports are a dev artifact. Production behaves like `studio.intel.dom.gob`, and development mirrors it exactly via `studio.localhost`. One mental model, zero config drift.
 
 **Where does the AI key go?**
-`GEMINI_API_KEY` in `.env` (never committed). The API also accepts a per-request `apiKey` for multi-tenant use.
+`DEFAULT_AI_API_KEY` in `.env` (never committed) — one key drives any provider selected by `DEFAULT_AI_PROVIDER`. The API also accepts a per-request `apiKey` for multi-tenant use.
 
 **Is the existing SearXNG setup preserved?**
 Yes — `docker/searxng/settings.yml` is the original anonymous JSON API configuration, mounted unchanged.
 
 **Can I use local models?**
-Yes. Set `DEFAULT_AI_PROVIDER=ollama` and `OLLAMA_BASE_URL=http://host.docker.internal:11434` in `.env`. Any OpenAI-compatible endpoint works.
+Yes. Set `DEFAULT_AI_PROVIDER=ollama` and `DEFAULT_BASE_URL=http://host.docker.internal:11434` in `.env`. Any OpenAI-compatible endpoint works.
 
 ---
 
