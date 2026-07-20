@@ -1,0 +1,63 @@
+---
+title: Services
+description: All 25+ core services with single-responsibility design.
+---
+
+Each service has exactly one responsibility and is independently testable.
+
+---
+
+## Core Services
+
+| Service | Purpose |
+|---------|---------|
+| **Orchestrator** | Agent execution, planning, search/AI orchestration, result merging, streaming |
+| **Search** | Web/news retrieval through the Search Provider |
+| **AI** | Model calls via the AI Provider |
+| **Institutions** | 8 pluggable Dominican government sources |
+| **Crawler** | Categorized URL-tree builder |
+| **Auth** | API keys, JWT, organizations, RBAC/ABAC authorization |
+| **Embeddings** | Text embeddings with Gemini semantic model or hash fallback |
+| **RAG** | Retrieval-augmented generation over indexed documents |
+| **Knowledge Graph** | Entity-relationship graph over intelligence results |
+| **Entities** | Rule-based extraction of People, Organizations, Laws, Institutions, Dates, Locations |
+| **Document Intelligence** | Full pipeline: Storage → OCR → Entities → Embeddings → KG |
+| **Workflow** | DAG execution engine with retries, checkpoints, approvals, human-in-the-loop |
+| **Tool Registry** | Declarative, discoverable tools for agents / MCP |
+| **Prompts** | Versioned prompt templates with `{{var}}` rendering |
+| **Evaluation** | Answer faithfulness and quality scoring |
+| **Observability** | In-process metrics + tracing with Prometheus export |
+| **Tenancy** | Multi-tenant resolution and data isolation |
+| **Plugins** | Guarded extension registry with timeout executor |
+| **Storage** | Object storage abstraction (local filesystem, pluggable S3/GCS) |
+| **OCR** | OCR delegation to the configured OcrProvider |
+| **Scheduler** | In-process recurring/deferred job scheduler |
+| **Memory** | Structured codebase/architecture memory for AI agents |
+| **Documents** | Document chunking and boilerplate cleaning |
+| **Presentation** | Shareable presentation artifacts via PresentationProvider |
+| **MCP** | MCP server (pure SDK client of the API) |
+
+---
+
+## Institution Plugins (8)
+
+| Plugin | Source |
+|--------|--------|
+| **Senado** | Senado de la República (DSpace) |
+| **Chamber** | Cámara de Diputados (SIL API) |
+| **Presidency** | Presidencia de la República |
+| **Judiciary** | Tribunal Constitucional |
+| **DGCP** | Dirección General de Contraloría de Gastos Públicos |
+| **Datos** | Datos Abiertos |
+| **Consultoría** | Consultoría Jurídica |
+| **Compras** | Compras Públicas |
+
+---
+
+## Dependency Rules
+
+- Arrows point downward. A lower layer **must never** import from a higher layer.
+- `services/*` must NOT import from `apps/*`.
+- `providers/*` must NOT import from `services/*` or `apps/*`.
+- `packages/*` must NOT import from anything above it.
+- The **only** cross-layer exception: `packages/sdk` is imported by clients.

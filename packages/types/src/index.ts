@@ -13,6 +13,18 @@
 
 export type Confidence = "High" | "Medium" | "Low";
 
+/** Result of fetching a single web page. Returned by /v1/fetch endpoint. */
+export interface FetchedPage {
+  url: string;
+  title: string;
+  /** Cleaned, deduped body text (truncated to maxChars). */
+  text: string;
+  /** Best-effort published/filed date from meta tags or JSON-LD. */
+  publishedDate: string | null;
+  /** True when the host is a Dominican Republic government/official domain. */
+  dominican: boolean;
+}
+
 export interface SourceRef {
   title: string;
   url: string;

@@ -17,6 +17,7 @@
     "@intel.dom.gob/types": "*",
     "@intel.dom.gob/logger": "*",
     "@intel.dom.gob/sdk": "*",
+    "@intel.dom.gob/service-institutions": "*",
     "express": "^4.21.2"
   },
   "devDependencies": {

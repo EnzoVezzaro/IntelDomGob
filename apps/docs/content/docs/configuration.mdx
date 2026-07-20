@@ -1,0 +1,121 @@
+---
+title: Configuration
+description: Complete environment variable reference for INTEL.DOM.GOB.
+---
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and adjust. The same values drive both development and production.
+
+---
+
+## Platform
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DOMAIN` | `localhost` | `localhost` for dev, `intel.dom.gob` for production |
+| `NODE_ENV` | `development` | `development` or `production` |
+| `LOG_FORMAT` | `development` | `development` (pretty) or `production` (JSON) |
+
+## API
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_PORT` | `4000` | API gateway port |
+| `SEARXNG_URL` | `http://searxng:8080` | Internal SearXNG URL |
+| `REQUIRE_API_KEY` | `false` | `true` in production to require API keys |
+
+## AI Providers
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GEMINI_API_KEY` | — | Google Gemini API key (required for default) |
+| `DEFAULT_AI_PROVIDER` | `gemini` | Default AI provider |
+| `LLM_MODEL` | `gemini-3.1-flash-lite` | Model for QueryPlanner and synthesis |
+| `AI_PROVIDERS` | `gemini` | Comma-separated list of enabled AI providers |
+| `OPENAI_API_KEY` | — | OpenAI API key (optional) |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key (optional) |
+| `DEEPSEEK_API_KEY` | — | DeepSeek API key (optional) |
+| `OLLAMA_BASE_URL` | — | Ollama server URL for local models |
+
+## Search Providers
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEFAULT_SEARCH_PROVIDER` | `searxng` | Default search provider |
+| `SEARCH_PROVIDERS` | `searxng` | Comma-separated list of enabled search providers |
+| `BRAVE_API_KEY` | — | Brave Search API key (optional) |
+| `TAVILY_API_KEY` | — | Tavily Search API key (optional) |
+| `EXA_API_KEY` | — | Exa Search API key (optional) |
+
+## Persistence
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgres://intel:intel@postgres:5432/inteldomgob` | PostgreSQL connection string |
+| `REDIS_URL` | `redis://dragonfly:6379` | DragonflyDB (Redis-compatible) for event bus |
+
+## Optional Providers
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `UNLIMITED_OCR_URL` | — | Unlimited-OCR / OpenOCR HTTP endpoint |
+| `HYPERFRAMES_URL` | — | HyperFrames presentation service URL |
+
+## MCP Server
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_PORT` | `4100` | MCP server port |
+| `INTEL_API_TOKEN` | — | API token for MCP → API communication |
+
+## Caddy / HTTPS
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CADDY_ACME_EMAIL` | — | Email for Let's Encrypt certificate renewal |
+
+## Infrastructure
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POSTGRES_USER` | `intel` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | `intel` | PostgreSQL password |
+| `POSTGRES_DB` | `inteldomgob` | PostgreSQL database name |
+
+## CORS
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CORS_ORIGINS` | `https://studio.localhost,...` | Comma-separated allowed origins |
+
+## Studio v1 (Odysseus)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `STUDIO_AUTH_ENABLED` | `true` | Enable Studio authentication |
+| `STUDIO_LOCALHOST_BYPASS` | `false` | Bypass auth for localhost |
+| `STUDIO_SECURE_COOKIES` | `false` | Use secure cookies |
+| `STUDIO_ADMIN_USER` | `admin` | Studio admin username |
+| `STUDIO_ADMIN_PASSWORD` | — | Studio admin password |
+| `STUDIO_MCP_NAME` | `intel-dom-gob` | MCP server name registered in Studio |
+| `STUDIO_MCP_URL` | `http://mcp:4100/mcp` | MCP server URL |
+
+---
+
+## Configuration Precedence
+
+1. Environment variables (highest priority)
+2. `.env` file
+3. Defaults in code
+
+## Production Checklist
+
+- Set `DOMAIN=intel.dom.gob`
+- Set `NODE_ENV=production`
+- Set `REQUIRE_API_KEY=true`
+- Set `CADDY_ACME_EMAIL=your-email@example.com`
+- Set strong `POSTGRES_PASSWORD`
+- Set `STUDIO_ADMIN_PASSWORD`
+- Set `STUDIO_SECURE_COOKIES=true`
+- Set `CORS_ORIGINS=https://studio.intel.dom.gob,...`

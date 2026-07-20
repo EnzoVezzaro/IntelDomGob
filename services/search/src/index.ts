@@ -9,7 +9,7 @@
 
 import type { SearchProvider } from "@intel.dom.gob/providers";
 import { createLogger } from "@intel.dom.gob/logger";
-import { queryTokens, tokenOverlap, decodeRedirect, fetchJson, fetchText, normUrl } from "@intel.dom.gob/utils";
+import { queryTokens, tokenOverlap, decodeRedirect, fetchJson, fetchText, normUrl, fetchWebpage, type FetchedPage } from "@intel.dom.gob/utils";
 
 const log = createLogger("service:search");
 
@@ -31,6 +31,22 @@ export class SearchService {
   /** Run a single web search via the underlying provider. */
   async webSearch(query: string, maxResults = 10, engines?: string) {
     return this.provider.search(query, { maxResults, engines });
+  }
+
+  /**
+   * Fetch a single web page's readable text + metadata. Generic (any http(s)
+   * URL) but the orchestrator prioritizes Dominican .gob.do / .do hosts. This is
+   * the missing "read this URL" capability: keyword search returns links, not
+   * bodies, so a pasted deep link can now actually be answered.
+   */
+  async fetchWebpage(url: string, opts: { timeoutMs?: number; maxChars?: number } = {}): Promise<FetchedPage | null> {
+    if (!/^https?:\/\//i.test(url)) return null;
+    try {
+      return await fetchWebpage(url, opts);
+    } catch (err) {
+      log.warn("fetchWebpage failed", { url, error: String(err) });
+      return null;
+    }
   }
 
   /**

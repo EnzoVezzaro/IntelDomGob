@@ -1,0 +1,106 @@
+---
+title: Workflow
+description: Development workflow, coding standards, and contribution guide.
+---
+
+## Development Workflow
+
+### Repository Structure
+
+The project uses a monorepo with npm workspaces:
+
+```
+intel.dom.gob/
+├── apps/           # Client applications
+├── services/       # Core business logic (25+)
+├── providers/      # External system adapters (12)
+├── packages/       # Shared utilities
+├── workers/        # Async event consumers (5)
+├── tests/          # Integration & e2e tests
+├── scripts/        # Operational scripts
+├── docker/         # Docker configurations
+├── iac/            # Infrastructure as Code
+└── docs/           # Documentation
+```
+
+### Coding Standards
+
+- **TypeScript** throughout, ESM modules
+- `strict` off but `noImplicitAny` respected
+- Prefer explicit types from `packages/types`
+- Service classes named `<Capability>Service`
+- Provider classes implement contracts from `@intel.dom.gob/providers`
+- Every log line uses `createLogger("<layer>:<concern>")`
+
+### Running Services Locally
+
+```bash
+npm install --workspaces
+cd apps/api && npm run dev       # API on :4000
+cd apps/studio/v0 && npm run dev  # Studio on :5173 (Vite)
+```
+
+### Typechecking
+
+```bash
+npm run typecheck --workspaces    # all workspaces
+./scripts/lint.sh                 # or use the script
+```
+
+### Testing
+
+```bash
+npm test                          # all workspace tests
+./scripts/test.sh                 # or use the script
+```
+
+105+ tests across 17 files covering unit, integration, and e2e.
+
+---
+
+## Adding a New Feature
+
+### New API Endpoint
+
+1. Add a route in `apps/api/src/routes.ts` under the `/v1` router
+2. Delegate to the Orchestrator or a Service
+3. **No business logic in the route**
+4. Document in `docs/api.md`
+
+### New Service
+
+1. Create `services/<name>/` with `package.json` and `tsconfig.json`
+2. Implement the service class
+3. Register in the Orchestrator or relevant consumer
+4. Add to `AGENTS.md` folder responsibilities table
+
+### New Provider
+
+1. Create `providers/<name>/` with `package.json`
+2. Implement the provider contract (`SearchProvider`, `AiProvider`, etc.)
+3. Register in `apps/api/src/index.ts`
+4. Add env vars to `.env.example`
+
+### New Institution Plugin
+
+1. Create `services/institutions/src/<id>/`
+2. Implement `InstitutionService`
+3. Register in `services/institutions/src/index.ts`
+4. The UI discovers it automatically via `GET /v1/institutions`
+
+---
+
+## Branching Strategy
+
+- `main` — production-ready
+- `v1` — active development
+- Feature branches off `v1`
+
+---
+
+## Release Process
+
+1. Update `CHANGELOG.md`
+2. Merge to `main`
+3. Tag release
+4. `./scripts/deploy.sh`

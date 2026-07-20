@@ -6,7 +6,7 @@ COPY package.json package-lock.json* ./
 COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/admin ./apps/admin
-RUN npm install --workspaces --include-workspace-root
+RUN npm install --workspaces --include-workspace-root --legacy-peer-deps
 WORKDIR /app/apps/admin
 EXPOSE 4300
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 \

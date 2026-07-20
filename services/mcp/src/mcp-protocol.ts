@@ -99,6 +99,7 @@ async function dispatch(req: JsonRpcRequest, client: any, sendNotification?: (no
           name: t.name,
           description: t.description,
           inputSchema: t.inputSchema ?? { type: "object", properties: {} },
+          ...(t.annotations ? { annotations: t.annotations } : {}),
         })),
       });
 

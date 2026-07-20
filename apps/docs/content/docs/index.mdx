@@ -1,0 +1,98 @@
+---
+title: Overview
+description: INTEL.DOM.GOB — API-first open-source AI platform for Dominican Republic Government Intelligence.
+---
+
+## What is INTEL.DOM.GOB?
+
+INTEL.DOM.GOB is a state-level AI intelligence platform that performs **real-time deep research** on official Dominican Republic government sources. Each query triggers a **multi-agent retrieval and reasoning loop** that searches, reads, contrasts, and synthesizes official information before responding.
+
+The architecture revolves around the **API**. Everything flows through:
+
+```
+Client → API → Orchestrator → Services → Providers → External Systems
+```
+
+No client ever talks directly to services or providers.
+
+---
+
+## Core Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Local-first** | Local open-source components (SearXNG, Gemini, Ollama, DragonflyDB) as defaults |
+| **Open Source First** | MIT license, fully self-hostable |
+| **Vendor Neutral** | Swap any provider without code changes |
+| **Offline Friendly** | Ollama + local SearXNG + hash embeddings work without internet |
+| **Docker First** | Single `docker-compose.yml`, develop exactly like production |
+| **S3 Compatible Storage** | Pluggable `StorageBackend` interface (local default; adapters designed) |
+| **Zero Vendor Lock-in** | Every external system behind a Provider interface |
+
+---
+
+## Quick Start
+
+```bash
+# 1. Clone & configure
+git clone <repo> intel.dom.gob
+cd intel.dom.gob
+cp .env.example .env          # set GEMINI_API_KEY, DOMAIN
+
+# 2. One command brings up the whole platform
+./scripts/up.sh
+```
+
+Then open:
+
+- **Studio** → http://studio.localhost
+- **API** → http://api.localhost/v1/health
+- **API Docs (Swagger)** → http://api.localhost/v1/docs
+- **MCP** → http://mcp.localhost/health
+- **Web** → http://web.localhost
+- **Admin** → http://admin.localhost
+- **Docs** → http://docs.localhost
+
+---
+
+## Architecture Overview
+
+```
+Clients
+─────────────────────────────────────────────
+Studio · Web · CLI · Admin · MCP · SDKs
+
+        │  (HTTPS via reverse proxy / subdomains)
+        ▼
+   API (api.intel.dom.gob)        ← gateway, REST + SSE, versioned /v1
+        │
+        ▼
+   Orchestrator                   ← heart: planning, search, AI, merge
+        │
+        ▼
+   Core Services (25+)
+   ───────────────────────────────
+   Search · AI · Institutions · Crawler · OCR · Memory · RAG ·
+   Knowledge Graph · Entities · Document Intelligence · Workflow ·
+   Embeddings · Storage · Auth · Evaluation · Observability ·
+   Tool Registry · Prompts · Scheduler · Tenancy · Plugins
+        │
+        ▼
+   Providers (12)
+   ───────────────────────────────
+   SearXNG (default search) · Gemini (default AI) · + 10 optional
+        │
+        ▼
+   Infrastructure
+   ───────────────────────────────
+   PostgreSQL · DragonflyDB · Object Storage · Docker · Caddy
+```
+
+---
+
+## What's Next?
+
+- [Quick Start](/docs/quick-start) — Get running in 2 minutes
+- [Architecture](/docs/architecture) — Deep dive into the layered design
+- [API Reference](/docs/api) — All 40+ endpoints documented
+- [Providers](/docs/providers) — 12 swappable provider adapters

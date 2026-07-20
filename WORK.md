@@ -1270,7 +1270,7 @@ apps/
         Platform Administration
 
     docs/
-        Public Documentation Portal
+        Public Documentation Portal (Fumadocs in apps/docs)
 
     website/
         Public Website (marketing/docs only)

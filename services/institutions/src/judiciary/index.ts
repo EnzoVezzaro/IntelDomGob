@@ -1,5 +1,6 @@
 import type { InstitutionService, InstitutionResult, InstitutionDocument } from "../types";
 import { queryTokens, tokenOverlap, requiredOverlap, fetchText, extractLinks } from "../shared";
+import { fetchWebpage } from "@intel.dom.gob/utils";
 
 // Tribunal Constitucional — jurisprudence / decisions + press room.
 
@@ -25,6 +26,35 @@ export const judiciaryApi = {
     const seen = new Set<string>();
     const toks = queryTokens(query);
     const needed = requiredOverlap(toks);
+
+    // Detect if the query contains a TC sentencia URL or ID (e.g., tc057526, TC-05-2026-0024)
+    const urlMatch = query.match(/https?:\/\/www\.tribunalconstitucional\.gob\.do\/[^\s]+/i);
+    const idMatch = query.match(/\b(tc|TC)[-/]?\d{5,}/i) || query.match(/\bTC-\d{2}-\d{4}-\d{4}\b/i);
+
+    // If a specific sentencia URL or ID is in the query, try to fetch that detail page directly
+    if (urlMatch || idMatch) {
+      let detailUrl = urlMatch ? urlMatch[0] : null;
+      if (!detailUrl && idMatch) {
+        // Build the likely URL from the ID pattern
+        const id = idMatch[0].replace(/[^\d]/g, "");
+        if (id.length >= 6) {
+          detailUrl = `${TC_HOST}/consultas/secretar%C3%ADa/sentencias/tc${id.toLowerCase()}`;
+        }
+      }
+      if (detailUrl) {
+        const fetched = await fetchWebpage(detailUrl, { maxChars: 16000 });
+        if (fetched && fetched.text.length > 200) {
+          return [{
+            title: fetched.title,
+            url: fetched.url,
+            snippet: fetched.text.slice(0, 800),
+            engine: "portal-oficial",
+            institution: judiciaryConfig.name,
+          }];
+        }
+      }
+    }
+
     for (const page of SECTIONS) {
       const html = await fetchText(page);
       if (!html) continue;

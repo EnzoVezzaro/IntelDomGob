@@ -1,0 +1,25 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "quick-start",
+    "---Architecture---",
+    "architecture",
+    "providers",
+    "services",
+    "---API Reference---",
+    "api",
+    "---Deployment---",
+    "docker",
+    "configuration",
+    "---Development---",
+    "workflow",
+    "contributing",
+    "---Reports---",
+    "adr",
+    "implementation-tracker",
+    "migration-report",
+    "repo-tree",
+    "engineering-review-report"
+  ]
+}

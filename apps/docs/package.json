@@ -1,0 +1,26 @@
+{
+  "name": "intel-dom-gob-docs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001"
+  },
+  "dependencies": {
+    "fumadocs-core": "^16.11.5",
+    "fumadocs-mdx": "^15.2.0",
+    "fumadocs-ui": "^16.11.5",
+    "next": "^15.5.20",
+    "react": "experimental",
+    "react-dom": "experimental"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/mdx": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -1,0 +1,20 @@
+@import "tailwindcss";
+@import "fumadocs-ui/style.css";
+
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0a0a0a;
+    --color-foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--color-foreground);
+  background: var(--color-background);
+  font-feature-settings: "rlig" 1, "calt" 1;
+}

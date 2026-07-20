@@ -5,7 +5,7 @@ import { createLogger } from "@intel.dom.gob/logger";
 import type { Orchestrator } from "@intel.dom.gob/service-orchestrator";
 import type { SearchService } from "@intel.dom.gob/service-search";
 import type { AuthService } from "@intel.dom.gob/service-auth";
-import { registerAllInstitutions, describeAll } from "@intel.dom.gob/service-institutions";
+import { registerAllInstitutions, describeAll, getInstitution } from "@intel.dom.gob/service-institutions";
 import { tools as mcpTools } from "@intel.dom.gob/service-mcp";
 import { buildCategorizedUrlTree } from "@intel.dom.gob/service-crawler";
 import { parseBearer, AuthError } from "@intel.dom.gob/service-auth";
@@ -143,6 +143,23 @@ export function createRouter(deps: RouterDeps): Router {
       res.json({ institutions: describeAll() });
     } catch (e: any) {
       res.status(500).json({ error: "Failed to load institutions", message: e.message });
+    }
+  });
+
+  // Per-institution search endpoint.
+  router.get("/institutions/:id/search", async (req, res) => {
+    try {
+      registerAllInstitutions();
+      const svc = getInstitution(req.params.id);
+      if (!svc) {
+        res.status(404).json({ error: `Unknown institution: ${req.params.id}` });
+        return;
+      }
+      const q = String(req.query.q ?? req.query.query ?? "");
+      const results = await svc.search(q);
+      res.json({ id: svc.id, name: svc.name, results });
+    } catch (e: any) {
+      res.status(500).json({ error: "Institution search failed", message: e.message });
     }
   });
 
@@ -579,6 +596,36 @@ export function createRouter(deps: RouterDeps): Router {
       res.status(500).json({ error: "Failed to build URL tree", message: e.message });
     } finally {
       urlTreeBuilding = false;
+    }
+  });
+
+  // POST /v1/fetch — fetch a single web page and return its readable text + metadata.
+  // This answers "what does this URL say?" questions that keyword search alone cannot.
+  router.post("/fetch", async (req, res: Response) => {
+    try {
+      await authz(req, "read");
+    } catch (e) {
+      res.status(401).json({ error: "Unauthorized", message: e.message });
+      return;
+    }
+    const { url, timeoutMs, maxChars } = req.body ?? {};
+    if (!url || typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+      res.status(400).json({ error: "Missing or invalid 'url' parameter (must be http/https)" });
+      return;
+    }
+    try {
+      const page = await deps.search.fetchWebpage(url, {
+        timeoutMs: typeof timeoutMs === "number" ? timeoutMs : 15000,
+        maxChars: typeof maxChars === "number" ? maxChars : 16000,
+      });
+      if (!page) {
+        res.status(502).json({ error: "Failed to fetch page", message: "The URL could not be reached or parsed" });
+        return;
+      }
+      res.json(page);
+    } catch (e: any) {
+      log.error("fetch failed", { url, error: e.message });
+      res.status(500).json({ error: "Fetch failed", message: e.message });
     }
   });
 

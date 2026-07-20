@@ -1,0 +1,4 @@
+.next/
+.source/
+out/
+node_modules/

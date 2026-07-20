@@ -11,7 +11,7 @@ COPY providers ./providers
 COPY services ./services
 COPY workers ./workers
 
-RUN npm install --workspaces --include-workspace-root
+RUN npm install --workspaces --include-workspace-root --legacy-peer-deps
 
 ENV NODE_ENV=production
 ENV REDIS_URL=redis://dragonfly:6379

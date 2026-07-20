@@ -90,6 +90,8 @@ if [ "$NO_UP" -eq 0 ]; then
     log "${C_BOLD}▶ Infra already up — tearing down first for a clean restart...${C_RESET}"
     docker compose down --remove-orphans 2>&1 | tail -10
   fi
+  log "${C_BOLD}▶ Building docs image...${C_RESET}"
+  docker compose build docs 2>&1 | tail -5
   log "${C_BOLD}▶ Starting the INTEL.DOM.GOB stack (DOMAIN=$DOMAIN)...${C_RESET}"
   log "${C_DIM}  (uses cached images; rebuild explicitly with: docker compose up -d --build)${C_RESET}"
   docker compose up -d --remove-orphans 2>&1 | tail -20
@@ -261,7 +263,7 @@ printf '    %-28s %-26s %s\n' "http://api.${DOMAIN}/docs" "api :4000"         "S
 printf '    %-28s %-26s %s\n' "http://web.${DOMAIN}"      "web :4200"         "Lightweight no-JS client"
 printf '    %-28s %-26s %s\n' "http://admin.${DOMAIN}"    "admin :4300"       "Operator / admin console"
 printf '    %-28s %-26s %s\n' "http://mcp.${DOMAIN}"      "mcp :4100"         "MCP server (API client)"
-printf '    %-28s %-26s %s\n' "http://docs.${DOMAIN}"     "docs :80"          "Documentation site"
+printf '    %-28s %-26s %s\n' "http://docs.${DOMAIN}"     "docs :3000"        "Documentation site"
 printf '    %-28s %-26s %s\n' "http://searxng.${DOMAIN}"  "searxng :8080"     "SearXNG search provider"
 printf '    %-28s %-26s %s\n' "(internal) postgres"       "postgres :5432"    "PostgreSQL 16 database"
 printf '    %-28s %-26s %s\n' "(internal) dragonfly"      "dragonfly :6379"   "DragonflyDB broker/cache"

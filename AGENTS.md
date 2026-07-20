@@ -61,7 +61,7 @@ Every request flows top-down. **Never skip a layer.**
 | `services/mcp` | MCP server — a pure SDK client of the API. Exposes BOTH a legacy JSON-RPC surface (`POST /`) and the official MCP protocol (`/mcp`, Streamable HTTP + SSE), reusing one tool registry. | sdk, logger |
 | `apps/api` | Express gateway, routes, health, OpenAPI, SSE, rate-limit | services, providers, packages |
 | `apps/studio/v0` | Legacy React SPA client (preserved for rollback) | sdk, types |
-| `apps/studio/v1` | **Active Studio UI** — vendored Odysseus workspace (git submodule, AGPL-3.0). Connects to the platform ONLY via the MCP server. Custom skin lives in its own fork/overlay, never mixed with MIT platform code. | — |
+| `apps/studio/v1` | **Active Studio UI** — IntelDomGob Studio, our AGPL-3.0 fork of the Odysseus workspace (no longer synced from upstream; owned and customized in-tree). Connects to the platform ONLY via the MCP server. Kept separate from the MIT platform code. | — |
 | `apps/web` | Lightweight no-JS web client (SDK only) | sdk, logger |
 | `apps/admin` | Operator/admin console (SDK only) | sdk, logger |
 | `apps/cli` | Command-line client (SDK only) | sdk |
@@ -160,7 +160,7 @@ No other file changes.
 
 1. Add a route in `apps/api/src/routes.ts` under the `/v1` router.
 2. Delegate to the Orchestrator or a Service. **No business logic in the route.**
-3. Document it in `docs/api.md`.
+3. Document it in the docs site (`apps/docs/content/docs/api/`).
 
 ---
 
@@ -214,18 +214,30 @@ No other file changes.
 
 ## Studio (Web Application)
 
-The active Studio UI is **Odysseus** (https://github.com/odysseus-dev/odysseus), vendored
-as a git submodule at `apps/studio/v1` (AGPL-3.0 — kept separate from the MIT platform code).
+The active Studio UI is **IntelDomGob Studio** (`apps/studio/v1`), our own
+**AGPL-3.0 fork of [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus)**
+(a self-hosted AI workspace). It is kept **separate from the MIT platform code**
+and is licensed under AGPL-3.0, matching its upstream.
 
-* Odysseus is an upstream self-hosted workspace, not platform code. It runs as its own
-  docker services (`odysseus`, `studio-chromadb`, `studio-searxng`, `studio-ntfy`) on a
-  dedicated `studio-net` network so it never touches the platform's `searxng` service.
+* **This is now an owned in-tree fork, not an upstream-synced submodule.** We have
+  customized/rebranded it and no longer pull changes from Odysseus. Attribution to
+  Odysseus and the AGPL license are preserved (see `apps/studio/v1/ACKNOWLEDGMENTS.md`
+  and `apps/studio/v1/LICENSE`) to meet our AGPL obligations. Changes are made
+  directly in `apps/studio/v1`.
+* Branding is centralized: set `APP_NAME` in the Studio `.env` (drives the product
+  name via `BRAND_NAME` in `apps/studio/v1/src/constants.py`). Internal identifiers
+  (env vars, HTTP headers, DB collections, data paths) intentionally keep their
+  original names for stability.
+* It runs as its own docker services (`odysseus`, `studio-chromadb`, `studio-searxng`,
+  `studio-ntfy`) on a dedicated `studio-net` network so it never touches the
+  platform's `searxng` service. (The `odysseus` compose service name is kept as an
+  identifier.)
 * The Studio connects to INTEL.DOM.GOB **only via the MCP server** (`mcp:4100/mcp`).
   The INTEL.DOM.GOB MCP server is registered automatically on first boot by the
-  on-boot hook (`scripts/studio-onboot.sh`, mounted into the odysseus container).
+  on-boot hook (`scripts/studio-onboot.sh`, mounted into the Studio container).
 * The previous React SPA is preserved at `apps/studio/v0` (served at `studio/v0.<DOMAIN>`)
   for reference / rollback.
-* Custom "skin" work belongs in the Odysseus submodule fork/overlay — never mixed into the
+* Studio customizations belong directly in `apps/studio/v1` — never mixed into the
   MIT `packages/*` or `services/*` code.
 
 ---

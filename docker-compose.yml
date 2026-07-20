@@ -26,6 +26,7 @@ services:
       - api
       - studio-v0
       - odysseus
+      - docs
     environment:
       CADDY_DOMAIN: "${DOMAIN:-localhost}"
       CADDY_ACME_EMAIL: "${CADDY_ACME_EMAIL:-}"
@@ -91,13 +92,13 @@ services:
   # -------------------------------------------------------------------------
   docs:
     build:
-      context: .
-      dockerfile: docker/docs/Dockerfile
+      context: apps/docs
+      dockerfile: Dockerfile
     restart: unless-stopped
     expose:
-      - "80"
+      - "3000"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -310,13 +311,15 @@ services:
       - intel
 
   # -------------------------------------------------------------------------
-  # Studio v1 — Odysseus workspace (AGPL-3.0, git submodule at apps/studio/v1).
+  # Studio v1 — IntelDomGob Studio (our AGPL-3.0 fork of the Odysseus workspace,
+  # at apps/studio/v1).
   #
-  # IMPORTANT: this is an UPSTREAM open-source project, NOT platform code. It is
-  # kept on its own `studio-net` network and reaches the platform ONLY through
-  # the MCP server (mcp:4100/mcp). It bundles its own searxng/chromadb/ntfy so
-  # it never touches the platform's `searxng` service. The Studio UI is the
-  # product surface; all intelligence stays behind the API + MCP.
+  # IMPORTANT: this is our own fork of an upstream open-source project, NOT platform
+  # code. It is kept on its own `studio-net` network and reaches the platform ONLY
+  # through the MCP server (mcp:4100/mcp). It bundles its own searxng/chromadb/ntfy
+  # so it never touches the platform's `searxng` service. The Studio UI is the
+  # product surface; all intelligence stays behind the API + MCP. The compose
+  # service name `odysseus` is kept as an identifier for stability.
   # -------------------------------------------------------------------------
   odysseus:
     build:

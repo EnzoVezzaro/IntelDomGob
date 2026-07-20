@@ -61,7 +61,7 @@ admin.{$CADDY_DOMAIN:localhost} {
 }
 
 docs.{$CADDY_DOMAIN:localhost} {
-    reverse_proxy docs:80
+    reverse_proxy docs:3000
 }
 
 searxng.{$CADDY_DOMAIN:localhost} {

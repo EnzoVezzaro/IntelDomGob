@@ -1,0 +1,197 @@
+---
+title: Implementation Tracker
+description: Living document tracking implementation status against WORK.md goals.
+---
+
+> Living document. Updated as work progresses. Goal: 100% WORK.md coverage with a fully working platform and meaningful tests.
+
+Legend: ✅ done · 🟡 partial · ❌ missing
+
+## Clients
+
+- ✅ Studio (React SPA, API-only)
+- ✅ MCP server (SDK client, pluggable tools)
+- ✅ Web (no-JS SDK client)
+- ✅ CLI (SDK client: query/chat/institutions)
+- ✅ Admin (SDK client)
+- ❌ Mobile Apps / Browser Extension (future, out of scope)
+
+## Studio responsibilities
+
+- ✅ Chat
+- ✅ AI Agent Interface
+- ✅ Conversations (in-memory)
+- ✅ Prompt Library (templates + localStorage persistence + send-to-console)
+- ✅ Prompt Variables (per-template + global variables, `{{var}}` interpolation)
+- ✅ History (localStorage)
+- ✅ Tool Browser (lists API OpenAPI operations via `/v1/openapi.json`)
+- ✅ MCP Browser (lists MCP server tools via `/v1/mcp/tools`)
+- ✅ Knowledge Graph Browser (lists entities + neighborhood via `/v1/graph`)
+- ✅ Provider Selection (settings)
+- ✅ Authentication (UI): API-key field in Settings, persisted to localStorage, forwarded as bearer token
+- ✅ Streaming Responses (SSE wired: `useStreaming` toggle → `apiClient.queryStream`, live token rendering + planner banner)
+
+## API
+
+- ✅ REST API (/v1)
+- ✅ Streaming (SSE) — POST /v1/query/stream
+- ❌ WebSockets (not implemented)
+- 🟡 Authentication (auth service + optional API-key gate; not default-on)
+- 🟡 Authorization (API-key scopes exist; not enforced)
+- ✅ API Keys (service implemented)
+- ✅ Rate Limiting (express-rate-limit)
+- ✅ OpenAPI Documentation (/v1/openapi.json + /v1/docs Swagger UI)
+- ✅ MCP tool catalog endpoint (/v1/mcp/tools)
+- ✅ Validation (manual per-route)
+- ✅ Versioning (/v1)
+- ✅ Request Routing
+- ✅ No business logic in routes (all delegates to Orchestrator)
+
+## Orchestrator
+
+- ✅ Agent execution / search orchestration / AI orchestration
+- ✅ Planning (DeerFlow-style lightweight planner step)
+- ✅ Prompt execution / result merging / context management
+- ❌ Tool execution framework
+- ❌ Workflow execution engine (DeerFlow-style planner/graph)
+- 🟡 MCP routing (MCP is a separate client; orchestrator doesn't route to it)
+- ✅ Streaming variant (runQueryStream)
+- ✅ Provider selection (QueryRequest.provider resolves from ProviderRegistry)
+
+## Services
+
+- ✅ search, ai, mcp, documents, embeddings, rag, crawler, evaluation, scheduler, storage, auth, ocr, memory, presentation, orchestrator, institutions
+- ✅ Each independently testable (no cross-service impl coupling)
+
+## Providers
+
+- ✅ SearXNG (search, default)
+- ✅ Gemini (ai, default, stream())
+- ✅ OpenAI, Anthropic (ai; registered when keys present)
+- ✅ Brave, Tavily, Exa (search; registered when their API keys are present)
+- ✅ Ollama, DeepSeek (ai; both implement stream())
+- ✅ Unlimited-OCR (ocr provider)
+- ✅ HyperFrames (presentation provider)
+- ✅ ProviderRegistry + add-provider-without-changes rule (6 search + 5 ai providers wired)
+
+## MCP
+
+- ✅ SDK client; ✅ pluggable tools; adding a tool doesn't touch core infra
+
+## Database
+
+- ✅ Abstraction + 12-table idempotent migration (users, organizations, api_keys, providers, conversations, prompts, agents, workflows, usage, billing, mcp_servers, tool_registry)
+
+## Authentication
+
+- ✅ JWT (verify), API Keys (hashed), Organizations, (permissions via scopes)
+- ❌ OAuth, Teams
+
+## OpenAPI
+
+- ✅ auto-generated, versioned, every /v1 endpoint documented
+
+## Streaming
+
+- ✅ SSE; ✅ streaming AI responses (token events); ✅ streaming search progress (plan/search events)
+- ❌ WebSockets; ❌ streaming tool execution (no tool framework yet)
+
+## Testing
+
+- ✅ Unit tests (orchestrator assembly, provider contract, AI service, embeddings, events, auth RBAC/ABAC) — vitest, passing
+- ✅ Integration tests (api↔orchestrator↔providers with DI mocks via supertest) — passing
+- ✅ End-to-End tests (real SDK client drives API with mocked orchestrator) — passing
+- ✅ Knowledge Graph service tests — passing
+- ✅ OpenAI-compatible API tests (chat/completions, models, embeddings) — passing
+- ✅ Event bus + worker pipeline tests — passing
+- Total: 49+ passing tests across 9+ files
+
+## Authentication & Authorization
+
+- ✅ JWT (verify), API Keys (hashed), Organizations, permissions via scopes
+- ✅ RBAC: scope enforcement on API endpoints (query/chat/read) via AuthService.authorize
+- ✅ ABAC: attribute constraints (e.g. clearance, department) deny-by-default
+- ❌ OAuth, Teams
+
+## OpenAI-compatible API
+
+- ✅ POST /v1/chat/completions (sync + SSE streaming)
+- ✅ GET /v1/models
+- ✅ POST /v1/embeddings
+- ✅ extensions: MCP tools, government sources, RAG, knowledge graph hooks
+
+## Event Bus & Workers
+
+- ✅ packages/events: EventBus over DragonflyDB (Redis-compatible) Streams + in-memory fallback
+- ✅ Canonical events: document.uploaded, ocr.started/completed, embedding.started/completed, entity.extracted, document.intelligence.completed, workflow.*, crawl.completed
+- ✅ workers/: ocr-worker, embedding-worker, document-worker, crawler-worker, ai-worker (compose services + Dockerfile)
+- ✅ DragonflyDB replaces Redis as the broker (faster, memory-efficient, same protocol)
+- ✅ Real embeddings: Gemini text-embedding-004 when key present, hash fallback otherwise
+
+## Core hardening (Phase 0)
+
+- ✅ Removed direct provider instantiation in API routes and orchestrator streaming
+- ✅ Real embeddings wired into RagService + /v1/embeddings endpoint
+- ✅ RBAC/ABAC enforced at the API gateway level
+- ✅ Full unit/integration test coverage for AI, embeddings, events, auth, OpenAI-compat
+
+## Documentation
+
+- ✅ README, AGENTS, CONTRIBUTING, CHANGELOG, docs/ (architecture, api, adr, implementation-tracker, migration-report, repo-tree)
+- ✅ README covers Vision/Architecture/Layout/Quick Start/Docker/Scripts/Development/Providers/Services/API/MCP/Studio/Deployment/Roadmap/FAQ/Contributing/License
+
+## Scripts
+
+- ✅ setup, start, stop, restart, logs, doctor, backup, restore, lint, format, test, clean, update, deploy, init (logo preserved)
+
+## Shared packages
+
+- ✅ types, logger, config, utils, sdk, database
+- ✅ ui (@intel.dom.gob/ui): shared brutalist Panel + Button primitives, used by Studio modules
+
+## Config / Logging / Docker
+
+- ✅ .env.example; ✅ validated at startup; ✅ no secrets committed
+- ✅ structured logging (timestamp, service, level, requestId, message) + JSON in prod
+- ✅ single docker-compose.yml; ✅ Caddy subdomains + HTTPS; ✅ healthchecks; ✅ internal DNS; ✅ /health /ready /live on api
+
+## External integrations
+
+- ✅ Unlimited-OCR (ocr service + provider)
+- 🟡 HyperFrames (presentation service + provider; needs external service to run)
+- 🟡 DeerFlow ideas (orchestrator streaming exists; no full planner graph)
+- 🟡 codebase-memory-mcp (memory service exists; not seeded/connected)
+
+## Recommended architecture additions
+
+- ✅ Knowledge Graph Service (`services/knowledge-graph`)
+- ✅ Entities Service (`services/entities`)
+- ✅ Document Intelligence Service (`services/document-intelligence`)
+- ✅ API: POST /v1/documents/process, POST /v1/entities/extract (scope-gated)
+
+## Deliverables
+
+- ✅ 1 Repository tree
+- ✅ 2 Architecture diagram
+- ✅ 3 Migration report
+- ✅ 4 Architectural decisions
+- ✅ 5 Future extension points
+- ✅ 6 Remaining technical debt
+- ✅ 7 Production recommendations
+
+## Operating-system hardening (post-architect-review)
+
+- ✅ Phase 0: removed direct provider instantiation
+- ✅ Phase 1: Event Bus + 5 workers wired in docker-compose
+- ✅ Phase 2: Entities + Document Intelligence services + API endpoints
+- ✅ Phase 3: Workflow Engine (DAG, retries, checkpoints, approval/HITL)
+- ✅ Phase 4: Tool Registry + Prompt Service
+- ✅ Phase 5: Evaluation Service (faithfulness + quality)
+- ✅ Phase 6: Observability Service (Prometheus export)
+- ✅ Phase 7: Multi-tenancy (TenantResolver + RBAC/ABAC expansion)
+- ✅ Phase 8: Plugins (registry + guarded executor)
+
+### Final acceptance
+
+- ✅ All workspace packages/services/apps covered by tests; full suite passing (105+ tests, 17+ files).
+- ✅ Workspace-wide tsc --noEmit clean.

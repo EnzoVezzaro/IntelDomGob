@@ -25,7 +25,7 @@ All notable changes to INTEL.DOM.GOB are documented here. The format is based on
 - Single `docker-compose.yml` (api, studio, searxng, postgres, dragonfly, caddy).
 - Caddy reverse proxy with subdomain routing + automatic HTTPS.
 - Full `scripts/` suite: init, start, stop, restart, logs, doctor, backup, restore, lint, format, test, clean, update, deploy.
-- Docs: README, AGENTS, CONTRIBUTING, CHANGELOG, docs/.
+- Docs: README, AGENTS, CONTRIBUTING, CHANGELOG, apps/docs/ (Fumadocs documentation site).
 
 ### Changed
 - Split the original monolithic `ChatGobDO` (Express + React in one process) into the

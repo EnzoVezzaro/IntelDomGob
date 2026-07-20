@@ -1,0 +1,75 @@
+---
+title: Contributing
+description: How to contribute to INTEL.DOM.GOB.
+---
+
+## Contributing to INTEL.DOM.GOB
+
+We welcome contributions! This guide explains how to get started.
+
+---
+
+## Prerequisites
+
+- Node.js 20+
+- Docker and Docker Compose v2+
+- Git
+
+## Getting Started
+
+1. Fork the repository
+2. Clone your fork
+3. Create a feature branch
+4. Make your changes
+5. Run tests and typechecks
+6. Submit a pull request
+
+## Development Setup
+
+```bash
+git clone <your-fork> intel.dom.gob
+cd intel.dom.gob
+cp .env.example .env
+npm install --workspaces
+```
+
+## Making Changes
+
+### Code Style
+
+- TypeScript throughout
+- ESM modules
+- Follow existing patterns in the codebase
+- No business logic in API routes
+- Single responsibility per service
+
+### Testing
+
+```bash
+npm test                    # run all tests
+npm run typecheck           # typecheck all workspaces
+npm run lint                # lint all workspaces
+```
+
+### Commit Messages
+
+Use conventional commits:
+- `feat: add new provider`
+- `fix: handle edge case in query`
+- `docs: update API reference`
+- `refactor: simplify orchestrator logic`
+
+---
+
+## Pull Request Process
+
+1. Ensure all tests pass
+2. Update documentation if needed
+3. Add entries to `CHANGELOG.md`
+4. Request review from maintainers
+
+---
+
+## Code of Conduct
+
+Be respectful, inclusive, and constructive. We're building together.

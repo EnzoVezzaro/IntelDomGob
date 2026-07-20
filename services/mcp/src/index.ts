@@ -12,6 +12,7 @@
 import express from "express";
 import { createLogger } from "@intel.dom.gob/logger";
 import { IntelDomGobClient, createClient } from "@intel.dom.gob/sdk";
+import { getAllInstitutions, registerAllInstitutions } from "@intel.dom.gob/service-institutions";
 import { mountMcpProtocol } from "./mcp-protocol";
 
 const log = createLogger("service:mcp");
@@ -109,6 +110,46 @@ registerTool({
   annotations: { title: "Listar Instituciones", readOnlyHint: true },
   async run(_args, client) {
     return client.listInstitutions();
+  },
+});
+
+// Auto-register one search tool per institution.
+registerAllInstitutions();
+for (const inst of getAllInstitutions()) {
+  registerTool({
+    name: `institution_search_${inst.id}`,
+    description: `${inst.name} — ${inst.description ?? "búsqueda institucional"}. Search this institution's official portal/jurisprudence/news for a keyword or document.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: `Search query for ${inst.name} (keyword, sentencia number, etc.)` },
+      },
+      required: ["query"],
+    },
+    annotations: { title: `Buscar en ${inst.name}`, readOnlyHint: true },
+    async run(args, client, notify) {
+      if (notify) notify("info", `Searching ${inst.name} for: ${args.query}`);
+      return client.searchInstitution(inst.id, args.query);
+    },
+  });
+}
+
+registerTool({
+  name: "fetch_url",
+  description: "Fetch a single web page and return its readable text + metadata (title, cleaned body, published date). Use this when the user asks 'what does this URL say?' or provides a direct link to a government page, news article, or PDF. This is NOT a search tool — it fetches the exact URL given.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      url: { type: "string", description: "The exact http(s) URL to fetch (e.g. https://www.tribunalconstitucional.gob.do/...)" },
+      timeoutMs: { type: "number", description: "Optional fetch timeout in ms (default 15000)" },
+      maxChars: { type: "number", description: "Optional max characters of body text to return (default 16000)" },
+    },
+    required: ["url"],
+  },
+  annotations: { title: "Leer Página Web", readOnlyHint: true },
+  async run(args, client, notify) {
+    if (notify) notify("info", `Fetching: ${args.url}`);
+    return client.fetchUrl(args.url, { timeoutMs: args.timeoutMs, maxChars: args.maxChars });
   },
 });
 
@@ -594,7 +635,7 @@ export class McpServer {
         return res.json({
           jsonrpc: "2.0",
           id,
-          result: { tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) },
+          result: { tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, ...(t.annotations ? { annotations: t.annotations } : {}) })) },
         });
       }
       if (method === "tools/call") {

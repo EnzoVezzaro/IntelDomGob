@@ -12,7 +12,7 @@ COPY providers ./providers
 COPY services ./services
 COPY apps/api ./apps/api
 
-RUN npm install --workspaces --include-workspace-root
+RUN npm install --workspaces --include-workspace-root --legacy-peer-deps
 
 ENV NODE_ENV=production
 ENV API_PORT=4000

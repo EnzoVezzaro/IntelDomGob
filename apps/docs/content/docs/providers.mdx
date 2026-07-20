@@ -1,0 +1,70 @@
+---
+title: Providers
+description: All 12 swappable provider adapters for search, AI, OCR, and presentation.
+---
+
+Providers are the **only** code that touches external systems. Adding a new provider requires only creating a new implementation — nothing else changes.
+
+---
+
+## Search Providers
+
+| Provider | Default | Env Var | Description |
+|----------|---------|---------|-------------|
+| **SearXNG** | ✅ | — | Self-hosted metasearch engine (always on) |
+| **Brave** | optional | `BRAVE_API_KEY` | Brave Search API |
+| **Tavily** | optional | `TAVILY_API_KEY` | Tavily Search API |
+| **Exa** | optional | `EXA_API_KEY` | Exa neural search |
+
+## AI Providers
+
+| Provider | Default | Env Var | Description |
+|----------|---------|---------|-------------|
+| **Gemini** | ✅ | `GEMINI_API_KEY` | Google Gemini (with `stream()`) |
+| **OpenAI** | optional | `OPENAI_API_KEY` | OpenAI GPT models |
+| **Anthropic** | optional | `ANTHROPIC_API_KEY` | Anthropic Claude models |
+| **DeepSeek** | optional | `DEEPSEEK_API_KEY` | DeepSeek models |
+| **Ollama** | optional | `OLLAMA_BASE_URL` | Local models via Ollama |
+
+## OCR Providers
+
+| Provider | Default | Env Var | Description |
+|----------|---------|---------|-------------|
+| **Unlimited-OCR** | optional | `UNLIMITED_OCR_URL` | OpenOCR HTTP endpoint |
+
+## Presentation Providers
+
+| Provider | Default | Env Var | Description |
+|----------|---------|---------|-------------|
+| **HyperFrames** | optional | `HYPERFRAMES_URL` | Presentation generation |
+
+---
+
+## How to Add a Provider
+
+### Search Provider
+
+1. Create `providers/brave/` with `package.json` depending on `@intel.dom.gob/providers`
+2. Implement `SearchProvider.search()`
+3. Register in `apps/api/src/index.ts`
+4. Add `"brave"` to `SEARCH_PROVIDERS` in `.env`
+
+### AI Provider
+
+1. Create `providers/openai/` with `package.json`
+2. Implement `AiProvider.generate()` (and `stream()` optionally)
+3. Register in `apps/api/src/index.ts`
+4. Add `"openai"` to `AI_PROVIDERS` / set `DEFAULT_AI_PROVIDER`
+
+### Provider Interface
+
+```ts
+export class XProvider implements SearchProvider | AiProvider | OcrProvider | PresentationProvider {
+  id: string;
+  kind: "search" | "ai" | "ocr" | "presentation";
+  label: string;
+  enabled = true;
+  
+  // implement search() / generate() / extractText() / render()
+}
+```

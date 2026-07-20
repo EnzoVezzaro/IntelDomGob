@@ -11,7 +11,7 @@
 
 import type { IntelligenceResult, QueryRequest, LawRef, BulletinRef, InstitutionResult, PlannerResult } from "@intel.dom.gob/types";
 import { createLogger } from "@intel.dom.gob/logger";
-import { queryTokens, dedupeByKey, normUrl } from "@intel.dom.gob/utils";
+import { queryTokens, dedupeByKey, normUrl, fetchWebpage, firstUrlInText } from "@intel.dom.gob/utils";
 import type { AiService } from "@intel.dom.gob/service-ai";
 import type { SearchService } from "@intel.dom.gob/service-search";
 import {
@@ -700,7 +700,7 @@ REGLAS DE REDACCIÓN:
       perInstitution[s.id] = dedupeByKey((perInstitutionResults[s.id] || []).map((r) => tagResult(r, hostToPortal)), (r) => normUrl(r.url));
     }
 
-    const bundle: RetrievalBundle = {
+const bundle: RetrievalBundle = {
       query: req.query,
       congressResults: congressMerged,
       otherOfficialResults,
@@ -720,11 +720,23 @@ REGLAS DE REDACCIÓN:
       searchQueries,
     };
 
+    // URL fetch integration: if the query contains a URL, fetch it and include
+    // its content as a high-priority "FUENTE DIRECTA" block in the prompt.
+    let directSourceBlock = "";
+    const url = firstUrlInText(req.query);
+    if (url) {
+      const fetched = await this.search.fetchWebpage(url, { maxChars: 12000 }).catch(() => null);
+      if (fetched) {
+        const dominicanBadge = fetched.dominican ? " 🇩🇴" : "";
+        directSourceBlock = `\n=== FUENTE DIRECTA (URL provista por el usuario${dominicanBadge}) ===\nTítulo: ${fetched.title}\nURL: ${fetched.url}${fetched.publishedDate ? `\nFecha de publicación: ${fetched.publishedDate}` : ""}\n\n${fetched.text}\n`;
+      }
+    }
+
     const institutionContext = req.institutions && Array.isArray(req.institutions) && req.institutions.length > 0
       ? `Focus search strictly on these institutions: ${req.institutions.join(", ")}. `
       : `Dynamically decide which Dominican Republic government institutions are relevant. `;
 
-    const groundedUserPrompt = `${buildUserPrompt(req.query, institutionContext)}
+    const groundedUserPrompt = `${buildUserPrompt(req.query, institutionContext)}${directSourceBlock}
 
 === FLUJO A: ACTIVIDAD DEL CONGRESO NACIONAL (FUENTES OFICIALES) ===
 ${congressMerged.length ? congressMerged.map((r, i) => `[C-${i + 1}] (${r.institution || classifyInstitution(r.url)} - ${r.engine || "portal-oficial"}) ${r.title}\nURL: ${r.url}\n${r.snippet || ""}`).join("\n\n") : "No se recuperaron fuentes oficiales del Congreso/Nacional."}

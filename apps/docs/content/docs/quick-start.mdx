@@ -1,0 +1,80 @@
+---
+title: Quick Start
+description: Get INTEL.DOM.GOB running in 2 minutes with Docker.
+---
+
+## Prerequisites
+
+- Docker and Docker Compose v2+
+- Node.js 20+ (for local development without Docker)
+- A Gemini API key (or any supported AI provider key)
+
+## 1. Clone and Configure
+
+```bash
+git clone <repo-url> intel.dom.gob
+cd intel.dom.gob
+cp .env.example .env
+```
+
+Edit `.env` and set at minimum:
+
+```bash
+GEMINI_API_KEY=your-api-key-here
+DOMAIN=localhost
+```
+
+## 2. Start the Platform
+
+```bash
+./scripts/up.sh
+```
+
+This single command:
+- Builds all Docker images
+- Starts all services (API, Studio, MCP, Web, Admin, Docs, SearXNG, PostgreSQL, DragonflyDB, Caddy, 5 workers)
+- Runs health checks
+- Prints service status
+
+## 3. Access the Platform
+
+| Service | URL |
+|---------|-----|
+| Studio | http://studio.localhost |
+| API | http://api.localhost/v1/health |
+| Swagger UI | http://api.localhost/v1/docs |
+| MCP Server | http://mcp.localhost/health |
+| Web Client | http://web.localhost |
+| Admin Console | http://admin.localhost |
+| Documentation | http://docs.localhost |
+
+## 4. Verify Health
+
+```bash
+curl http://api.localhost/v1/health
+```
+
+Expected response:
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-...",
+  "service": "api",
+  "version": "v1"
+}
+```
+
+## Local Development (without Docker)
+
+```bash
+npm install --workspaces
+cd apps/api && npm run dev       # API on :4000
+```
+
+---
+
+## Next Steps
+
+- [Architecture](/docs/architecture) — Understand the layered design
+- [API Reference](/docs/api) — Explore all endpoints
+- [Configuration](/docs/configuration) — Full environment variable reference

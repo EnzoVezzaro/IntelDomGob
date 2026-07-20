@@ -146,7 +146,6 @@ intel.dom.gob/
 │   └── helm/             # Kubernetes Helm chart
 ├── scripts/              # start / stop / doctor / deploy / …
 ├── tests/                # 105+ tests across 17 files
-├── docs/
 ├── docker-compose.yml
 ├── .env.example
 ├── README.md

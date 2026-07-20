@@ -7,7 +7,8 @@ COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY providers ./providers
 COPY services/mcp ./services/mcp
-RUN npm install --workspaces --include-workspace-root
+COPY services/institutions ./services/institutions
+RUN npm install --workspaces --include-workspace-root --legacy-peer-deps
 WORKDIR /app/services/mcp
 EXPOSE 4100
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 \

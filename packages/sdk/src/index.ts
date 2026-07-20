@@ -13,6 +13,7 @@ import type {
   ChatRequest,
   InstitutionDescriptor,
   HealthStatus,
+  FetchedPage,
 } from "./types";
 
 export interface SdkOptions {
@@ -75,6 +76,12 @@ export class IntelDomGobClient {
       return [];
     }
     return data.institutions;
+  }
+
+  /** Search a specific institution by ID. */
+  async searchInstitution(id: string, query: string): Promise<{ id: string; name: string; results: any[] }> {
+    const res = await this.fetchImpl(this.url(`/institutions/${id}/search?q=${encodeURIComponent(query)}`), { headers: this.headers() });
+    return this.requireOk(res);
   }
 
   /** Categorized URL tree for the source selector. */
@@ -157,10 +164,33 @@ export class IntelDomGobClient {
     }
   }
 
-  /** Fetch the auto-generated OpenAPI document. */
+/** Fetch the auto-generated OpenAPI document. */
   async openApi(): Promise<Record<string, unknown>> {
     const res = await this.fetchImpl(this.url("/openapi.json"), { headers: this.headers() });
     return this.requireOk(res);
+  }
+
+  /**
+   * Fetch a single web page and return its readable text + metadata.
+   * POST /v1/fetch
+   */
+  async fetchUrl(url: string, opts: { timeoutMs?: number; maxChars?: number } = {}): Promise<{
+    url: string;
+    title: string;
+    text: string;
+    publishedDate: string | null;
+    dominican: boolean;
+  } | null> {
+    const res = await this.fetchImpl(this.url("/fetch"), {
+      method: "POST",
+      headers: this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ url, timeoutMs: opts.timeoutMs, maxChars: opts.maxChars }),
+    });
+    if (!res.ok) {
+      if (res.status === 404 || res.status === 502) return null;
+      throw new Error(`fetchUrl failed with ${res.status}`);
+    }
+    return (await res.json()) as any;
   }
 
   /** List the tools exposed by the INTEL.DOM.GOB MCP server. */

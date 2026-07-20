@@ -16,7 +16,7 @@ COPY apps ./apps
 # Work around an npm optional-dependency bug (npm/cli#4828) that can leave the
 # rollup native binary uninstalled on alpine, breaking `vite build`. Removing
 # the lockfile forces a fresh resolution of optional platform binaries.
-RUN rm -f package-lock.json && npm install --workspaces --include-workspace-root
+RUN rm -f package-lock.json && npm install --workspaces --include-workspace-root --legacy-peer-deps
 # Build this workspace from the monorepo root (the app now lives at
 # apps/studio/v0 after the legacy SPA was moved there).
 RUN npm run build -w @intel.dom.gob/app-studio

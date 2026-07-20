@@ -1,0 +1,102 @@
+---
+title: API Reference
+description: Complete REST API reference for INTEL.DOM.GOB with 40+ endpoints.
+---
+
+Base URL: `https://api.intel.dom.gob` (or `http://api.localhost`). All routes are versioned under `/v1`.
+
+Every endpoint delegates to the Orchestrator or a Service. The API gateway contains **no business logic**.
+
+---
+
+## Core Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/health` | Service health |
+| GET | `/v1/institutions` | Dynamic institution registry |
+| GET | `/v1/url-tree` | Categorized URL tree |
+| POST | `/v1/query` | Multi-agent intelligence query |
+| POST | `/v1/query/stream` | Streaming query (SSE) |
+| POST | `/v1/chat` | Context-grounded follow-up chat |
+
+## OpenAI-Compatible Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/v1/chat/completions` | OpenAI-compatible chat |
+| GET | `/v1/models` | List available models |
+| POST | `/v1/embeddings` | Generate text embeddings |
+
+## Intelligence Services
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/v1/documents/process` | Full document intelligence pipeline |
+| POST | `/v1/entities/extract` | Extract entities from text |
+| POST | `/v1/graph/ingest` | Ingest into Knowledge Graph |
+| GET | `/v1/graph` | Query Knowledge Graph |
+
+## Workflow Engine
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/v1/workflows` | Define and execute a DAG workflow |
+| GET | `/v1/workflows/:id` | Get workflow state |
+| POST | `/v1/workflows/:id/approve` | Approve a paused step |
+| POST | `/v1/workflows/:id/deny` | Deny a paused step |
+
+## Tools, Prompts, Evaluation, Plugins
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/tools` | List registered tools |
+| POST | `/v1/tools/:id/execute` | Execute a tool |
+| GET | `/v1/prompts` | List prompt templates |
+| POST | `/v1/prompts` | Create/update prompt |
+| POST | `/v1/prompts/:key/render` | Render prompt with variables |
+| POST | `/v1/evaluate/faithfulness` | Evaluate answer faithfulness |
+| POST | `/v1/evaluate/quality` | Evaluate answer quality |
+| GET | `/v1/plugins` | List plugins |
+| POST | `/v1/plugins/:id/run` | Run a plugin |
+
+## System
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/tenant` | Current tenant info |
+| GET | `/v1/metrics` | Prometheus metrics |
+| GET | `/v1/mcp/tools` | MCP server tool catalog |
+| GET | `/v1/docs` | Swagger UI |
+| GET | `/v1/openapi.json` | OpenAPI specification |
+
+---
+
+## Authentication
+
+By default (`REQUIRE_API_KEY=false` in development), all endpoints are open. When `REQUIRE_API_KEY=true` (production default), every `/v1` request requires a valid API key via:
+
+- `Authorization: Bearer <api-key>` header, or
+- `apiKey` field in the request body
+
+API keys carry scopes (`read`, `query`, `chat`, `admin`, `execute`) enforced via RBAC.
+
+---
+
+## Errors
+
+All errors return:
+```json
+{ "error": "<code>", "message": "<human-readable>" }
+```
+
+OpenAI-compatible endpoints return:
+```json
+{ "error": { "message": "...", "type": "invalid_request_error" } }
+```
+
+---
+
+## Rate Limiting
+
+120 requests per minute per IP (configurable via `express-rate-limit`).

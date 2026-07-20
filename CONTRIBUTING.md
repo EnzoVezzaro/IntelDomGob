@@ -24,7 +24,7 @@ cp .env.example .env
 2. Make changes following the layered architecture in `AGENTS.md`.
 3. `./scripts/lint.sh` must pass (typecheck across all workspaces).
 4. Add/adjust tests under the relevant `services/*` or `packages/*`.
-5. Update docs (`README.md`, `docs/`) for API/provider/service changes.
+5. Update docs (`README.md`, `apps/docs/content/docs/`) for API/provider/service changes.
 6. Open a PR with a clear description and the rationale.
 
 ## Adding capabilities
