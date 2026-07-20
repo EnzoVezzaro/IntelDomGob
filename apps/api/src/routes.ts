@@ -197,7 +197,7 @@ export function createRouter(deps: RouterDeps): Router {
   router.use((req: Request, res: Response, next: NextFunction) => {
     if (req.method === "GET" && isPublicRead(req.path)) {
       authz(req, "read").then(() => next()).catch((e: AuthError) => {
-        res.status(401).json({ error: "Unauthorized", message: e.message });
+        res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: e.message });
       });
     } else {
       next();
@@ -650,7 +650,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "execute", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     try {
@@ -706,7 +706,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "read");
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: e.message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: e.message });
       return;
     }
     const { url, timeoutMs, maxChars } = req.body ?? {};
@@ -736,7 +736,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "query");
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: e.message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: e.message });
       return;
     }
     if (!body?.query || typeof body.query !== "string") {
@@ -766,7 +766,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "chat");
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: e.message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: e.message });
       return;
     }
     if (!body?.message || typeof body.message !== "string") {
@@ -837,7 +837,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "chat");
     } catch (e) {
-      res.status(401).json({ error: { message: e.message, type: "invalid_request_error" } });
+      res.status((e as any).status ?? 401).json({ error: { message: e.message, type: "invalid_request_error" } });
       return;
     }
     const { model, messages, stream } = req.body ?? {};
@@ -899,7 +899,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "read");
     } catch (e) {
-      res.status(401).json({ error: { message: e.message, type: "invalid_request_error" } });
+      res.status((e as any).status ?? 401).json({ error: { message: e.message, type: "invalid_request_error" } });
       return;
     }
     const { input } = req.body ?? {};
@@ -926,7 +926,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "query");
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     const { documentId, storageKey, format } = req.body ?? {};
@@ -953,7 +953,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "read");
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     const { text } = req.body ?? {};
@@ -981,7 +981,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "query", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     if (!deps.workflowEngine) {
@@ -1031,7 +1031,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "query", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     const { stepId } = req.body ?? {};
@@ -1047,7 +1047,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "query", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     const { stepId } = req.body ?? {};
@@ -1075,7 +1075,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "query", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     if (!deps.toolRegistry) {
@@ -1118,7 +1118,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "admin", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     const { key, template, description, note } = req.body ?? {};
@@ -1134,7 +1134,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "read");
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     try {
@@ -1153,7 +1153,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "read", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     if (!deps.evaluation) {
@@ -1172,7 +1172,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "read", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     if (!deps.evaluation) {
@@ -1201,7 +1201,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(req, "execute", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     if (!deps.plugins) {
@@ -1223,7 +1223,7 @@ export function createRouter(deps: RouterDeps): Router {
     try {
       await authz(_req, "read", false);
     } catch (e) {
-      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
     }
     const tenant = (_req as any).tenant;

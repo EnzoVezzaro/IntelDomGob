@@ -1,42 +1,58 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { hasToken } from "./lib/admin";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "./auth/AuthContext";
+import { AppShell } from "./components/layout/AppShell";
 import { Login } from "./pages/Login";
-import { Shell } from "./layouts/Shell";
 import { Dashboard } from "./pages/Dashboard";
 import { ApiKeys } from "./pages/ApiKeys";
-import { Products } from "./pages/Products";
-import { Logs } from "./pages/Logs";
-import { Metrics } from "./pages/Metrics";
 import { Users } from "./pages/Users";
 import { Organizations } from "./pages/Organizations";
 import { Tenants } from "./pages/Tenants";
-import { Nodes } from "./pages/Nodes";
+import { Products } from "./pages/Products";
+import { LiveLogs } from "./pages/observability/Logs";
+import { Metrics } from "./pages/observability/Metrics";
+import { Infrastructure } from "./pages/observability/Infrastructure";
 
-export function App() {
-  const authed = hasToken();
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { authed, checking } = useAuth();
   const loc = useLocation();
-  if (!authed) {
+  if (checking) {
     return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace state={{ from: loc.pathname }} />} />
-      </Routes>
+      <div className="flex h-screen items-center justify-center text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
     );
   }
+  if (!authed) return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
+  return <>{children}</>;
+}
+
+export function App() {
   return (
-    <Shell>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/apikeys" element={<ApiKeys />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/logs" element={<Logs />} />
-        <Route path="/metrics" element={<Metrics />} />
-        <Route path="/users" element={<Users />} />
-        <Route path="/organizations" element={<Organizations />} />
-        <Route path="/tenants" element={<Tenants />} />
-        <Route path="/nodes" element={<Nodes />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Shell>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/*"
+        element={
+          <RequireAuth>
+            <AppShell>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/apikeys" element={<ApiKeys />} />
+                <Route path="/users" element={<Users />} />
+                <Route path="/organizations" element={<Organizations />} />
+                <Route path="/tenants" element={<Tenants />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/observability" element={<Navigate to="/observability/logs" replace />} />
+                <Route path="/observability/logs" element={<LiveLogs />} />
+                <Route path="/observability/metrics" element={<Metrics />} />
+                <Route path="/observability/infrastructure" element={<Infrastructure />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </AppShell>
+          </RequireAuth>
+        }
+      />
+    </Routes>
   );
 }

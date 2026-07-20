@@ -7,7 +7,7 @@ description: Key architectural decisions that shaped the INTEL.DOM.GOB platform.
 
 **Decision:** Every request flows `Client → API → Orchestrator → Services → Providers → External`. No client talks to services/providers; the API delegates all logic to the Orchestrator.
 
-**Rationale:** Matches the "API is the product" vision; maximizes extensibility and testability; lets any future client (mobile, CLI, third-party) integrate without touching core logic.
+**Rationale:** Maximiza extensibilidad y testabilidad; permite que cualquier cliente futuro (móvil, CLI, terceros) se integre sin tocar la lógica central.
 
 **Consequence:** The API gateway is thin; business logic lives in the Orchestrator.
 

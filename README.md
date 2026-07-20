@@ -2,7 +2,7 @@
 
 **Plataforma de Inteligencia Gubernamental del Estado Dominicano** — API-first, multi-agente, basada en evidencia oficial.
 
-> El API es el producto. Todo lo demás es simplemente otro cliente.
+> Inteligencia del Estado Dominicano, basada en evidencia oficial — API-first, multi-agente y de código abierto.
 
 ---
 
@@ -594,6 +594,6 @@ Free-but-full-strength access is granted on identity, not payment: `.gob.do` / a
 
 - **Raw public data was never ours to sell.** Charging for it would work against the Estado's own transparency mandate.
 - **Synthesis has a real, variable cost** (LLM inference, search API calls, OCR compute) and scales with usage — this is what has to be sustainable for the platform to keep running and improving.
-- **One gateway, one policy.** Because every client (Studio, Web, CLI, Admin, MCP, SDKs) routes through the same API, this pricing applies identically everywhere — no client gets a cheaper or more privileged path to the Orchestrator.
+  - **Un mismo trato para todos.** Los planes y límites se aplican de la misma forma en cada producto (web, Studio, API, CLI, MCP).
 
 Full plan details and the Investigador application form: `https://intel.dom.gob/pricing`.

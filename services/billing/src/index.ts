@@ -112,25 +112,25 @@ export class BillingService {
    * request. Non-metered scopes (e.g. `read`) only require a valid, non-suspended
    * key. Metered scopes additionally enforce rate limit + daily quota.
    */
-  async guard(record: ApiKeyRecord, scope: string): Promise<void> {
+    async guard(record: ApiKeyRecord, scope: string): Promise<void> {
     if (!record.active || record.paymentStatus === "suspended") {
-      throw new AuthError("Key suspended: payment required to continue.");
+      throw new AuthError("Key suspended: payment required to continue.", 402);
     }
     if (record.paymentStatus === "overdue") {
-      throw new AuthError("Key overdue: settle payment to continue.");
+      throw new AuthError("Key overdue: settle payment to continue.", 402);
     }
     if (!METERED_SCOPES.has(scope)) return;
 
     if (record.rateLimit && record.rateLimit > 0) {
       const count = await this.bump(this.minuteKey(record.id), 60);
       if (count > record.rateLimit) {
-        throw new AuthError(`Rate limit exceeded (${record.rateLimit}/min).`);
+        throw new AuthError(`Rate limit exceeded (${record.rateLimit}/min).`, 429);
       }
     }
     if (record.quotaDaily && record.quotaDaily > 0) {
       const used = await this.bump(this.dayKey(record.id), 86400);
       if (used > record.quotaDaily) {
-        throw new AuthError(`Daily quota exceeded (${record.quotaDaily}).`);
+        throw new AuthError(`Daily quota exceeded (${record.quotaDaily}).`, 429);
       }
     }
   }

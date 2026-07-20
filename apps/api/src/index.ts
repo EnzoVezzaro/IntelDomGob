@@ -163,7 +163,7 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
   // 4. Persistence + auth (migrations are idempotent).
   const database = deps.database ?? createDatabase(config);
   const auth = deps.auth ?? new AuthService(database);
-  database.migrate().catch((e) => log.warn("DB migration skipped", { error: String(e) }));
+  await database.migrate().catch((e) => log.warn("DB migration skipped", { error: String(e) }));
 
   // Telemetry (logs + metrics in DragonflyDB) and Billing (entitlements + usage).
   const nodeId = process.env.NODE_ID ?? `api-${os.hostname()}-${process.pid}`;

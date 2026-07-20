@@ -77,9 +77,11 @@ export interface TenantContext {
 }
 
 export class AuthError extends Error {
-  constructor(message: string) {
+  status?: number;
+  constructor(message: string, status = 401) {
     super(message);
     this.name = "AuthError";
+    this.status = status;
   }
 }
 
@@ -96,7 +98,7 @@ export class AuthService {
     const granted = new Set(record.scopes);
     const ok = requiredScopes.some((s) => granted.has(s) || granted.has("*"));
     if (!ok) {
-      throw new AuthError(`Missing required scope: ${requiredScopes.join(" or ")}`);
+      throw new AuthError(`Missing required scope: ${requiredScopes.join(" or ")}`, 401);
     }
   }
 
@@ -109,7 +111,7 @@ export class AuthService {
     const attrs = record.attributes ?? {};
     for (const [key, value] of Object.entries(required)) {
       if (attrs[key] !== value) {
-        throw new AuthError(`Attribute constraint failed: requires ${key}=${value}`);
+        throw new AuthError(`Attribute constraint failed: requires ${key}=${value}`, 401);
       }
     }
   }
@@ -132,7 +134,7 @@ export class AuthService {
       return;
     }
     if (own !== tenantId) {
-      throw new AuthError(`Cross-tenant access denied: key tenant=${own}, target=${tenantId}`);
+      throw new AuthError(`Cross-tenant access denied: key tenant=${own}, target=${tenantId}`, 401);
     }
   }
 

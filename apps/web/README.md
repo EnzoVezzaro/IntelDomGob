@@ -1,6 +1,13 @@
-# Web — IntelDomGob Lightweight Web Client
+# Web — INTEL.DOM.GOB Public Site
 
-Minimal, no-JS, server-rendered web client for INTEL.DOM.GOB. Lists government institutions and runs intelligence queries — useful as a lightweight fallback and as a reference implementation.
+The **public-facing website** for INTEL.DOM.GOB — a polished, server-rendered marketing + product site with a **live demo** that queries the platform in real time. Modeled on modern developer-product sites (dark, bold, interactive) but built entirely on our own stack.
+
+## What it is
+
+- **Landing page** — hero, live demo, quick-start (Studio / API / CLI / Web tabs), capabilities, product ecosystem, principles, and pricing.
+- **Live demo** — a search box that calls the platform's intelligence query through the SDK and renders a real, source-backed answer. Works with **no API key** in preview mode.
+- **No-JS fallback** — core content is server-rendered HTML; the demo enhances with vanilla JS but a shareable `/buscar?q=` page works without JS.
+- **No build step** — plain TypeScript run by `tsx`, static `public/` assets served by Express.
 
 ## Quick Start
 
@@ -11,17 +18,11 @@ npm install
 npm run dev
 ```
 
-Or from the monorepo root:
-
-```bash
-npm run dev --workspace=apps/web
-```
-
-The web client starts on port `4200` by default. Open `http://localhost:4200`.
+Open `http://localhost:4200`. In Docker Compose it runs at `web.localhost` / `web.intel.dom.gob` (port 4200).
 
 ## Standalone (without Docker)
 
-The web client needs the API server running. Point it at the API:
+Point it at a running API:
 
 ```bash
 INTEL_API_URL=http://localhost:4000 npm run dev
@@ -29,16 +30,20 @@ INTEL_API_URL=http://localhost:4000 npm run dev
 
 ## Public / Preview Mode
 
-The web client works **without an API key**. It does not send any credentials — it relies on the platform's `REQUIRE_API_KEY` setting. In development mode (`REQUIRE_API_KEY=false`, the default), all endpoints are open and the client works immediately.
+The site works **without an API key**. It uses `@intel.dom.gob/sdk` with no `token` — when the platform runs with `REQUIRE_API_KEY=false` (the development default), the live demo queries the API freely on the **Público** tier (20 queries/day). Set `REQUIRE_API_KEY=true` and a key to move to production.
 
-In production, set `REQUIRE_API_KEY=true` and configure a `WEB_API_TOKEN` or modify the client to forward credentials.
+## Architecture
 
-## Pages
+```
+Browser → Web (Express, :4200) → SDK → API → Orchestrator → Services → Providers
+```
 
-| Route | Description |
-|-------|-------------|
-| `GET /` | Home page with institution list and search form |
-| `GET /query?q=...` | Intelligence query results with summary, sources, and confidence |
+- `src/index.ts` — Express server, routes, SDK client, demo endpoint.
+- `src/views.ts` — server-rendered HTML templates (layout, home, results).
+- `public/styles.css` — the design system (dark, INTEL-red `#e94e31` accent).
+- `public/app.js` — vanilla JS: quick-start tabs, copy buttons, hero typing, live demo.
+
+This is a pure SDK client — no business logic, no direct service/provider imports.
 
 ## Environment Variables
 
@@ -47,20 +52,14 @@ In production, set `REQUIRE_API_KEY=true` and configure a `WEB_API_TOKEN` or mod
 | `INTEL_API_URL` | `http://api:4000` | API gateway base URL |
 | `WEB_PORT` | `4200` | Port to listen on |
 
-## Architecture
+## Routes
 
-This is a pure SDK client — it uses `@intel.dom.gob/sdk` to talk to the API. No business logic, no direct service/provider imports.
-
-```
-Browser → Web (Express, port 4200) → SDK → API → Orchestrator → Services → Providers
-```
-
-## Tech Stack
-
-- **Express.js** — minimal server-side rendering
-- **@intel.dom.gob/sdk** — API client
-- **Inline HTML** — no client-side JS, no templates, no build step
-- **TypeScript** — type-checked with `tsc --noEmit`
+| Route | Description |
+|-------|-------------|
+| `GET /` | Full landing page |
+| `POST /api/query` | Live demo endpoint (JSON: `{ q }` → result) |
+| `GET /buscar?q=` | Shareable, no-JS results page |
+| `GET /styles.css`, `/app.js` | Static assets |
 
 ## License
 

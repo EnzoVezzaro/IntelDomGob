@@ -43,9 +43,9 @@ const PRODUCTS: Product[] = [
   },
   {
     name: "Web",
-    tagline: "Cliente web sin JS",
+    tagline: "Sitio web público",
     description:
-      "Cliente web ligero (solo SDK) para consultas rápidas sin instalar nada. Funciona sin cuenta ni API key.",
+      "Nuestro sitio web público (solo SDK): página de producto + demo en vivo que consulta fuentes oficiales sin instalar nada. Funciona sin cuenta ni API key.",
     status: "live",
     href: "https://web.intel.dom.gob",
     external: true,
@@ -115,12 +115,6 @@ export default function HomePage() {
           >
             Ver documentación
           </Link>
-          <a
-            href="https://www.agentix.com.do/"
-            className="inline-flex h-11 items-center rounded-lg border border-input bg-background px-8 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            Por Agentix
-          </a>
         </div>
       </section>
 

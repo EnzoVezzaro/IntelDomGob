@@ -53,6 +53,7 @@ services:
       API_PORT: "4000"
       SEARXNG_URL: "http://searxng:8080"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      INTEL_API_TOKEN: "${INTEL_API_TOKEN:-}"
       LOG_FORMAT: "${LOG_FORMAT:-development}"
     depends_on:
       searxng:
@@ -140,7 +141,7 @@ services:
       - intel
 
   # -------------------------------------------------------------------------
-  # Web client — a lightweight, no-JS API client at web.<DOMAIN>.
+  # Public website — INTEL.DOM.GOB landing page + live demo (SDK client) at web.<DOMAIN>.
   # -------------------------------------------------------------------------
   web:
     build:
@@ -148,8 +149,17 @@ services:
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     environment:
+      NODE_ENV: "${NODE_ENV:-development}"
       INTEL_API_URL: "http://api:4000"
       WEB_PORT: "4200"
+    # Live-reload in development (no image rebuild needed): bind-mount the
+    # source + static assets and run `tsx watch` so edits to apps/web/src and
+    # apps/web/public show up immediately. In production (NODE_ENV=production)
+    # it falls back to the plain `npm run start` command.
+    command: ["sh", "-c", "if [ \"$NODE_ENV\" = \"production\" ]; then npm run start; else npm run dev; fi"]
+    volumes:
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
     expose:
       - "4200"
     healthcheck:
@@ -169,13 +179,26 @@ services:
       dockerfile: apps/admin/Dockerfile
     restart: unless-stopped
     environment:
+      NODE_ENV: "${NODE_ENV:-development}"
       INTEL_API_URL: "http://api:4000"
       ADMIN_PORT: "4300"
       INTEL_API_TOKEN: "${INTEL_API_TOKEN:-}"
+    # Live-reload in development (no image rebuild needed): bind-mount the
+    # source + config so Vite HMR reflects edits to apps/admin/src instantly.
+    # In production (NODE_ENV=production) it falls back to the Express server
+    # (src/server.ts) that serves the built dist/.
+    command: ["sh", "-c", "if [ \"$NODE_ENV\" = \"production\" ]; then npm run start; else npm run dev; fi"]
+    volumes:
+      - ./apps/admin/src:/app/apps/admin/src
+      - ./apps/admin/index.html:/app/apps/admin/index.html
+      - ./apps/admin/vite.config.ts:/app/apps/admin/vite.config.ts
+      - ./apps/admin/tailwind.config.js:/app/apps/admin/tailwind.config.js
+      - ./apps/admin/postcss.config.js:/app/apps/admin/postcss.config.js
+      - ./apps/admin/tsconfig.json:/app/apps/admin/tsconfig.json
     expose:
       - "4300"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4300/healthz"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4300/"]
       interval: 30s
       timeout: 5s
       retries: 5

@@ -1,46 +1,117 @@
-// apps/web — lightweight read-only web client of the API.
-//
-// Like Studio it is a pure client of the API gateway (SDK only). It renders a
-// minimal server-side page listing institutions and running queries — useful as
-// a no-JS fallback and as a reference for future web clients.
+// apps/web — public site + live demo for INTEL.DOM.GOB.
+// Server-rendered marketing site (SDK only) with an interactive demo that
+// calls the platform's intelligence query and renders real official sources.
 
 import express from "express";
-import { IntelDomGobClient, createClient } from "@intel.dom.gob/sdk";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createClient, type IntelDomGobClient } from "@intel.dom.gob/sdk";
+import type { IntelligenceResult } from "@intel.dom.gob/sdk/types";
 import { createLogger } from "@intel.dom.gob/logger";
+import { home, resultsView, type DemoPayload } from "./views.js";
 
 const log = createLogger("app:web");
-const client = createClient({ baseUrl: process.env.INTEL_API_URL || "http://api:4000" });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const client: IntelDomGobClient = createClient({
+  baseUrl: process.env.INTEL_API_URL || "http://api:4000",
+});
+
+// Cached institution count for the live "X fuentes conectadas" line.
+let liveInstCount = 0;
+async function refreshInstitutions(): Promise<void> {
+  try {
+    const list = await client.listInstitutions();
+    liveInstCount = Array.isArray(list) ? list.length : 0;
+  } catch {
+    liveInstCount = 0;
+  }
+}
+refreshInstitutions();
+setInterval(refreshInstitutions, 5 * 60 * 1000);
+
+function instLabel(v: unknown): string | undefined {
+  if (!v) return undefined;
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) return v.map(instLabel).filter(Boolean).join(", ");
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return (o.name || o.label || o.title || o.id) as string | undefined;
+  }
+  return undefined;
+}
+
+const CONF_ES: Record<string, string> = { high: "Alto", medium: "Medio", low: "Bajo" };
+
+function buildPayload(query: string, r: IntelligenceResult): DemoPayload {
+  const streams = [
+    r.sources?.congress,
+    (r.sources as unknown as Record<string, unknown>)?.camaraIniciativas,
+    (r.sources as unknown as Record<string, unknown>)?.senadoIniciativas,
+  ].filter(Array.isArray) as { title?: string; url: string }[][];
+  const seen = new Set<string>();
+  const sources: { title?: string; url: string }[] = [];
+  for (const stream of streams) {
+    for (const s of stream) {
+      if (!s.url || seen.has(s.url)) continue;
+      seen.add(s.url);
+      sources.push({ title: s.title, url: s.url });
+      if (sources.length >= 8) break;
+    }
+    if (sources.length >= 8) break;
+  }
+  const conf = String(r.response?.confidenceLevel ?? "").toLowerCase();
+  return {
+    ok: true,
+    query,
+    summary: r.response?.summary ?? "",
+    confidence: CONF_ES[conf] ?? r.response?.confidenceLevel ?? "—",
+    institution: instLabel((r as unknown as Record<string, unknown>).institution),
+    sources,
+  };
+}
 
 const app = express();
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "..", "public")));
 
-app.get("/", async (_req, res) => {
+app.get("/", (_req, res) => {
+  res.type("html").send(home(liveInstCount));
+});
+
+// Interactive demo endpoint (called from app.js).
+app.post("/api/query", async (req, res) => {
+  const q = String((req.body as { q?: unknown })?.q ?? "").trim();
+  if (!q) {
+    res.json({ ok: false, error: "Escribe una consulta." } satisfies DemoPayload);
+    return;
+  }
   try {
-    const institutions = await client.listInstitutions();
-    res.type("html").send(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>INTEL.DOM.GOB — Web</title>
-<style>body{font-family:system-ui;max-width:760px;margin:3rem auto;padding:0 1rem}input{width:70%;padding:.5rem}a{color:#e94e31}</style></head>
-<body><h1>INTEL.DOM.GOB</h1>
-<form method="get" action="/query"><input name="q" placeholder="Consulta de inteligencia..."><button>Buscar</button></form>
-<h2>Instituciones</h2><ul>${institutions.map((i) => `<li><a href="${i.url}">${i.name}</a></li>`).join("")}</ul>
-</body></html>`);
-  } catch (e: any) {
-    res.type("html").send(`<h1>Error</h1><p>${e.message}</p>`);
+    const r = await client.query({ query: q });
+    res.json(buildPayload(q, r));
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Error desconocido.";
+    res.json({ ok: false, query: q, error: msg } satisfies DemoPayload);
   }
 });
 
-app.get("/query", async (req, res) => {
-  const q = String(req.query.q || "");
+// No-JS / shareable results page.
+app.get("/buscar", async (req, res) => {
+  const q = String(req.query.q ?? "").trim();
+  if (!q) {
+    res.redirect("/#demo");
+    return;
+  }
   try {
     const r = await client.query({ query: q });
-    res.type("html").send(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${q}</title>
-<style>body{font-family:system-ui;max-width:760px;margin:3rem auto;padding:0 1rem}a{color:#e94e31}</style></head>
-<body><h1>${q}</h1><p>${r.response.summary}</p>
-<h2>Congreso</h2><ul>${r.sources.congress.slice(0, 8).map((s) => `<li><a href="${s.url}">${s.title}</a></li>`).join("")}</ul>
-<p>Confianza: ${r.response.confidenceLevel}</p></body></html>`);
-  } catch (e: any) {
-    res.type("html").send(`<h1>Error</h1><p>${e.message}</p>`);
+    res.type("html").send(resultsView(buildPayload(q, r)));
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Error desconocido.";
+    res.type("html").send(resultsView({ ok: false, query: q, error: msg }));
   }
 });
 
 const port = Number(process.env.WEB_PORT ?? 4200);
-app.listen(port, "0.0.0.0", () => log.info("Web client listening", { port }));
+app.listen(port, "0.0.0.0", () => {
+  log.info("Public site listening", { port, api: process.env.INTEL_API_URL || "http://api:4000" });
+});
