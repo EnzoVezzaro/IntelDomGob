@@ -12,6 +12,21 @@ import type { Orchestrator } from "@intel.dom.gob/service-orchestrator";
 import { bootstrap } from "@intel.dom.gob/app-api";
 import request from "supertest";
 
+process.env.GEMINI_API_KEY = "test";
+
+// Use the fake auth so the SDK's Bearer token validates without a real DB.
+const adminRecord = {
+  id: "test", name: "test", scopes: ["admin", "*"], active: true,
+  plan: "institucional", paymentStatus: "ok", quotaDaily: 0, rateLimit: 0,
+  product: "admin", attributes: {},
+} as unknown as import("@intel.dom.gob/service-auth").ApiKeyRecord;
+
+const fakeAuth = {
+  verifyApiKey: async (k: string) => (k === "test-key" ? adminRecord : null),
+  authorize: () => {},
+  ensureAdminKey: async () => ({ key: "x", created: false }),
+} as unknown as import("@intel.dom.gob/service-auth").AuthService;
+
 // Bridge the Express app into a fetch() shim for the SDK using supertest.
 function appToFetch(app: any): typeof fetch {
   return (async (input: any, init: any = {}) => {
@@ -62,22 +77,22 @@ const fakeOrchestrator = {
 
 describe("SDK e2e (Studio client path)", () => {
   it("createClient().query() reaches the API and returns a result", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi });
-    const client = createClient({ baseUrl: "http://api.localhost", fetchImpl: appToFetch(app as Express) });
-    const result = await client.query({ query: "reforma", apiKey: "test" });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi, auth: fakeAuth });
+    const client = createClient({ baseUrl: "http://api.localhost", fetchImpl: appToFetch(app as Express), token: "test-key" });
+    const result = await client.query({ query: "reforma" });
     expect(result.response.summary).toBe("e2e");
   });
 
   it("createClient().listInstitutions() returns the registry", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi });
-    const client = createClient({ baseUrl: "http://api.localhost", fetchImpl: appToFetch(app as Express) });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi, auth: fakeAuth });
+    const client = createClient({ baseUrl: "http://api.localhost", fetchImpl: appToFetch(app as Express), token: "test-key" });
     const inst = await client.listInstitutions();
     expect(Array.isArray(inst)).toBe(true);
   });
 
   it("createClient().graph() + graphIngest() round-trip", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi });
-    const client = createClient({ baseUrl: "http://api.localhost", fetchImpl: appToFetch(app as Express) });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi, auth: fakeAuth });
+    const client = createClient({ baseUrl: "http://api.localhost", fetchImpl: appToFetch(app as Express), token: "test-key" });
     const packet = { response: { citations: [{ title: "Ley X", url: "https://x.gob.do", institution: "DGCP" }] }, sources: { laws: [] }, evidence: [] };
     const ingested = await client.graphIngest(packet);
     expect(ingested.entities).toBeGreaterThan(0);

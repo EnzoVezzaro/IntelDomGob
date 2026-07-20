@@ -43,7 +43,27 @@ const mapToSource = (r: InstitutionResult): SourceRef => ({
   source: r.institution || classifyInstitution(r.url),
 });
 
-export function buildResult(modelJson: any, bundle: RetrievalBundle): IntelligenceResult {
+export function buildResult(modelJson: any, rawBundle: RetrievalBundle): IntelligenceResult {
+  // Normalize: callers (and unit tests) may omit optional stream arrays.
+  const bundle: RetrievalBundle = {
+    query: rawBundle.query ?? "",
+    congressResults: rawBundle.congressResults ?? [],
+    otherOfficialResults: rawBundle.otherOfficialResults ?? [],
+    newsResults: rawBundle.newsResults ?? [],
+    silLaws: rawBundle.silLaws ?? [],
+    senadoBulletins: rawBundle.senadoBulletins ?? [],
+    camaraIniciativas: rawBundle.camaraIniciativas ?? [],
+    senadoIniciativas: rawBundle.senadoIniciativas ?? [],
+    senadoResoluciones: rawBundle.senadoResoluciones ?? [],
+    senadoActas: rawBundle.senadoActas ?? [],
+    senadoInformes: rawBundle.senadoInformes ?? [],
+    camaraComisiones: rawBundle.camaraComisiones ?? [],
+    camaraSesiones: rawBundle.camaraSesiones ?? [],
+    camaraGrupos: rawBundle.camaraGrupos ?? [],
+    diputados: rawBundle.diputados ?? [],
+    perInstitution: rawBundle.perInstitution ?? {},
+    searchQueries: rawBundle.searchQueries ?? [],
+  };
   const model = modelJson || {};
   model.planner = model.planner || { intent: bundle.query, institutionsSelected: [], plan: "" };
   model.institution = model.institution || { domainsSearched: [] };

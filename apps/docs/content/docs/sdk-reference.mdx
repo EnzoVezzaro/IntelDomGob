@@ -1,0 +1,166 @@
+---
+title: SDK Reference
+description: Using @intel.dom.gob/sdk to talk to the API from Node.js, browsers, and MCP clients.
+---
+
+## Installation
+
+```bash
+npm install @intel.dom.gob/sdk
+```
+
+The SDK is ESM-only and has zero runtime dependencies beyond `@intel.dom.gob/types`.
+
+## Creating a Client
+
+```ts
+import { createClient } from "@intel.dom.gob/sdk";
+
+const client = createClient({
+  baseUrl: "http://api.localhost",   // or https://api.intel.dom.gob
+  token: "your-api-key",            // optional — omit in preview mode
+  version: "v1",                   // optional, default "v1"
+});
+```
+
+### In the Browser
+
+Derive the API URL from the current hostname (subdomain convention):
+
+```ts
+function apiBaseUrl(): string {
+  if (typeof window === "undefined") return process.env.API_BASE_URL || "http://api:4000";
+  const host = window.location.host;            // studio.localhost
+  const dot = host.indexOf(".");
+  if (dot > 0) {
+    const domain = host.slice(dot + 1);        // localhost
+    return `${window.location.protocol}//api.${domain}`;  // http://api.localhost
+  }
+  return "/api-proxy";
+}
+
+const client = createClient({ baseUrl: apiBaseUrl() });
+```
+
+## Core: Intelligence Queries
+
+```ts
+// Basic query
+const result = await client.query({
+  query: "¿Cuáles son las iniciativas legislativas recientes?",
+  institutions: ["senado", "camara"],   // optional filter
+});
+console.log(result.response.summary);
+console.log(result.response.confidenceLevel);
+console.log(result.sources.congress);      // SourceRef[]
+```
+
+### Streaming (SSE)
+
+```ts
+for await (const event of client.queryStream({ query: "..." })) {
+  // event: { type: "token" | "source" | "done" | "error", data: ... }
+  console.log(event);
+}
+```
+
+### Follow-up Chat
+
+```ts
+const reply = await client.chat({
+  context: result,            // previous IntelligenceResult
+  message: "¿Y sobre el senado?",
+});
+```
+
+## Institutions
+
+```ts
+const institutions = await client.listInstitutions();
+// → InstitutionDescriptor[] { id, name, description, url, enabledByDefault, hasLegislative }
+
+const found = await client.searchInstitution("senado");
+```
+
+## Legislative Data (SIL)
+
+```ts
+// Cámara de Diputados
+await client.silCamaraIniciativas({ page: 1 });
+await client.silCamaraComisiones();
+await client.silCamaraSesiones();
+await client.silCamaraLegislador({ query: "Juan Pérez" });
+
+// Senado de la República
+await client.silSenadoIniciativas();
+await client.silSenadoBoletines();
+await client.silSenadoResoluciones();
+await client.silSenadoSearch({ query: "transporte" });  // full-text, ~32k DSpace items
+await client.silSenadoSenadores();
+await client.senadoNews();
+```
+
+## Knowledge Graph
+
+```ts
+// Query the graph
+const graph = await client.graph({ entity: "Tribunal Constitucional" });
+
+// Ingest an IntelligenceResult
+await client.graphIngest(result);
+```
+
+## Web Fetch
+
+```ts
+const page = await client.fetchUrl("https://www.senado.gob.do/...");
+// → FetchedPage { url, title, text, publishedDate, dominican }
+// Returns null on 404/502.
+```
+
+## Infrastructure
+
+```ts
+await client.health();         // { status: "ok", ... }
+await client.openApi();        // OpenAPI spec (JSON)
+await client.mcpTools();       // MCP server tool catalog
+```
+
+## Error Handling
+
+Non-OK responses throw with the server's error message:
+
+```ts
+try {
+  await client.query({ query: "..." });
+} catch (e: any) {
+  // e.message: "Unauthorized" | "Rate limit exceeded" | "Validation error: ..."
+  console.error(e.message);
+}
+```
+
+Defensive methods never throw on malformed payloads:
+
+- `listInstitutions()` → `[]` on parse failure
+- `fetchUrl()` → `null` on 404/502 (throws on 500)
+
+## Preview / No-Auth Mode
+
+When the platform runs with `REQUIRE_API_KEY=false` (default in development), omit the token:
+
+```ts
+const client = createClient({ baseUrl: "http://api.localhost" });
+// Works without authentication
+```
+
+In production (`REQUIRE_API_KEY=true`), every request needs a valid `Authorization: Bearer <key>` header — the SDK attaches it automatically when `token` is provided.
+
+## TypeScript Types
+
+All domain types are re-exported from `@intel.dom.gob/sdk/types`:
+
+```ts
+import type { IntelligenceResult, SourceRef, Confidence } from "@intel.dom.gob/sdk/types";
+```
+
+See [packages/types](https://github.com/EnzoVezzaro/IntelDomGob/tree/main/packages/types) for the full contract.

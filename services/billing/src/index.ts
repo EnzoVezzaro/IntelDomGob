@@ -33,7 +33,9 @@ export interface Plan {
 /** Plan catalog (mirrors README pricing). Keys store plan + quota/rate directly. */
 export const PLANS: Record<string, Plan> = {
   free: { label: "Free", scopes: ["read"], quotaDaily: 0, rateLimit: 0, overageUsd: 0 },
-  publico: { label: "Público", scopes: ["read"], quotaDaily: 20, rateLimit: 10, overageUsd: 0 },
+  // Público == anonymous preview: sin apikey any public-facing product still
+  // works, but only read + query + chat, throttled to 20/day & 10/min.
+  publico: { label: "Público", scopes: ["read", "query", "chat"], quotaDaily: 20, rateLimit: 10, overageUsd: 0 },
   investigador: { label: "Investigador", scopes: ["read", "query", "chat"], quotaDaily: 200, rateLimit: 30, overageUsd: 0 },
   pro: { label: "Pro", scopes: ["read", "query", "chat", "execute"], quotaDaily: 1000, rateLimit: 120, overageUsd: 0.01 },
   institucional: { label: "Institucional", scopes: ["*"], quotaDaily: 0, rateLimit: 0, overageUsd: 0 },
@@ -65,15 +67,31 @@ export class BillingService {
     private readonly db?: Database,
     redisUrl?: string,
   ) {
+    // Start in in-memory mode. Only flip to Redis once a live connection is
+    // confirmed, so the gateway never blocks on an unreachable DragonflyDB.
+    this.inMemory = true;
     if (redisUrl) {
       import("ioredis").then(({ default: Redis }) => {
-        this.redis = new Redis(redisUrl, { maxRetriesPerRequest: null }) as unknown as RedisLike;
+        const r = new Redis(redisUrl, {
+          lazyConnect: true,
+          connectTimeout: 2000,
+          maxRetriesPerRequest: 1,
+          retryStrategy: () => null,
+        }) as unknown as RedisLike;
+        // Swallow connection errors so an unreachable DragonflyDB degrades to
+        // in-memory counters instead of crashing the process.
+        (r as any).on?.("error", () => {});
+        (r as any).connect()
+          .then(() => { this.inMemory = false; })
+          .catch(() => {
+            this.inMemory = true;
+            log.warn("Billing: DragonflyDB unavailable; using in-memory counters");
+          });
+        this.redis = r;
       }).catch((e) => {
         log.warn("Billing: DragonflyDB unavailable; using in-memory counters", { error: String(e) });
         this.inMemory = true;
       });
-    } else {
-      this.inMemory = true;
     }
   }
 
@@ -95,8 +113,11 @@ export class BillingService {
    * key. Metered scopes additionally enforce rate limit + daily quota.
    */
   async guard(record: ApiKeyRecord, scope: string): Promise<void> {
-    if (record.paymentStatus === "suspended") {
+    if (!record.active || record.paymentStatus === "suspended") {
       throw new AuthError("Key suspended: payment required to continue.");
+    }
+    if (record.paymentStatus === "overdue") {
+      throw new AuthError("Key overdue: settle payment to continue.");
     }
     if (!METERED_SCOPES.has(scope)) return;
 
@@ -114,16 +135,25 @@ export class BillingService {
     }
   }
 
+  private memBump(key: string): number {
+    const m = key.startsWith("intel:ratelimit") ? this.memRate : this.memQuota;
+    const v = (m.get(key) ?? 0) + 1;
+    m.set(key, v);
+    return v;
+  }
+
   private async bump(key: string, ttl: number): Promise<number> {
-    if (this.inMemory || !this.redis) {
-      const m = key.startsWith("intel:ratelimit") ? this.memRate : this.memQuota;
-      const v = (m.get(key) ?? 0) + 1;
-      m.set(key, v);
-      return v;
+    if (this.inMemory || !this.redis) return this.memBump(key);
+    try {
+      const n = await (this.redis as any).incr(key);
+      if (n === 1) await (this.redis as any).expire(key, ttl).catch(() => {});
+      return n;
+    } catch {
+      // DragonflyDB op failed at runtime — degrade to in-memory counters.
+      this.inMemory = true;
+      log.warn("Billing: DragonflyDB operation failed; using in-memory counters");
+      return this.memBump(key);
     }
-    const n = await this.redis.incr(key);
-    if (n === 1) await this.redis.expire(key, ttl).catch(() => {});
-    return n;
   }
 
   /** Record a served (metered) request across every relevant scope. */
@@ -144,8 +174,13 @@ export class BillingService {
   /** Current daily usage for a key (for quota gauges in Admin). */
   async dailyUsage(id: string): Promise<number> {
     if (this.inMemory || !this.redis) return this.memQuota.get(this.dayKey(id)) ?? 0;
-    const n = await (this.redis as any).get?.(this.dayKey(id));
-    return n ? Number(n) : 0;
+    try {
+      const n = await (this.redis as any).get?.(this.dayKey(id));
+      return n ? Number(n) : 0;
+    } catch {
+      this.inMemory = true;
+      return this.memQuota.get(this.dayKey(id)) ?? 0;
+    }
   }
 }
 

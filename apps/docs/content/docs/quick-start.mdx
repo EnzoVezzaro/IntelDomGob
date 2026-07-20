@@ -64,6 +64,20 @@ Expected response:
 }
 ```
 
+## Try Without an API Key (Preview Mode)
+
+The platform runs in **public preview mode** by default. No API key is required — clone, run, and query immediately. All clients (Studio, Web, CLI, MCP, SDK) work without credentials.
+
+When you're ready for more, create API keys in the **Admin console** and set `REQUIRE_API_KEY=true`.
+
+| Plan | Queries/day | API Key | Signup |
+|------|-------------|---------|--------|
+| **Público** | 20 | Not needed | No |
+| **Investigador** | 200 | Required | Yes (`.gob.do` or manual) |
+| **Pro** | 1,000+ | Required | Yes (paid) |
+
+Raw public data (institutions, SIL legislative data, knowledge graph reads) is **always free** and unmetered. See [Getting Started](/docs/getting-started) for the full guide and tier table.
+
 ## Local Development (without Docker)
 
 ```bash
@@ -75,6 +89,9 @@ cd apps/api && npm run dev       # API on :4000
 
 ## Next Steps
 
+- [Getting Started](/docs/getting-started) — Use the platform without self-hosting, get an API key, compare plans
+- [Products](/docs/products) — What each product is and who it's for
+- [SDK Reference](/docs/sdk-reference) — Talk to the API from Node.js, browsers, MCP
 - [Architecture](/docs/architecture) — Understand the layered design
 - [API Reference](/docs/api) — Explore all endpoints
 - [Configuration](/docs/configuration) — Full environment variable reference

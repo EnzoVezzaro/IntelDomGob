@@ -12,21 +12,23 @@ type Product = {
 
 const PRODUCTS: Product[] = [
   {
-    name: "Studio",
-    tagline: "IntelDomGob Studio",
-    description:
-      "Espacio de trabajo multi-agente (fork AGPL-3.0 de Odysseus) que se conecta a la plataforma únicamente vía el servidor MCP.",
-    status: "soon",
-    badge: "Repositorio: por definir",
-  },
-  {
     name: "API",
     tagline: "API gubernamental",
     description:
-      "Punto de entrada API-first de toda la plataforma. Cada capacidad se expone vía HTTP y un servidor MCP.",
-    status: "soon",
-    badge: "Repositorio: por definir",
-    href: "https://api.localhost/docs",
+      "Punto de entrada API-first de toda la plataforma. Cada capacidad se expone vía HTTP y un servidor MCP. Úsala para construir sobre INTEL.DOM.GOB.",
+    status: "live",
+    badge: "api.intel.dom.gob",
+    href: "https://api.intel.dom.gob/docs",
+    external: true,
+  },
+  {
+    name: "Studio",
+    tagline: "IntelDomGob Studio",
+    description:
+      "Espacio de trabajo multi-agente (fork AGPL-3.0 de Odysseus) que se conecta a la plataforma únicamente vía el servidor MCP. Chat, agentes, investigación y más.",
+    status: "live",
+    badge: "studio.intel.dom.gob",
+    href: "https://studio.intel.dom.gob",
     external: true,
   },
   {
@@ -34,17 +36,28 @@ const PRODUCTS: Product[] = [
     tagline: "Servidor MCP",
     description:
       "Superficie de Model Context Protocol (Streamable HTTP + SSE). Studio, la CLI y cualquier cliente estándar de MCP se conectan por igual.",
-    status: "soon",
-    badge: "Repositorio: por definir",
+    status: "live",
+    badge: "mcp.intel.dom.gob/mcp",
+    href: "https://mcp.intel.dom.gob/health",
+    external: true,
   },
   {
     name: "Web",
     tagline: "Cliente web sin JS",
     description:
-      "Cliente web ligero (solo SDK) para consultas rápidas sin instalar nada.",
+      "Cliente web ligero (solo SDK) para consultas rápidas sin instalar nada. Funciona sin cuenta ni API key.",
     status: "live",
-    href: "https://web.localhost",
+    href: "https://web.intel.dom.gob",
     external: true,
+  },
+  {
+    name: "CLI",
+    tagline: "Cliente de terminal",
+    description:
+      "Cliente de terminal interactivo (estilo OpenCode) que se conecta vía MCP. Para desarrolladores y automatización.",
+    status: "live",
+    badge: "npm: @intel.dom.gob/app-cli",
+    href: "/docs/products",
   },
   {
     name: "Docs",

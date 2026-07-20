@@ -12,6 +12,10 @@ import { KnowledgeGraphService } from "@intel.dom.gob/service-knowledge-graph";
 import { bootstrap } from "@intel.dom.gob/app-api";
 import request from "supertest";
 
+// The /query and /chat handlers require GEMINI_API_KEY (or body.apiKey) to be
+// present. Set it so the preview (no-key) path can be exercised.
+process.env.GEMINI_API_KEY = "test";
+
 // --- Mocks -----------------------------------------------------------------
 
 const fakeSearch: SearchService = {
@@ -71,7 +75,7 @@ describe("API integration (mocked orchestrator)", () => {
 
   it("POST /v1/query delegates to the orchestrator", async () => {
     const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi });
-    const res = await request(app as any).post("/v1/query").send({ query: "reforma tributaria", apiKey: "test" });
+    const res = await request(app as any).post("/v1/query").send({ query: "reforma tributaria" });
     expect(res.status).toBe(200);
     expect(res.body.response.summary).toBe("ok");
     expect(res.body.response.citations[0].url).toBe("https://camaradediputados.gob.do/123");
@@ -79,7 +83,7 @@ describe("API integration (mocked orchestrator)", () => {
 
   it("POST /v1/query/stream emits SSE plan/search/token/result", async () => {
     const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi });
-    const res = await request(app as any).post("/v1/query/stream").send({ query: "reforma", apiKey: "test" });
+    const res = await request(app as any).post("/v1/query/stream").send({ query: "reforma" });
     expect(res.status).toBe(200);
     const body = res.text;
     expect(body).toContain("event: plan");
@@ -99,14 +103,14 @@ describe("API integration (mocked orchestrator)", () => {
     const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi });
     const res = await request(app as any)
       .post("/v1/chat")
-      .send({ message: "¿Qué dice la ley?", context: { query: "ley 87-01" }, apiKey: "test" });
+      .send({ message: "¿Qué dice la ley?", context: { query: "ley 87-01" } });
     expect(res.status).toBe(200);
     expect(res.body.reply).toBe("charla-contexto");
   });
 
   it("POST /v1/chat rejects a missing message", async () => {
     const app = await bootstrap({ orchestrator: fakeOrchestrator, search: fakeSearch, ai: fakeAi });
-    const res = await request(app as any).post("/v1/chat").send({ context: {}, apiKey: "test" });
+    const res = await request(app as any).post("/v1/chat").send({ context: {} });
     expect(res.status).toBe(400);
   });
 });

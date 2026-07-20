@@ -204,6 +204,20 @@ Only `DOMAIN` changes. Caddy auto-manages HTTPS via Let's Encrypt.
 
 ---
 
+## Public Access
+
+INTEL.DOM.GOB can be used **without self-hosting or an API key**. The platform runs in **public preview mode** by default:
+
+- **No API key required** — all clients (Studio, Web, CLI, MCP, SDK) work out of the box when `REQUIRE_API_KEY=false` (the development default).
+- **Público tier** — 20 intelligence queries/day, no signup. Raw official data (institutions, SIL legislative data, knowledge graph reads) is always free and unmetered.
+- **Beyond Público** — create API keys in the Admin console and set `REQUIRE_API_KEY=true`. The Investigador (200/day, free for `.gob.do`/researchers) and Pro (1,000+/day, paid) tiers unlock streaming, workflows, and document intelligence.
+
+→ Full guide, tier table, and API-key walkthrough: **[docs/getting-started](./apps/docs/content/docs/getting-started.mdx)**
+
+→ Product catalog (Studio, API, MCP, Web, CLI, Admin): **[docs/products](./apps/docs/content/docs/products.mdx)**
+
+---
+
 ## Docker
 
 Single canonical `docker-compose.yml`. No per-environment compose files.
@@ -312,88 +326,106 @@ Each service has exactly one responsibility and is independently testable:
 
 Versioned REST (`/v1`). The API contains **no business logic** — every endpoint delegates to the Orchestrator or a Service.
 
+> **Public-facing vs internal.** Every *public-facing* endpoint sits behind an API-key wall. With **no key** it runs as the **Público** preview tier; a **valid key** unlocks that key's tier (scopes, rate limit, daily quota). *Internal / infrastructure* endpoints (workflows, tool & plugin execution, prompt authoring, evaluation, tenant) require a valid key with the right scope and are **not** part of the public product surface. The Swagger UI and OpenAPI spec are **admin-only**. See **API Key Tiers** below.
+
+### API Key Tiers (Suscripciones)
+
+| Plan | Audience | Raw data | Intelligence queries | Streaming | Workflows / Document Intelligence | Price |
+|---|---|---|---|---|---|---|
+| **Público** | Anyone, no signup | Unlimited | 20/day | ❌ | ❌ | Free |
+| **Investigador** | Verified journalists, researchers, academics, `.gob.do` | Unlimited | 200/day | ✅ | ❌ | Free |
+| **Pro** | Businesses, law firms, analysts | Unlimited | 1,000/day included, metered overage | ✅ | ✅ | Flat fee/mo |
+| **Institucional** | Ministries, large orgs, integrators | Unlimited | Custom | ✅ | ✅ + dedicated tenancy, SLA, priority workers | Custom contract |
+
+- **No key → Público.** Preview runs with scopes `read, query, chat`, 20 queries/day, 10/min. No signup.
+- **Valid key → that tier.** Keys are issued through the Admin console (`apps/admin`) bound to a plan; the gateway enforces the plan's scopes, rate limit, and daily quota.
+- **Invalid / missing key on an internal endpoint → `401`.** Internal routes never fall back to preview.
+- **Suspended or overdue payment → `402` hard block** on every metered request.
+- **Swagger UI (`/v1/docs`) and OpenAPI (`/v1/openapi.json`) are admin-only** — not part of the public surface.
+- Overage on Pro is billed per query at a fixed per-unit rate from `services/observability` usage events; usage is visible in real time via `GET /v1/tenant`.
+
 ### Core Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/v1/health` | Service health |
-| GET | `/v1/institutions` | Dynamic institution registry |
-| GET | `/v1/url-tree` | Categorized URL tree (`?refresh=1`, `?portals=`) |
-| POST | `/v1/query` | Multi-agent intelligence query |
-| POST | `/v1/query/stream` | Streaming query (SSE) |
-| POST | `/v1/chat` | Context-grounded follow-up chat |
+| Access | Method | Path | Description |
+|--------|--------|------|-------------|
+| Público | GET | `/v1/health` | Service health |
+| Público | GET | `/v1/institutions` | Dynamic institution registry |
+| Público | GET | `/v1/url-tree` | Categorized URL tree (`?refresh=1`, `?portals=`) |
+| Público | POST | `/v1/query` | Multi-agent intelligence query |
+| Público | POST | `/v1/query/stream` | Streaming query (SSE) |
+| Público | POST | `/v1/chat` | Context-grounded follow-up chat |
 
 ### OpenAI-Compatible Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v1/chat/completions` | OpenAI-compatible chat (sync + SSE streaming) |
-| GET | `/v1/models` | List available models |
-| POST | `/v1/embeddings` | Generate text embeddings |
+| Access | Method | Path | Description |
+|--------|--------|------|-------------|
+| Público | POST | `/v1/chat/completions` | OpenAI-compatible chat (sync + SSE streaming) |
+| Público | GET | `/v1/models` | List available models |
+| Público | POST | `/v1/embeddings` | Generate text embeddings |
 
 ### Intelligence Services
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v1/documents/process` | Full document intelligence pipeline |
-| POST | `/v1/entities/extract` | Extract entities from text |
-| POST | `/v1/graph/ingest` | Ingest IntelligenceResult into Knowledge Graph |
-| GET | `/v1/graph` | Query Knowledge Graph (`?entity=`) |
+| Access | Method | Path | Description |
+|--------|--------|------|-------------|
+| Público | POST | `/v1/documents/process` | Full document intelligence pipeline |
+| Público | POST | `/v1/entities/extract` | Extract entities from text |
+| 🔒 Internal | POST | `/v1/graph/ingest` | Ingest IntelligenceResult into Knowledge Graph |
+| Público | GET | `/v1/graph` | Query Knowledge Graph (`?entity=`) |
 
 ### Workflow Engine
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v1/workflows` | Define and execute a DAG workflow |
-| GET | `/v1/workflows/:id` | Get workflow state |
-| POST | `/v1/workflows/:id/approve` | Approve a paused step |
-| POST | `/v1/workflows/:id/deny` | Deny a paused step |
+| Access | Method | Path | Description |
+|--------|--------|------|-------------|
+| 🔒 Internal | POST | `/v1/workflows` | Define and execute a DAG workflow |
+| 🔒 Internal | GET | `/v1/workflows/:id` | Get workflow state |
+| 🔒 Internal | POST | `/v1/workflows/:id/approve` | Approve a paused step |
+| 🔒 Internal | POST | `/v1/workflows/:id/deny` | Deny a paused step |
 
 ### Tools, Prompts, Evaluation, Plugins
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/v1/tools` | List registered tools |
-| POST | `/v1/tools/:id/execute` | Execute a tool |
-| GET | `/v1/prompts` | List prompt templates |
-| GET | `/v1/prompts/:key` | Get prompt versions |
-| POST | `/v1/prompts` | Create/update prompt |
-| POST | `/v1/prompts/:key/render` | Render prompt with variables |
-| POST | `/v1/evaluate/faithfulness` | Evaluate answer faithfulness |
-| POST | `/v1/evaluate/quality` | Evaluate answer quality |
-| GET | `/v1/plugins` | List plugins |
-| POST | `/v1/plugins/:id/run` | Run a plugin |
+| Access | Method | Path | Description |
+|--------|--------|------|-------------|
+| Público | GET | `/v1/tools` | List registered tools |
+| 🔒 Internal | POST | `/v1/tools/:id/execute` | Execute a tool |
+| Público | GET | `/v1/prompts` | List prompt templates |
+| Público | GET | `/v1/prompts/:key` | Get prompt versions |
+| 🔒 Internal | POST | `/v1/prompts` | Create/update prompt |
+| Público | POST | `/v1/prompts/:key/render` | Render prompt with variables |
+| 🔒 Internal | POST | `/v1/evaluate/faithfulness` | Evaluate answer faithfulness |
+| 🔒 Internal | POST | `/v1/evaluate/quality` | Evaluate answer quality |
+| Público | GET | `/v1/plugins` | List plugins |
+| 🔒 Internal | POST | `/v1/plugins/:id/run` | Run a plugin |
 
 ### System
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/v1/tenant` | Current tenant info |
-| GET | `/v1/metrics` | Prometheus metrics |
-| GET | `/v1/mcp/tools` | MCP server tool catalog |
-| GET | `/v1/docs` | Swagger UI |
-| GET | `/v1/openapi.json` | OpenAPI specification |
+| Access | Method | Path | Description |
+|--------|--------|------|-------------|
+| 🔒 Internal | GET | `/v1/tenant` | Current tenant info |
+| Público | GET | `/v1/metrics` | Prometheus metrics |
+| Público | GET | `/v1/mcp/tools` | MCP server tool catalog |
+| 🔒 Admin-only | GET | `/v1/docs` | Swagger UI |
+| 🔒 Admin-only | GET | `/v1/openapi.json` | OpenAPI specification |
 
 ### Institution Direct Data (SIL)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/v1/sil/camara/iniciativas` | Cámara SIL initiatives |
-| GET | `/v1/sil/camara/comisiones` | Cámara committees |
-| GET | `/v1/sil/camara/comision/tipo` | Cámara committee types |
-| GET | `/v1/sil/camara/iniciativa/count` | Initiative count |
-| GET | `/v1/sil/camara/iniciativa/grupos` | Initiative topic groups |
-| GET | `/v1/sil/camara/iniciativa/materias` | Matters by topic group |
-| GET | `/v1/sil/camara/sesiones` | Cámara sessions |
-| GET | `/v1/sil/camara/grupos` | Parliamentary groups |
-| GET | `/v1/sil/camara/legislador` | Search legislators |
-| GET | `/v1/sil/senado/iniciativas` | Senado SIL initiatives |
-| GET | `/v1/sil/senado/boletines` | Senado bulletins |
-| GET | `/v1/sil/senado/resoluciones` | Senado resolutions |
-| GET | `/v1/senado/news` | Senado press/news |
-| GET | `/v1/sil/senado/search` | Senado DSpace full-text search |
-| GET | `/v1/sil/senado/communities` | Senado DSpace community tree |
-| GET | `/v1/sil/senado/collections/:id/items` | Senado collection items |
+| Access | Method | Path | Description |
+|--------|--------|------|-------------|
+| Público | GET | `/v1/sil/camara/iniciativas` | Cámara SIL initiatives |
+| Público | GET | `/v1/sil/camara/comisiones` | Cámara committees |
+| Público | GET | `/v1/sil/camara/comision/tipo` | Cámara committee types |
+| Público | GET | `/v1/sil/camara/iniciativa/count` | Initiative count |
+| Público | GET | `/v1/sil/camara/iniciativa/grupos` | Initiative topic groups |
+| Público | GET | `/v1/sil/camara/iniciativa/materias` | Matters by topic group |
+| Público | GET | `/v1/sil/camara/sesiones` | Cámara sessions |
+| Público | GET | `/v1/sil/camara/grupos` | Parliamentary groups |
+| Público | GET | `/v1/sil/camara/legislador` | Search legislators |
+| Público | GET | `/v1/sil/senado/iniciativas` | Senado SIL initiatives |
+| Público | GET | `/v1/sil/senado/boletines` | Senado bulletins |
+| Público | GET | `/v1/sil/senado/resoluciones` | Senado resolutions |
+| Público | GET | `/v1/senado/news` | Senado press/news |
+| Público | GET | `/v1/sil/senado/search` | Senado DSpace full-text search |
+| Público | GET | `/v1/sil/senado/communities` | Senado DSpace community tree |
+| Público | GET | `/v1/sil/senado/collections/:id/items` | Senado collection items |
 
 All clients (Studio, CLI, MCP, SDKs) use `@intel.dom.gob/sdk`.
 
@@ -527,7 +559,7 @@ No API key, no quota, no rate limit beyond standard abuse protection:
 | SIL raw data | `/v1/sil/camara/*`, `/v1/sil/senado/*` |
 | Public search | `/v1/senado/news`, `/v1/sil/senado/search`, `/v1/sil/senado/communities`, `/v1/sil/senado/collections/:id/items` |
 | Knowledge graph (read) | `/v1/graph` |
-| System | `/v1/health`, `/v1/docs`, `/v1/openapi.json` |
+| System | `/v1/health` (Swagger UI + OpenAPI spec are admin-only, not public) |
 
 This is the transparency floor. It doesn't move, regardless of plan.
 

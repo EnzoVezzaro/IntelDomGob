@@ -44,6 +44,22 @@ export interface ApiKeyRecord {
   lastSeenNode?: string;
 }
 
+/** Anonymous "Público" preview identity used when a PUBLIC-FACING endpoint is
+ *  hit without an API key. Shares one metered pool (id "preview") with
+ *  tight default limits. Mirrors `billing.PLANS.publico`. */
+export const PREVIEW_RECORD: ApiKeyRecord = {
+  id: "preview",
+  name: "preview",
+  scopes: ["read", "query", "chat"],
+  active: true,
+  plan: "publico",
+  product: "preview",
+  paymentStatus: "ok",
+  quotaDaily: 20,
+  rateLimit: 10,
+  attributes: {},
+};
+
 /**
  * Authorization context (RBAC + ABAC). A request is authorized when its API-key
  * record carries the required scope AND any attribute constraints pass.

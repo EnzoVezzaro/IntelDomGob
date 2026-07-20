@@ -1,4 +1,13 @@
 // Versioned API router (v1). Pure delegation — no business logic here.
+//
+// ENDPOINT CLASSIFICATION (wall logic lives in createRouter):
+//   [PUBLIC-FACING] product endpoints — always behind the API-key wall;
+//       no key => "Público" preview (tight shared limits). See README
+//       "Suscripciones (API Key Tiers)".
+//   [INTERNAL]       infrastructure/operator endpoints — require a valid key
+//       (no preview). /admin/* and Swagger/OpenAPI are admin-only.
+// The API itself is PRIVATE: our public-facing products (Studio, Web, CLI,
+// MCP, SDK) are the only clients.
 
 import { Router, type Response, type Request, type NextFunction } from "express";
 import { createLogger } from "@intel.dom.gob/logger";
@@ -8,7 +17,7 @@ import type { AuthService } from "@intel.dom.gob/service-auth";
 import { registerAllInstitutions, describeAll, getInstitution } from "@intel.dom.gob/service-institutions";
 import { tools as mcpTools } from "@intel.dom.gob/service-mcp";
 import { buildCategorizedUrlTree } from "@intel.dom.gob/service-crawler";
-import { parseBearer, AuthError } from "@intel.dom.gob/service-auth";
+import { parseBearer, AuthError, type ApiKeyRecord, PREVIEW_RECORD } from "@intel.dom.gob/service-auth";
 import { BillingService } from "@intel.dom.gob/service-billing";
 import { METERED_SCOPES } from "@intel.dom.gob/service-billing";
 import type { TelemetryService } from "@intel.dom.gob/service-telemetry";
@@ -56,7 +65,6 @@ export interface RouterDeps {
   orchestrator: Orchestrator;
   search: SearchService;
   auth?: AuthService;
-  requireApiKey?: boolean;
   knowledgeGraph?: import("@intel.dom.gob/service-knowledge-graph").KnowledgeGraphService;
   ai?: import("@intel.dom.gob/service-ai").AiService;
   embeddings?: import("@intel.dom.gob/service-embeddings").EmbeddingsService;
@@ -120,17 +128,36 @@ export function createRouter(deps: RouterDeps): Router {
     });
   }
 
-  // Resolve the API-key record for the current request (used by scope checks).
-  async function authz(req: Request, scope: string | string[]): Promise<void> {
-    if (!deps.requireApiKey || !deps.auth) return;
+  // --- Endpoint classification ------------------------------------------------
+  // The API is PRIVATE (it is our product). Our public-facing products
+  // (Studio, Web, CLI, MCP, SDK) are the only clients. Two tiers:
+  //   [PUBLIC-FACING]  product endpoints — always behind the API-key wall.
+  //       No key  -> anonymous "Público" preview identity (tight shared limits).
+  //       Key     -> that tier's blockers (scopes, rate, daily quota, payment).
+  //   [INTERNAL]     infrastructure/operator endpoints — require a valid key
+  //       (no preview). /admin/* and Swagger/OpenAPI are admin-only.
+  // See README "Suscripciones (API Key Tiers)" for the full tier table.
+  function resolveScope(scope: string | string[]): string {
+    return Array.isArray(scope) ? scope[0] : scope;
+  }
+
+  // Enforce the wall. `allowPreview=false` (internal endpoints) rejects keyless
+  // requests; `allowPreview=true` (public-facing) falls back to PREVIEW_RECORD.
+  async function authz(req: Request, scope: string | string[], allowPreview = true): Promise<void> {
+    if (!deps.auth) return;
     const key = parseBearer(req.headers["authorization"]) || (req.body as any)?.apiKey;
-    if (!key) throw new AuthError("A valid API key is required.");
-    const record = await deps.auth.verifyApiKey(key);
-    if (!record) throw new AuthError("Invalid API key.");
+    let record: ApiKeyRecord;
+    if (!key) {
+      if (!allowPreview) throw new AuthError("A valid API key is required.");
+      record = PREVIEW_RECORD;
+    } else {
+      const verified = await deps.auth.verifyApiKey(key);
+      if (!verified) throw new AuthError("Invalid API key.");
+      record = verified;
+    }
     deps.auth.authorize(record, { scope });
-    // Billing gate: enforce payment status, rate limit and daily quota for
-    // metered scopes. Throws AuthError when the key is not entitled.
-    if (deps.billing) await deps.billing.guard(record, Array.isArray(scope) ? scope[0] : scope);
+    // Billing gate: payment status + rate limit + daily quota for metered scopes.
+    if (deps.billing) await deps.billing.guard(record, resolveScope(scope));
     // Multi-tenancy: resolve tenant from the key (deny-by-default). A spoofed
     // X-Tenant-Id header is rejected by the resolver.
     if (deps.tenancy) {
@@ -148,7 +175,7 @@ export function createRouter(deps: RouterDeps): Router {
       if (record.organizationId) ctx.organizationId = record.organizationId;
     }
     // Metering: record the served request (counts, latency, errors) on finish.
-    if (deps.billing && METERED_SCOPES.has(Array.isArray(scope) ? scope[0] : scope)) {
+    if (deps.billing && METERED_SCOPES.has(resolveScope(scope))) {
       const start = process.hrtime.bigint();
       const r = (req as any).__res as Response;
       r.on("finish", () => {
@@ -158,15 +185,24 @@ export function createRouter(deps: RouterDeps): Router {
     }
   }
 
-  // API-key gate (only enforced when REQUIRE_API_KEY is enabled). Default scope
-  // for top-level access is "read".
-  if (deps.requireApiKey && deps.auth) {
-    router.use(async (req: Request, res: Response, next: NextFunction) => {
+  // Public-facing READ endpoints (all GET) are gated here with the preview
+  // fallback. Write/internal routes call `authz(...)` explicitly in-handler.
+  const PUBLIC_READ_PREFIXES = [
+    "/institutions", "/sil/", "/senado/news", "/graph", "/url-tree",
+    "/models", "/tools", "/prompts", "/plugins", "/mcp/tools",
+  ];
+  const isPublicRead = (path: string): boolean =>
+    !path.startsWith("/graph/ingest") &&
+    PUBLIC_READ_PREFIXES.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p));
+  router.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method === "GET" && isPublicRead(req.path)) {
       authz(req, "read").then(() => next()).catch((e: AuthError) => {
         res.status(401).json({ error: "Unauthorized", message: e.message });
       });
-    });
-  }
+    } else {
+      next();
+    }
+  });
 
   // Health within the versioned API (convenience).
   router.get("/health", (_req, res) => {
@@ -184,12 +220,13 @@ export function createRouter(deps: RouterDeps): Router {
   });
 
   // Auto-generated OpenAPI specification (the public contract for all clients).
-  router.get("/openapi.json", (_req, res) => {
+  // Swagger/OpenAPI is NOT public — admin-only (the API is private).
+  router.get("/openapi.json", adminOnly, (_req, res) => {
     res.json(buildOpenApiSpec("v1"));
   });
 
-  // Interactive Swagger UI.
-  router.get("/docs", (_req, res) => {
+  // Interactive Swagger UI (admin-only).
+  router.get("/docs", adminOnly, (_req, res) => {
     res.type("html").send(SWAGGER_UI_HTML);
   });
 
@@ -220,6 +257,7 @@ export function createRouter(deps: RouterDeps): Router {
     }
   });
 
+  // [PUBLIC-FACING] Institution / SIL discovery (read-only, behind wall + preview)
   // --- Institution Direct Data Endpoints ---------------------------------------
   // Both chambers have their own SIL (Sistema de Información Legislativa):
   //   - Cámara SIL: diputadosrd.gob.do/sil/api/
@@ -610,6 +648,12 @@ export function createRouter(deps: RouterDeps): Router {
   // return the current graph (or the neighborhood of a given entity).
   router.post("/graph/ingest", async (req, res) => {
     try {
+      await authz(req, "execute", false);
+    } catch (e) {
+      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      return;
+    }
+    try {
       if (!deps.knowledgeGraph) return res.status(501).json({ error: "Knowledge Graph service not available" });
       const graph = await deps.knowledgeGraph.ingest(req.body);
       res.json({ entities: graph.entities.length, relations: graph.relations.length });
@@ -935,7 +979,7 @@ export function createRouter(deps: RouterDeps): Router {
   // we accept an inline descriptor with `kind` resolved by the engine adapter.
   router.post("/workflows", async (req, res: Response) => {
     try {
-      await authz(req, "query");
+      await authz(req, "query", false);
     } catch (e) {
       res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
@@ -985,7 +1029,7 @@ export function createRouter(deps: RouterDeps): Router {
 
   router.post("/workflows/:id/approve", async (req, res) => {
     try {
-      await authz(req, "query");
+      await authz(req, "query", false);
     } catch (e) {
       res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
@@ -1001,7 +1045,7 @@ export function createRouter(deps: RouterDeps): Router {
 
   router.post("/workflows/:id/deny", async (req, res) => {
     try {
-      await authz(req, "query");
+      await authz(req, "query", false);
     } catch (e) {
       res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
@@ -1016,6 +1060,8 @@ export function createRouter(deps: RouterDeps): Router {
   });
 
   // --- Tool Registry ----------------------------------------------------------
+  // NOTE: GET /tools is [PUBLIC-FACING] (wall + preview); POST /tools/:id/execute
+  // is [INTERNAL] (requires a valid key — no preview).
 
   router.get("/tools", (req, res) => {
     if (!deps.toolRegistry) {
@@ -1027,7 +1073,7 @@ export function createRouter(deps: RouterDeps): Router {
 
   router.post("/tools/:id/execute", async (req, res: Response) => {
     try {
-      await authz(req, "query");
+      await authz(req, "query", false);
     } catch (e) {
       res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
@@ -1070,7 +1116,7 @@ export function createRouter(deps: RouterDeps): Router {
 
   router.post("/prompts", async (req, res: Response) => {
     try {
-      await authz(req, "admin");
+      await authz(req, "admin", false);
     } catch (e) {
       res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
@@ -1084,7 +1130,13 @@ export function createRouter(deps: RouterDeps): Router {
     res.status(201).json(v);
   });
 
-  router.post("/prompts/:key/render", (req, res) => {
+  router.post("/prompts/:key/render", async (req, res) => {
+    try {
+      await authz(req, "read");
+    } catch (e) {
+      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      return;
+    }
     try {
       const vars = req.body?.vars ?? {};
       const version = req.body?.version;
@@ -1098,6 +1150,12 @@ export function createRouter(deps: RouterDeps): Router {
   // --- Evaluation -------------------------------------------------------------
 
   router.post("/evaluate/faithfulness", async (req, res: Response) => {
+    try {
+      await authz(req, "read", false);
+    } catch (e) {
+      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      return;
+    }
     if (!deps.evaluation) {
       res.status(501).json({ error: "Evaluation unavailable" });
       return;
@@ -1111,6 +1169,12 @@ export function createRouter(deps: RouterDeps): Router {
   });
 
   router.post("/evaluate/quality", async (req, res: Response) => {
+    try {
+      await authz(req, "read", false);
+    } catch (e) {
+      res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
+      return;
+    }
     if (!deps.evaluation) {
       res.status(501).json({ error: "Evaluation unavailable" });
       return;
@@ -1135,7 +1199,7 @@ export function createRouter(deps: RouterDeps): Router {
 
   router.post("/plugins/:id/run", async (req, res: Response) => {
     try {
-      await authz(req, "execute");
+      await authz(req, "execute", false);
     } catch (e) {
       res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
@@ -1157,7 +1221,7 @@ export function createRouter(deps: RouterDeps): Router {
 
   router.get("/tenant", async (_req, res: Response) => {
     try {
-      await authz(_req, "read");
+      await authz(_req, "read", false);
     } catch (e) {
       res.status(401).json({ error: "Unauthorized", message: (e as Error).message });
       return;
@@ -1184,7 +1248,8 @@ export function createRouter(deps: RouterDeps): Router {
   });
 
   // ---------------------------------------------------------------------------
-  // Admin console (operator) endpoints. All require an admin-scoped API key.
+  // [INTERNAL] Admin console (operator) endpoints. All require an admin-scoped
+  // API key (see adminOnly). Not for end users.
   // These delegate to AuthService / BillingService / TelemetryService; no
   // business logic lives here.
   // ---------------------------------------------------------------------------

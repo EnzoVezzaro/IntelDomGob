@@ -214,7 +214,7 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
     res.type("text/plain; version=0.0.4").send(observability.renderPrometheus());
   });
 
-  app.use("/v1", createRouter({ orchestrator, search, auth, requireApiKey: config.requireApiKey, knowledgeGraph, ai, embeddings, documentIntelligence, entities, workflowEngine, toolRegistry, promptService, evaluation, observability, tenancy, plugins, billing, telemetry, nodeId }));
+  app.use("/v1", createRouter({ orchestrator, search, auth, knowledgeGraph, ai, embeddings, documentIntelligence, entities, workflowEngine, toolRegistry, promptService, evaluation, observability, tenancy, plugins, billing, telemetry, nodeId }));
 
   app.use((_req, res) => res.status(404).json({ error: "Not Found", message: "Unknown endpoint" }));
 

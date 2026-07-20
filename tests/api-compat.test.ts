@@ -73,10 +73,25 @@ const fakeOrchestrator: any = {
   aiService: fakeAi,
 };
 
+// --- Fake auth (so internal endpoints have a valid key in tests) --------
+// "test-key" resolves to an admin record (scopes ["admin","*"], unlimited).
+// Preview / public-facing behaviors are covered in tests/api-wall.test.ts.
+const wallAdminRecord = {
+  id: "test", name: "test", scopes: ["admin", "*"], active: true,
+  plan: "institucional", paymentStatus: "ok", quotaDaily: 0, rateLimit: 0,
+  product: "admin", attributes: {},
+} as unknown as import("@intel.dom.gob/service-auth").ApiKeyRecord;
+
+const fakeAuth = {
+  verifyApiKey: async (k: string) => (k === "test-key" ? wallAdminRecord : null),
+  authorize: () => {},
+  ensureAdminKey: async () => ({ key: "x", created: false }),
+} as unknown as import("@intel.dom.gob/service-auth").AuthService;
+
 describe("OpenAI-compatible API", () => {
   it("POST /v1/chat/completions returns an OpenAI-shaped response", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi });
-    const res = await request(app as any).post("/v1/chat/completions").send({ model: "intel", messages: [{ role: "user", content: "Hola" }] });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth });
+    const res = await request(app as any).post("/v1/chat/completions").set("Authorization", "Bearer test-key").send({ model: "intel", messages: [{ role: "user", content: "Hola" }] });
     expect(res.status).toBe(200);
     expect(res.body.object).toBe("chat.completion");
     expect(res.body.choices[0].message.role).toBe("assistant");
@@ -84,15 +99,15 @@ describe("OpenAI-compatible API", () => {
   });
 
   it("POST /v1/chat/completions streams SSE chunks", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi });
-    const res = await request(app as any).post("/v1/chat/completions").send({ model: "intel", messages: [{ role: "user", content: "Hola" }], stream: true });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth });
+    const res = await request(app as any).post("/v1/chat/completions").set("Authorization", "Bearer test-key").send({ model: "intel", messages: [{ role: "user", content: "Hola" }], stream: true });
     expect(res.status).toBe(200);
     expect(res.text).toContain("chat.completion.chunk");
     expect(res.text).toContain("[DONE]");
   });
 
   it("GET /v1/models lists available models", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth });
     const res = await request(app as any).get("/v1/models");
     expect(res.status).toBe(200);
     expect(res.body.object).toBe("list");
@@ -100,8 +115,8 @@ describe("OpenAI-compatible API", () => {
   });
 
   it("POST /v1/embeddings returns vectors", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi });
-    const res = await request(app as any).post("/v1/embeddings").send({ input: "Ley 87-01" });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth });
+    const res = await request(app as any).post("/v1/embeddings").set("Authorization", "Bearer test-key").send({ input: "Ley 87-01" });
     expect(res.status).toBe(200);
     expect(res.body.object).toBe("list");
     expect(Array.isArray(res.body.data[0].embedding)).toBe(true);
@@ -119,8 +134,8 @@ import { PluginRegistry } from "@intel.dom.gob/service-plugins";
 
 describe("Entities & Document Intelligence API", () => {
   it("POST /v1/entities/extract returns entities and relations", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, entities: new EntitiesService() });
-    const res = await request(app as any).post("/v1/entities/extract").send({ text: "La Ley 87-01 creó la Seguridad Social Dominicana." });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, entities: new EntitiesService() });
+    const res = await request(app as any).post("/v1/entities/extract").set("Authorization", "Bearer test-key").send({ text: "La Ley 87-01 creó la Seguridad Social Dominicana." });
     expect(res.status).toBe(200);
     expect(res.body.entities.some((e: any) => e.type === "law")).toBe(true);
   });
@@ -128,10 +143,10 @@ describe("Entities & Document Intelligence API", () => {
 
 describe("Workflow API", () => {
   it("POST /v1/workflows executes a DAG and reports completion", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, workflowEngine: new WorkflowEngine() });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, workflowEngine: new WorkflowEngine() });
     const res = await request(app as any)
       .post("/v1/workflows")
-      .send({
+      .set("Authorization", "Bearer test-key").send({
         name: "test",
         inputs: { q: "x" },
         steps: [
@@ -145,10 +160,10 @@ describe("Workflow API", () => {
   });
 
   it("GET /v1/workflows/:id returns the workflow state", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, workflowEngine: new WorkflowEngine() });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, workflowEngine: new WorkflowEngine() });
     const created = await request(app as any)
       .post("/v1/workflows")
-      .send({ name: "t2", steps: [{ id: "a", action: "x" }] });
+      .set("Authorization", "Bearer test-key").send({ name: "t2", steps: [{ id: "a", action: "x" }] });
     const id = created.body.workflowId;
     const res = await request(app as any).get(`/v1/workflows/${id}`);
     expect(res.status).toBe(200);
@@ -156,10 +171,10 @@ describe("Workflow API", () => {
   });
 
   it("handles human-in-the-loop approval", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, workflowEngine: new WorkflowEngine() });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, workflowEngine: new WorkflowEngine() });
     const created = await request(app as any)
       .post("/v1/workflows")
-      .send({
+      .set("Authorization", "Bearer test-key").send({
         name: "approval",
         steps: [
           { id: "draft", action: "draft" },
@@ -168,14 +183,14 @@ describe("Workflow API", () => {
       });
     expect(created.body.status).toBe("awaiting_approval");
     const id = created.body.workflowId;
-    const approved = await request(app as any).post(`/v1/workflows/${id}/approve`).send({ stepId: "gate" });
+    const approved = await request(app as any).post(`/v1/workflows/${id}/approve`).set("Authorization", "Bearer test-key").send({ stepId: "gate" });
     expect(approved.body.status).toBe("completed");
   });
 });
 
 describe("Tool Registry API", () => {
   it("GET /v1/tools lists registered tools", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, toolRegistry: createDefaultToolRegistry() });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, toolRegistry: createDefaultToolRegistry() });
     const res = await request(app as any).get("/v1/tools");
     expect(res.status).toBe(200);
     expect(res.body.some((t: any) => t.id === "web.search")).toBe(true);
@@ -184,8 +199,8 @@ describe("Tool Registry API", () => {
   it("POST /v1/tools/:id/execute runs a tool", async () => {
     const reg = new ToolRegistry();
     reg.register({ id: "echo", name: "Echo", description: "d", category: "c", risk: "low", params: { msg: { type: "string", required: true } }, execute: async (a) => ({ echo: a.msg }) });
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, toolRegistry: reg });
-    const res = await request(app as any).post("/v1/tools/echo/execute").send({ msg: "hi" });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, toolRegistry: reg });
+    const res = await request(app as any).post("/v1/tools/echo/execute").set("Authorization", "Bearer test-key").send({ msg: "hi" });
     expect(res.status).toBe(200);
     expect(res.body.result.echo).toBe("hi");
   });
@@ -193,25 +208,25 @@ describe("Tool Registry API", () => {
   it("rejects execution with invalid params", async () => {
     const reg = new ToolRegistry();
     reg.register({ id: "echo", name: "Echo", description: "d", category: "c", risk: "low", params: { msg: { type: "string", required: true } }, execute: async () => ({}) });
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, toolRegistry: reg });
-    const res = await request(app as any).post("/v1/tools/echo/execute").send({});
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, toolRegistry: reg });
+    const res = await request(app as any).post("/v1/tools/echo/execute").set("Authorization", "Bearer test-key").send({});
     expect(res.status).toBe(400);
   });
 });
 
 describe("Prompt Service API", () => {
   it("creates and renders a prompt", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, promptService: new PromptService() });
-    const created = await request(app as any).post("/v1/prompts").send({ key: "greet", template: "Hola {{name}}" });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, promptService: new PromptService() });
+    const created = await request(app as any).post("/v1/prompts").set("Authorization", "Bearer test-key").send({ key: "greet", template: "Hola {{name}}" });
     expect(created.status).toBe(201);
-    const rendered = await request(app as any).post("/v1/prompts/greet/render").send({ vars: { name: "Ana" } });
+    const rendered = await request(app as any).post("/v1/prompts/greet/render").set("Authorization", "Bearer test-key").send({ vars: { name: "Ana" } });
     expect(rendered.body.rendered).toBe("Hola Ana");
   });
 
   it("GET /v1/prompts lists prompts", async () => {
     const ps = new PromptService();
     ps.add("k", "t");
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, promptService: ps });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, promptService: ps });
     const res = await request(app as any).get("/v1/prompts");
     expect(res.status).toBe(200);
     expect(res.body.some((p: any) => p.key === "k")).toBe(true);
@@ -220,27 +235,27 @@ describe("Prompt Service API", () => {
 
 describe("Evaluation API", () => {
   it("POST /v1/evaluate/faithfulness scores grounded answers", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, evaluation: new EvaluationService() });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, evaluation: new EvaluationService() });
     const res = await request(app as any)
       .post("/v1/evaluate/faithfulness")
-      .send({ answer: "La Ley 87-01 creó la TSS.", context: "La Ley 87-01 creó la TSS en el 2001." });
+      .set("Authorization", "Bearer test-key").send({ answer: "La Ley 87-01 creó la TSS.", context: "La Ley 87-01 creó la TSS en el 2001." });
     expect(res.status).toBe(200);
     expect(res.body.score).toBeGreaterThan(0.8);
   });
 
   it("POST /v1/evaluate/quality returns dimension scores", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, evaluation: new EvaluationService() });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, evaluation: new EvaluationService() });
     const res = await request(app as any)
       .post("/v1/evaluate/quality")
-      .send({ answer: "La Ley 87-01 creó la TSS para administrar los fondos de seguridad social dominicana.", prompt: "Qué es la TSS" });
+      .set("Authorization", "Bearer test-key").send({ answer: "La Ley 87-01 creó la TSS para administrar los fondos de seguridad social dominicana.", prompt: "Qué es la TSS" });
     expect(res.status).toBe(200);
     expect(res.body.dimensions).toBeDefined();
     expect(res.body.score).toBeGreaterThan(0.6);
   });
 
   it("rejects faithfulness with missing body", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, evaluation: new EvaluationService() });
-    const res = await request(app as any).post("/v1/evaluate/faithfulness").send({});
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, evaluation: new EvaluationService() });
+    const res = await request(app as any).post("/v1/evaluate/faithfulness").set("Authorization", "Bearer test-key").send({});
     expect(res.status).toBe(400);
   });
 });
@@ -248,7 +263,7 @@ describe("Evaluation API", () => {
 describe("Observability API", () => {
   it("GET /v1/metrics returns Prometheus text and counts requests", async () => {
     const obs = new ObservabilityService();
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, observability: obs });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, observability: obs });
     await request(app as any).get("/v1/institutions");
     const res = await request(app as any).get("/v1/metrics");
     expect(res.status).toBe(200);
@@ -261,7 +276,7 @@ describe("Plugins & Tenancy API", () => {
   it("GET /v1/plugins lists registered plugins", async () => {
     const reg = new PluginRegistry();
     reg.register({ manifest: { id: "p1", name: "P1", version: "1.0.0", kind: "source" }, invoke: async () => ({}) });
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, plugins: reg });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, plugins: reg });
     const res = await request(app as any).get("/v1/plugins");
     expect(res.status).toBe(200);
     expect(res.body.some((p: any) => p.id === "p1")).toBe(true);
@@ -270,15 +285,15 @@ describe("Plugins & Tenancy API", () => {
   it("POST /v1/plugins/:id/run invokes a plugin", async () => {
     const reg = new PluginRegistry();
     reg.register({ manifest: { id: "echo", name: "Echo", version: "1.0.0", kind: "transform" }, invoke: async (args) => ({ echo: args.msg }) });
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, plugins: reg });
-    const res = await request(app as any).post("/v1/plugins/echo/run").send({ msg: "hi" });
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, plugins: reg });
+    const res = await request(app as any).post("/v1/plugins/echo/run").set("Authorization", "Bearer test-key").send({ msg: "hi" });
     expect(res.status).toBe(200);
     expect(res.body.result.echo).toBe("hi");
   });
 
   it("GET /v1/tenant reports the resolved tenant", async () => {
-    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, tenancy: new TenantResolver() });
-    const res = await request(app as any).get("/v1/tenant");
+    const app = await bootstrap({ orchestrator: fakeOrchestrator, ai: fakeAi, auth: fakeAuth, tenancy: new TenantResolver() });
+    const res = await request(app as any).get("/v1/tenant").set("Authorization", "Bearer test-key");
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("tenantId");
   });

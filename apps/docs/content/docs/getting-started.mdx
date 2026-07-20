@@ -1,0 +1,115 @@
+---
+title: Getting Started
+description: How to use INTEL.DOM.GOB — without self-hosting, with an API key, or fully self-hosted.
+---
+
+## Choose Your Path
+
+INTEL.DOM.GOB is built so you can start using it in seconds, no infrastructure required.
+
+| Path | Best for | Setup time | API key |
+|------|-----------|-------------|----------|
+| **Public instance** | Try it now, quick queries | 0 min | Not needed (Público tier) |
+| **Self-host (preview)** | Evaluate locally, no signup | 2 min | Not needed |
+| **Self-host (production)** | Your own deployment | 10 min | Created in Admin |
+| **API integration** | Build on the platform | 5 min | Created in Admin |
+
+---
+
+## 1. Public Instance (No Signup)
+
+The hosted INTEL.DOM.GOB instance runs in **public preview mode** by default. No API key, no account, no configuration:
+
+- Open **Web** → `https://web.intel.dom.gob`
+- Or **Studio** → `https://studio.intel.dom.gob`
+- Or connect any **MCP client** to `https://mcp.intel.dom.gob/mcp`
+
+You're on the **Público** tier: 20 intelligence queries per day, no signup. Raw public data (institutions, SIL legislative data, knowledge graph reads) is always free and unmetered.
+
+## 2. Self-Host in Preview Mode
+
+Clone and run — no API key required:
+
+```bash
+git clone <repo> intel.dom.gob
+cd intel.dom.gob
+cp .env.example .env          # REQUIRE_API_KEY=false by default
+./scripts/up.sh
+```
+
+The platform boots with **all endpoints open**. Every client (Studio, Web, CLI, MCP, SDK) works immediately without credentials. This is the `Público` tier with heavy limits until you set an API key.
+
+| What's limited | Until you set `REQUIRE_API_KEY=true` |
+|----------------|----------------------------------------|
+| Intelligence queries | 20/day (Público tier) |
+| Workflows / Document Intelligence | Disabled or heavily throttled |
+| Multi-tenancy | Single global tenant |
+
+## 3. Get an API Key
+
+To move beyond the Público tier, create an API key in the **Admin console**:
+
+1. Start the platform (self-host) or use the public instance.
+2. Open **Admin** → `http://admin.localhost` (or `https://admin.intel.dom.gob`).
+3. Log in with the admin key:
+   - Set `INTEL_API_TOKEN=your-secret` in `.env` before first boot, **or**
+   - Find the auto-generated one-time key in `docker compose logs api` on first boot.
+4. Navigate to **API Keys** → **Create Key**.
+5. Choose a plan and scopes (read, query, workflows, etc.).
+6. Copy the key — it's shown once.
+
+Then configure your client:
+
+```bash
+# CLI / MCP
+INTEL_API_TOKEN=your-key
+
+# SDK
+const client = createClient({ baseUrl, token: "your-key" });
+
+# Web / Studio
+# Set the key in the UI or via WEB_API_TOKEN / STUDIO_MCP_URL env
+```
+
+## 4. Plans & Limits
+
+| Plan | Audience | Queries/day | Streaming | Workflows | Price |
+|------|-----------|-------------|-----------|-----------|-------|
+| **Público** | Anyone, no signup | 20 | ❌ | ❌ | Free |
+| **Investigador** | Journalists, researchers, academics, `.gob.do` | 200 | ✅ | ❌ | Free |
+| **Pro** | Businesses, law firms, analysts | 1,000+ (metered overage) | ✅ | ✅ | Flat fee/mo |
+| **Institucional** | Ministries, large orgs, integrators | Custom | ✅ | ✅ + SLA | Contract |
+
+**Investigador verification**: Free-but-full-strength access on identity, not payment. `.gob.do` / accredited university domains auto-qualify; independent journalists and civil-society researchers apply for manual approval.
+
+### What's always free
+
+Raw official data never requires a key, quota, or payment:
+
+- Source registry: `/v1/institutions`, `/v1/url-tree`
+- SIL raw data: `/v1/sil/camara/*`, `/v1/sil/senado/*`
+- Public search: `/v1/senado/news`, `/v1/sil/senado/search`, `/v1/sil/senado/communities`
+- Knowledge graph (read): `/v1/graph`
+- System: `/v1/health`, `/v1/docs`, `/v1/openapi.json`
+
+> Official data is a public good. Synthesis is a paid service. We meter the second, never the first.
+
+## 5. Production Deployment
+
+When ready for production:
+
+```bash
+# In .env
+DOMAIN=intel.dom.gob
+NODE_ENV=production
+REQUIRE_API_KEY=true
+CADDY_ACME_EMAIL=ops@intel.dom.gob
+```
+
+```bash
+./scripts/deploy.sh
+```
+
+Caddy auto-manages HTTPS via Let's Encrypt. Only `DOMAIN` changes between environments — develop exactly like production.
+
+See [Docker](/docs/docker) and [Configuration](/docs/configuration) for full reference.

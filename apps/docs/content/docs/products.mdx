@@ -1,0 +1,77 @@
+---
+title: Products
+description: INTEL.DOM.GOB is an ecosystem of products for Dominican Republic government intelligence.
+---
+
+## INTEL.DOM.GOB Products
+
+INTEL.DOM.GOB is not a single app — it's an ecosystem. The **API is the product**; everything else is a client that talks to it.
+
+| Product | What it is | For whom | Status |
+|---------|-------------|-----------|--------|
+| **API** | API-first gateway — every capability exposed over REST + SSE | Developers, integrators | Live |
+| **Studio** | Multi-agent AI workspace (AGPL-3.0 fork of Odysseus) | Power users, researchers | Live |
+| **MCP** | Model Context Protocol server — tools over Streamable HTTP + SSE | Any MCP-compatible client | Live |
+| **Web** | Lightweight no-JS web client for quick queries | Anyone, no install | Live |
+| **CLI** | Interactive terminal client (MCP) | Developers, automation | Live |
+| **Admin** | Operator console for keys, quotas, tenants | Operators | Live |
+| **Docs** | This documentation site | Everyone | Live |
+
+---
+
+## API
+
+The entry point for everything. Versioned (`/v1`), REST + SSE streaming, OpenAI-compatible. Every client above talks to it through the SDK.
+
+- **Core**: `query`, `query/stream`, `chat`, `institutions`, `url-tree`
+- **OpenAI-compatible**: `chat/completions`, `models`, `embeddings`
+- **Legislative (SIL)**: Cámara de Diputados + Senado endpoints
+- **Intelligence services**: document intelligence, entities, knowledge graph
+- **Workflow engine**: DAG execution with human-in-the-loop
+
+See the [API Reference](/docs/api) for all 40+ endpoints.
+
+## Studio
+
+A self-hosted AI workspace — chat, agents, deep research, documents, email, notes, calendar, and local model workflows. Connects to INTEL.DOM.GOB **only via the MCP server**.
+
+- Forked from [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus) (AGPL-3.0)
+- Multi-user with bcrypt auth, session cookies, TOTP 2FA, RBAC
+- Built-in MCP servers for email, memory, RAG, image generation, browser
+- Runs on FastAPI + Uvicorn + SQLite + ChromaDB
+
+## MCP
+
+A Model Context Protocol server exposing 20+ tools: intelligence queries, SIL data, Senado DSpace, institutional data. Any standard MCP client (Claude Desktop, the Studio, the CLI, custom agents) connects identically.
+
+- **Streamable HTTP**: `http://mcp.localhost/mcp`
+- **Legacy SSE**: `http://mcp.localhost/sse`
+- **Legacy JSON-RPC**: `POST http://mcp.localhost/`
+
+## Web
+
+A server-rendered, no-JS web client. Lists government institutions and runs intelligence queries. No build step, no client-side JS — a reference implementation of the SDK.
+
+- Runs on port `4200` (Docker: `web.localhost`)
+- Uses only `listInstitutions()` and `query()`
+
+## CLI
+
+An interactive terminal client modeled on OpenCode. Connects to the MCP server and exposes all platform capabilities through a prompt loop. No API logic, no SDK — just MCP.
+
+```bash
+intel                 # interactive terminal
+intel -p "question"  # one-shot
+```
+
+## Admin
+
+Operator console for managing API keys, quotas, tenants, and RBAC/ABAC. Log in with the admin key (`INTEL_API_TOKEN`) created on first boot.
+
+---
+
+## One gateway, one policy
+
+Every product routes through the same API. Pricing and rate limits apply **identically everywhere** — no client gets a cheaper or more privileged path to the Orchestrator.
+
+See [Getting Started](/docs/getting-started) to choose your path.
