@@ -5,6 +5,7 @@
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import os from "node:os";
 import { config } from "@intel.dom.gob/config";
 import { createLogger } from "@intel.dom.gob/logger";
 import { createSearXNGProvider } from "@intel.dom.gob/provider-searxng";
@@ -29,6 +30,8 @@ import { StorageService } from "@intel.dom.gob/service-storage";
 import { createDatabase } from "@intel.dom.gob/database";
 import { AuthService } from "@intel.dom.gob/service-auth";
 import { createEventBus } from "@intel.dom.gob/events";
+import { TelemetryService, createTelemetry } from "@intel.dom.gob/service-telemetry";
+import { BillingService, createBilling } from "@intel.dom.gob/service-billing";
 import { createRouter } from "./routes";
 
 const log = createLogger("api");
@@ -54,6 +57,8 @@ export interface BootstrapDeps {
   database?: ReturnType<typeof createDatabase>;
   auth?: AuthService;
   knowledgeGraph?: KnowledgeGraphService;
+  telemetry?: TelemetryService;
+  billing?: BillingService;
 }
 
 export async function bootstrap(deps: BootstrapDeps = {}) {
@@ -160,6 +165,24 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
   const auth = deps.auth ?? new AuthService(database);
   database.migrate().catch((e) => log.warn("DB migration skipped", { error: String(e) }));
 
+  // Telemetry (logs + metrics in DragonflyDB) and Billing (entitlements + usage).
+  const nodeId = process.env.NODE_ID ?? `api-${os.hostname()}-${process.pid}`;
+  const telemetry = deps.telemetry ?? createTelemetry(config.redisUrl);
+  const billing = deps.billing ?? createBilling(auth, telemetry, database, config.redisUrl);
+
+  // Ensure an admin key exists so the Admin console can authenticate. If
+  // INTEL_API_TOKEN is set it is used (so the Admin app's token works); else a
+  // one-time key is generated and logged.
+  auth.ensureAdminKey(process.env.INTEL_API_TOKEN).then(({ key, created }) => {
+    if (created) {
+      if (!process.env.INTEL_API_TOKEN) log.info("Generated admin API key for the Admin console", { key });
+      else log.info("Seeded admin API key from INTEL_API_TOKEN");
+    }
+  }).catch((e) => log.warn("Admin key bootstrap skipped", { error: String(e) }));
+
+  // Heartbeat this node for fleet-wide log/metric attribution.
+  telemetry.heartbeat(nodeId, "api", os.hostname()).catch(() => {});
+
   // 5. Express app
   const app = express();
   app.use(express.json({ limit: "2mb" }));
@@ -191,7 +214,7 @@ export async function bootstrap(deps: BootstrapDeps = {}) {
     res.type("text/plain; version=0.0.4").send(observability.renderPrometheus());
   });
 
-  app.use("/v1", createRouter({ orchestrator, search, auth, requireApiKey: config.requireApiKey, knowledgeGraph, ai, embeddings, documentIntelligence, entities, workflowEngine, toolRegistry, promptService, evaluation, observability, tenancy, plugins }));
+  app.use("/v1", createRouter({ orchestrator, search, auth, requireApiKey: config.requireApiKey, knowledgeGraph, ai, embeddings, documentIntelligence, entities, workflowEngine, toolRegistry, promptService, evaluation, observability, tenancy, plugins, billing, telemetry, nodeId }));
 
   app.use((_req, res) => res.status(404).json({ error: "Not Found", message: "Unknown endpoint" }));
 

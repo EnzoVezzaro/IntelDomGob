@@ -6,13 +6,17 @@
 // invocation goes through the INTEL.DOM.GOB SDK — exactly like Studio, Web,
 // CLI and Admin. It NEVER imports a service or provider directly.
 //
+// NOTE: this module does not import @intel.dom.gob/service-institutions (a
+// service package). The per-institution search tools are derived at boot from
+// the SDK's listInstitutions() endpoint, so MCP stays a pure SDK client per
+// AGENTS.md ("No client imports a service or provider directly").
+//
 // Adding a Tool requires only registering it here; core infrastructure is
 // untouched (WORK.md "Future MCP tools should be pluggable").
 
 import express from "express";
 import { createLogger } from "@intel.dom.gob/logger";
 import { IntelDomGobClient, createClient } from "@intel.dom.gob/sdk";
-import { getAllInstitutions, registerAllInstitutions } from "@intel.dom.gob/service-institutions";
 import { mountMcpProtocol } from "./mcp-protocol";
 
 const log = createLogger("service:mcp");
@@ -113,25 +117,65 @@ registerTool({
   },
 });
 
-// Auto-register one search tool per institution.
-registerAllInstitutions();
-for (const inst of getAllInstitutions()) {
-  registerTool({
-    name: `institution_search_${inst.id}`,
-    description: `${inst.name} — ${inst.description ?? "búsqueda institucional"}. Search this institution's official portal/jurisprudence/news for a keyword or document.`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: `Search query for ${inst.name} (keyword, sentencia number, etc.)` },
+// Friendly, discoverable tool names for the non-legislative institutions so
+// users see e.g. `tribunal_search` / `dgcp_search` instead of a generic
+// `institution_search_<id>`. Legislative chambers (senate/chamber) keep their
+// rich, granular SIL tools registered below.
+const INSTITUTION_TOOL_NAMES: Record<string, { name: string; title: string }> = {
+  judiciary:   { name: "tribunal_search",   title: "Buscar en Tribual Constitucional" },
+  presidency: { name: "presidencia_search", title: "Buscar en Presidencia" },
+  dgcp:       { name: "dgcp_search",       title: "Buscar en Contrataciones Públicas (DGCP)" },
+  datos:       { name: "datos_search",     title: "Buscar en Datos Abiertos RD" },
+  consultoria: { name: "consultoria_search", title: "Buscar en Consultoría Jurídica" },
+  compras:     { name: "compras_search",    title: "Buscar Licitaciones (Comunidad de Compras)" },
+};
+
+// Static fallback so tools still register even if the API is unreachable at
+// boot. The live list (with names/descriptions) is fetched via the SDK below.
+const KNOWN_INSTITUTION_IDS = ["senate", "chamber", "presidency", "judiciary", "dgcp", "datos", "consultoria", "compras"];
+
+interface InstitutionInfo { id: string; name: string; description?: string }
+
+// Register one search tool per government institution. The institution list is
+// sourced EXCLUSIVELY from the SDK (client.listInstitutions()) — no service
+// package is imported here, keeping MCP a pure platform client. senate/chamber
+// are intentionally skipped: their rich, granular SIL tools are registered
+// further below.
+export async function registerInstitutionTools(client: IntelDomGobClient): Promise<void> {
+  let list: InstitutionInfo[];
+  try {
+    const descriptors = await client.listInstitutions();
+    list = descriptors.map((d: any) => ({ id: d.id, name: d.name, description: d.description }));
+  } catch (e: any) {
+    log.warn("Could not fetch institution list from API; using static fallback", { error: e?.message });
+    list = KNOWN_INSTITUTION_IDS.map((id) => ({ id, name: id }));
+  }
+  if (list.length === 0) {
+    list = KNOWN_INSTITUTION_IDS.map((id) => ({ id, name: id }));
+  }
+
+  for (const inst of list) {
+    if (inst.id === "senate" || inst.id === "chamber") continue;
+    const friendly = INSTITUTION_TOOL_NAMES[inst.id];
+    const toolName = friendly ? friendly.name : `institution_search_${inst.id}`;
+    const toolTitle = friendly ? friendly.title : `Buscar en ${inst.name}`;
+    registerTool({
+      name: toolName,
+      description: `${inst.name} — ${inst.description ?? "búsqueda institucional"}. Search this institution's official portal/jurisprudence/news/open-data for a keyword, document, sentencia number or licitación.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: `Search query for ${inst.name} (keyword, sentencia number, licitación, dataset, etc.)` },
+        },
+        required: ["query"],
       },
-      required: ["query"],
-    },
-    annotations: { title: `Buscar en ${inst.name}`, readOnlyHint: true },
-    async run(args, client, notify) {
-      if (notify) notify("info", `Searching ${inst.name} for: ${args.query}`);
-      return client.searchInstitution(inst.id, args.query);
-    },
-  });
+      annotations: { title: toolTitle, readOnlyHint: true },
+      async run(args, c, notify) {
+        if (notify) notify("info", `Searching ${inst.name} for: ${args.query}`);
+        return c.searchInstitution(inst.id, args.query);
+      },
+    });
+  }
 }
 
 registerTool({
@@ -607,6 +651,14 @@ export class McpServer {
   constructor(opts: McpServerOptions) {
     this.client = createClient({ baseUrl: opts.apiBaseUrl, token: opts.token });
     this.port = opts.port ?? 4100;
+
+    // Derive the per-institution search tools from the SDK (no service import).
+    // Awaited so the registry is complete before the server starts serving.
+    // Failures fall back to a static institution list (see registerInstitutionTools).
+    registerInstitutionTools(this.client).catch((e) =>
+      log.warn("Institution tool registration failed", { error: (e as Error)?.message }),
+    );
+
     this.app.use(express.json());
 
     // Legacy INTEL.DOM.GOB JSON-RPC surface (internal clients).

@@ -3,19 +3,22 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "bin": { "intel": "./src/index.ts" },
+  "bin": {
+    "intel": "./src/index.ts"
+  },
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "tsx --env-file=../../.env src/index.ts",
+    "start": "tsx --env-file=../../.env src/index.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "echo \"no tests\"",
+    "test": "node --import tsx --test tests/*.test.ts",
     "clean": "echo \"nothing to clean\""
   },
   "dependencies": {
-    "@intel.dom.gob/types": "*",
-    "@intel.dom.gob/sdk": "*"
+    "@clack/prompts": "^1.7.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "picocolors": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

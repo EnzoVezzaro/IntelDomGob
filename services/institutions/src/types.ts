@@ -12,6 +12,8 @@ export interface InstitutionDocument {
   title: string;
   url: string;
   snippet?: string;
+  /** Human-readable summary/description of the document or initiative. */
+  description?: string;
   /** Source engine / mechanism that produced it (e.g. "senado-api", "sil-api"). */
   engine?: string;
   /** Publication date if known (YYYY-MM-DD or any parseable string). */

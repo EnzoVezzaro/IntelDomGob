@@ -90,10 +90,18 @@ if [ "$NO_UP" -eq 0 ]; then
     log "${C_BOLD}▶ Infra already up — tearing down first for a clean restart...${C_RESET}"
     docker compose down --remove-orphans 2>&1 | tail -10
   fi
-  log "${C_BOLD}▶ Building docs image...${C_RESET}"
-  docker compose build docs 2>&1 | tail -5
+  # On localhost the docs service runs as a hot-reloading `next dev` server via
+  # docker-compose.override.yml (Dockerfile.dev). In that mode the image is
+  # built automatically on `up`, so we skip the standalone production build.
+  # In production (DOMAIN != localhost, no override) we build the standalone
+  # image explicitly.
+  if [ "${DOMAIN:-localhost}" != "localhost" ]; then
+    log "${C_BOLD}▶ Building docs image (standalone/production)...${C_RESET}"
+    docker compose build docs 2>&1 | tail -5
+  else
+    log "${C_BOLD}▶ Docs: hot-reload dev mode (override auto-applied, build deferred to up)${C_RESET}"
+  fi
   log "${C_BOLD}▶ Starting the INTEL.DOM.GOB stack (DOMAIN=$DOMAIN)...${C_RESET}"
-  log "${C_DIM}  (uses cached images; rebuild explicitly with: docker compose up -d --build)${C_RESET}"
   docker compose up -d --remove-orphans 2>&1 | tail -20
 fi
 

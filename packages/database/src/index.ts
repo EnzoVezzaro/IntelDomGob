@@ -116,14 +116,37 @@ const MIGRATIONS: string[] = [
      enabled BOOLEAN NOT NULL DEFAULT true,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
-  `CREATE TABLE IF NOT EXISTS tool_registry (
-     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     name TEXT NOT NULL UNIQUE,
-     description TEXT,
-     service TEXT NOT NULL,
-     enabled BOOLEAN NOT NULL DEFAULT true,
-     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-   )`,
+   `CREATE TABLE IF NOT EXISTS tool_registry (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      service TEXT NOT NULL,
+      enabled BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`,
+   // --- Admin / billing extensions ---------------------------------------------
+   // API keys are bound to a product (client surface: studio|web|cli|mcp|sdk|
+   // custom) and carry plan/quota/payment metadata used by services/billing to
+   // enforce entitlements at the gateway. ALTERs are idempotent so existing
+   // deployments gain the columns without a recreate.
+   `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS product TEXT NOT NULL DEFAULT 'custom'`,
+   `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'`,
+   `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS quota_daily INTEGER NOT NULL DEFAULT 0`,
+   `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rate_limit INTEGER NOT NULL DEFAULT 0`,
+   `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'ok'`,
+   `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`,
+   `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_seen_node TEXT`,
+   `CREATE INDEX IF NOT EXISTS idx_api_keys_product ON api_keys (product)`,
+   `CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys (active)`,
+   // Registry of platform nodes (API/worker instances) for fleet-wide logs &
+   // metrics attribution. Heartbeated by each process on boot.
+   `CREATE TABLE IF NOT EXISTS nodes (
+      id TEXT PRIMARY KEY,
+      service TEXT NOT NULL,
+      host TEXT,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_heartbeat TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`,
 ];
 
 export class Database {

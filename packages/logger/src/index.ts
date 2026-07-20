@@ -6,6 +6,25 @@
 
 import type { LogLevel, LogMeta } from "./types";
 
+/** A log sink receives every emitted entry (used to forward to telemetry). */
+export type LogSink = (entry: LogEntry) => void;
+
+export interface LogEntry {
+  timestamp: string;
+  service: string;
+  level: LogLevel;
+  requestId?: string;
+  message: string;
+  [key: string]: unknown;
+}
+
+let globalSink: LogSink | null = null;
+
+/** Register a process-wide sink. Pass null to clear. */
+export function setLogSink(sink: LogSink | null): void {
+  globalSink = sink;
+}
+
 const LEVELS: Record<LogLevel, number> = {
   debug: 10,
   info: 20,
@@ -59,6 +78,13 @@ export class Logger {
       const tag = level.toUpperCase().padEnd(5);
       const metaStr = Object.keys(meta ?? {}).length ? ` ${JSON.stringify(meta)}` : "";
       process.stderr.write(`${entry.timestamp} ${tag} (${this.service})${rid} ${message}${metaStr}\n`);
+    }
+    if (globalSink && LEVELS[level] >= this.level) {
+      try {
+        globalSink(entry);
+      } catch {
+        // Sinks must never break the caller's log line.
+      }
     }
   }
 

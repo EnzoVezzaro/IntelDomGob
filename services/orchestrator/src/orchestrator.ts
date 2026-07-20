@@ -98,259 +98,20 @@ export class Orchestrator {
   }
 
   async runQuery(req: QueryRequest): Promise<IntelligenceResult> {
-    const lang = req.responseLang || "es";
-    const searchOpts = {
-      lang: req.search?.lang,
-      category: req.search?.category,
-      safe: req.search?.safe,
-      timeRange: req.search?.timeRange,
-      engines: req.search?.engines || "bing,mojeek,wikipedia,duckduckgo_lite,wikidata",
-    };
-
     if (!req.query || typeof req.query !== "string") {
       throw new Error("Missing or invalid query parameter");
     }
 
-    const ALL = getAllInstitutions();
+    // Share the EXACT retrieval + scope + planner logic with the streaming path
+    // (retrieve()) so /query (sync) and /query/stream produce consistent results
+    // for the same input.
+    const searchPhase = await this.retrieve(req);
 
-    // Resolve which institution services to target.
-    let targetServices: InstitutionService[] = ALL;
-    if (req.institutions && Array.isArray(req.institutions) && req.institutions.length > 0) {
-      const resolved = req.institutions
-        .map((inst) => getInstitutionByName(inst) || ALL.find((s) => s.id === inst))
-        .filter(Boolean) as InstitutionService[];
-      targetServices = resolved.length > 0 ? resolved : ALL;
-    }
-
-    const targetPortals = targetServices.map((s) => ({ name: s.name, url: s.url }));
-    const restricted = !!(req.institutions && Array.isArray(req.institutions) && req.institutions.length > 0 && targetServices.length < ALL.length);
-    const allowedPortalNames = new Set(targetServices.map((s) => s.name.toLowerCase()));
-    const portalAliases: Record<string, string[]> = {
-      "senado de la república": ["senado de la república", "senado"],
-      "cámara de diputados": ["cámara de diputados", "diputados", "cámara"],
-      "presidencia de la república": ["presidencia de la república", "presidencia"],
-      "tribunal constitucional": ["tribunal constitucional"],
-      "dgcp": ["dgcp", "dirección general de contrataciones públicas"],
-      "datos abiertos rd": ["datos abiertos rd", "datos.gob.do", "datos abiertos"],
-      "consultoría jurídica del poder ejecutivo": ["consultoría jurídica"],
-    };
-    const isPortalAllowed = (sourceLabel: string): boolean => {
-      if (!restricted) return true;
-      const lab = sourceLabel.toLowerCase();
-      for (const name of allowedPortalNames) {
-        if (lab.includes(name)) return true;
-        if ((portalAliases[name] || []).some((a) => lab.includes(a))) return true;
-      }
-      return false;
-    };
-
-    const hostToPortal = buildHostToPortal(targetServices);
-
-    // Decompose the query into its principal search concepts (deterministic) so
-    // SearXNG targets the real sub-topics instead of the whole sentence as one blob.
-    const { concepts, tokens: conceptTokens } = extractSearchConcepts(req.query);
-    const conceptNeeded = conceptTokens.length <= 2 ? 1 : 2;
-
-    // Build the SearXNG fan-out from the extracted concepts.
-    const searchQueries: string[] = [];
-    for (const c of concepts) {
-      searchQueries.push(c, `${c} República Dominicana`, `${c} gob.do`, `${c} sitio oficial`);
-    }
-    for (const portal of targetPortals) {
-      const host = portal.url.replace(/^https?:\/\//, "");
-      for (const c of concepts) searchQueries.push(`${c} ${host}`);
-    }
-    const DR_NEWS_HOSTS = [
-      "listindiario.com", "diariolibre.com", "hoy.com.do", "elnacional.com.do", "acento.com.do",
-      "elcaribe.com.do", "almomento.net", "eldia.com.do",
-      "presidencia.gob.do", "camaradediputados.gob.do", "senado.gob.do",
-      "tribunalconstitucional.gob.do", "dgcp.gob.do", "consultoria.gov.do", "datos.gob.do",
-    ];
-    for (const host of DR_NEWS_HOSTS) for (const c of concepts) searchQueries.push(`${c} site:${host}`);
-
-    // Run SearXNG fan-out (prioritize Congreso hosts).
-    const congressHosts = ["senado.gob.do", "senadord.gob.do", "camaradediputados.gob.do", "diputadosrd.gob.do"];
-    const rankedQueries = [...searchQueries].sort((a, b) => {
-      const ca = congressHosts.some((h) => a.includes(h)) ? 0 : 1;
-      const cb = congressHosts.some((h) => b.includes(h)) ? 0 : 1;
-      return ca - cb;
-    });
-    const MAX_SEARX_CALLS = 28;
-    const searxResults: SearchResultItem[] = [];
-    for (const sq of rankedQueries.slice(0, MAX_SEARX_CALLS)) {
-      const r = await this.search.webSearch(sq, req.search?.maxResults || 8, searchOpts.engines).catch(() => []);
-      searxResults.push(...r);
-    }
-
-    const keepResult = (host: string) => !restricted || hostToPortal.has(host);
-    // Relevance gate: keep official/congress results only if they share concepts
-    // with the query. Fallback to host-only if the gate empties the pool (never
-    // return zero official sources on a sparse retrieval).
-    const gateOk = (r: SearchResultItem): boolean => {
-      try {
-        const host = new URL(r.url).hostname.replace(/^www\./, "");
-        if (!keepResult(host)) return false;
-        if (conceptTokens.length === 0) return true;
-        return tokenOverlapLocal(`${r.title} ${r.snippet}`, conceptTokens) >= conceptNeeded;
-      } catch {
-        return false;
-      }
-    };
-    const gated = searxResults.filter(gateOk);
-    const filteredResults =
-      gated.length > 0
-        ? gated
-        : searxResults.filter((r) => {
-            try {
-              return keepResult(new URL(r.url).hostname.replace(/^www\./, ""));
-            } catch {
-              return false;
-            }
-          });
-    const newsPool = searxResults.filter((r) => {
-      try {
-        const host = new URL(r.url).hostname.replace(/^www\./, "");
-        if (!isDominicanSource(host)) return false;
-        if (conceptTokens.length === 0) return true;
-        return tokenOverlapLocal(`${r.title} ${r.snippet}`, conceptTokens) >= conceptNeeded;
-      } catch {
-        return false;
-      }
-    });
-
-    const tagged = [...filteredResults, ...newsPool]
-      .map((r) => tagResult(r, hostToPortal))
-      .filter((r, i, arr) => arr.findIndex((x) => normUrl(x.url) === normUrl(r.url)) === i);
-
-    const congressResults = tagged.filter(isCongressStream);
-    const otherOfficialResults = tagged.filter(isOtherOfficial);
-    const newsResults = tagged.filter((r) => {
-      if (isCongressStream(r) || isOtherOfficial(r)) return false;
-      try {
-        const h = new URL(r.url).hostname.replace(/^www\./, "");
-        if (!isDominicanSource(h)) return false;
-      } catch {
-        return false;
-      }
-      const toks = conceptTokens;
-      if (toks.length === 0) return true;
-      const needed = conceptNeeded;
-      return tokenOverlapLocal(`${r.title} ${r.snippet}`, toks) >= needed;
-    });
-
-    // SIL legislative records (Cámara + Senado), separated by concept.
-    const SIL_MAX = 12;
-    const chamberSvc = targetServices.find((s) => s.id === "chamber");
-    const senateSvc = targetServices.find((s) => s.id === "senate");
-    const chamberConcepts = chamberSvc && isPortalAllowed("Cámara de Diputados")
-      ? await (chamberSvc as any).getConcepts?.(req.query).catch(() => null)
-      : null;
-    const senateConcepts = senateSvc && isPortalAllowed("Senado de la República")
-      ? await (senateSvc as any).getConcepts?.(req.query).catch(() => null)
-      : null;
-    const chamberLaws = chamberConcepts?.iniciativas ?? [];
-    const senateLaws = senateConcepts?.iniciativas ?? [];
-    const silLaws: LawRef[] = [...chamberLaws, ...senateLaws];
-
-    const BULLETIN_MAX = 10;
-    const senadoBulletins = senateConcepts?.boletines ?? [];
-
-    // Parallel institution searches.
-    const [
-      officialActivity,
-      newsActivity,
-      senadoActivity,
-      datosActivity,
-      perInstitutionResults,
-    ] = await Promise.all([
-      Promise.all(
-        targetServices.filter((s) => s.id !== "senate" && s.id !== "datos").map((s) => s.search(req.query).catch(() => [] as any[]))
-      ).then((a) => a.flat()),
-      this.search.newsActivity(req.query, () => true, restricted),
-      (async () => {
-        const sen = targetServices.find((s) => s.id === "senate");
-        return sen ? (await sen.search(req.query).catch(() => [])) : [];
-      })(),
-      (async () => {
-        const dat = targetServices.find((s) => s.id === "datos");
-        return dat ? (await dat.search(req.query).catch(() => [])) : [];
-      })(),
-      Promise.all(
-        targetServices.map(async (s) => [s.id, (await s.search(req.query).catch(() => [] as any[]))] as const)
-      ).then((e) => Object.fromEntries(e)),
-    ]);
-
-    const officialAsResults: InstitutionResult[] = officialActivity.map((a) => ({
-      title: a.title, url: a.url, snippet: (a as any).snippet || "", engine: (a as any).engine || "portal-oficial", institution: a.institution,
-    }));
-    const senadoAsResults: InstitutionResult[] = senadoActivity.map((a) => ({
-      title: a.title, url: a.url, snippet: (a as any).date || "", engine: "senado-api", institution: "Senado de la República",
-    }));
-    const datosAsResults: InstitutionResult[] = datosActivity.map((a) => ({
-      title: a.title, url: a.url, snippet: a.snippet, engine: "datos-gob", institution: (a as any).source,
-    }));
-    const newsAsResults: InstitutionResult[] = newsActivity.map((a) => ({
-      title: a.title, url: a.url, snippet: a.snippet || "", engine: "medio", institution: a.source,
-    }));
-
-    const congressMerged = dedupeByKey([...officialAsResults, ...congressResults, ...senadoAsResults, ...datosAsResults], (r) => normUrl(r.url)).slice(0, 36);
-    const newsMerged = dedupeByKey([...newsResults, ...newsAsResults, ...otherOfficialResults], (r) => normUrl(r.url)).slice(0, 30);
-
-    const perInstitution: Record<string, InstitutionResult[]> = {};
-    for (const s of targetServices) {
-      perInstitution[s.id] = dedupeByKey((perInstitutionResults[s.id] || []).map((r) => tagResult(r, hostToPortal)), (r) => normUrl(r.url));
-    }
-
-    const bundle: RetrievalBundle = {
-      query: req.query,
-      congressResults: congressMerged,
-      otherOfficialResults,
-      newsResults: newsMerged,
-      silLaws,
-      senadoBulletins,
-      camaraIniciativas: (chamberConcepts?.iniciativas ?? []).slice(0, SIL_MAX),
-      senadoIniciativas: (senateConcepts?.iniciativas ?? []).slice(0, SIL_MAX),
-      senadoResoluciones: (senateConcepts?.resoluciones ?? []).slice(0, BULLETIN_MAX),
-      senadoActas: (senateConcepts?.actas ?? []).slice(0, BULLETIN_MAX),
-      senadoInformes: (senateConcepts?.informes ?? []).slice(0, BULLETIN_MAX),
-      camaraComisiones: (chamberConcepts?.comisiones ?? []).slice(0, BULLETIN_MAX),
-      camaraSesiones: (chamberConcepts?.sesiones ?? []).slice(0, BULLETIN_MAX),
-      camaraGrupos: (chamberConcepts?.gruposParlamentarios ?? []).slice(0, BULLETIN_MAX),
-      diputados: (chamberConcepts?.legisladores ?? []).slice(0, BULLETIN_MAX),
-      perInstitution,
-      searchQueries,
-    };
-
-    // Build grounded user prompt.
-    const institutionContext = req.institutions && Array.isArray(req.institutions) && req.institutions.length > 0
-      ? `Focus search strictly on these institutions: ${req.institutions.join(", ")}. `
-      : `Dynamically decide which Dominican Republic government institutions are relevant. `;
-
-    const groundedUserPrompt = `${buildUserPrompt(req.query, institutionContext)}
-
-=== FLUJO A: ACTIVIDAD DEL CONGRESO NACIONAL (FUENTES OFICIALES) ===
-${congressMerged.length ? congressMerged.map((r, i) => `[C-${i + 1}] (${r.institution || classifyInstitution(r.url)} - ${r.engine || "portal-oficial"}) ${r.title}\nURL: ${r.url}\n${r.snippet || ""}`).join("\n\n") : "No se recuperaron fuentes oficiales del Congreso/Nacional."}
-${silLaws.length ? `\n--- LEYES / INICIATIVAS LEGISLATIVAS (via Diputados SIL API) ---\n${silLaws.map((l, i) => `[SIL-${i + 1}] (${l.url.includes("senado") ? "Senado de la República" : "Cámara de Diputados"} - SIL API) ${l.numero} · ${l.tipo}\nEstado: ${l.estado || "N/A"}${l.materia ? " · Materia: " + l.materia : ""}${l.fechaDeposito ? " · Depositado: " + l.fechaDeposito : ""}\n${l.descripcion.slice(0, 400)}\nURL: ${l.url}`).join("\n\n")}` : ""}
-
-=== FLUJO D: COBERTURA EN NOTICIAS / MEDIOS ===
-${newsMerged.length ? newsMerged.map((r, i) => `[N-${i + 1}] (${r.institution || classifyInstitution(r.url)} - ${r.engine}) ${r.title}\nURL: ${r.url}\n${r.snippet}`).join("\n\n") : "No se recuperaron noticias desde SearXNG."}
-
-=== FLUJO E: BOLETINES, ACTAS Y DOCUMENTOS LEGISLATIVOS (Senado DSpace) ===
-${senadoBulletins.length ? senadoBulletins.map((b, i) => `[B-${i + 1}] (${b.tipo || "Boletín"}) ${b.title}\nURL: ${b.url}\nFecha: ${b.date || "s/f"}${b.snippet ? `\n${b.snippet}` : ""}`).join("\n\n") : "No se encontraron boletines/actas relevantes."}
-
-REGLAS DE REDACCIÓN:
-1. Basa la respuesta ESTRICTAMENTE en las fuentes anteriores. No inventes fuentes, números de ley ni fechas.
-2. El enfoque PRIMARIO (FLUJO A) debe ser lo que está haciendo el CONGRESO NACIONAL. Las NOTICIAS (FLUJO D) son solo contexto cuaternario.
-3. OBLIGATORIO: toda ley/iniciativa del SIL debe incluirse como fila en la MATRIZ DE EVIDENCIA.
-4. CITA EL CONGRESO PRIMERO en el resumen ejecutivo, análisis detallado y cada sección.
-5. Si las fuentes carecen de información, indícalo honestamente y mantén la confianza baja.
-6. PROHIBIDO ALUCINAR FUENTES en FLUJO D y FLUJO E. Cada entrada de "news" debe usar EXACTAMENTE una URL que aparezca en FLUJO D. Si FLUJO D está vacío, devuelve "news" VACÍO ([]).
-7. INCLUYE TODAS las notas del FLUJO D que sean claramente relevantes (hasta ~10 entradas distintas).`;
-
+    const model = req.model || "gemini-3.1-flash-lite";
     const modelJson = await this.ai.generateJson({
-      model: req.model,
-      systemInstruction: buildSystemInstruction(lang),
-      messages: [{ role: "user", content: groundedUserPrompt }],
+      model,
+      systemInstruction: buildSystemInstruction(req.responseLang || "es"),
+      messages: [{ role: "user", content: searchPhase.groundedUserPrompt }],
       temperature: 0.4,
       maxOutputTokens: 32768,
       responseSchema: buildResponseSchema(),
@@ -359,17 +120,14 @@ REGLAS DE REDACCIÓN:
       return {};
     });
 
-    // Lightweight planner step (DeerFlow-style) — decide institution focus and
-    // decompose the question into sub-questions before any retrieval. The plan
-    // is attached to the result for full traceability.
-    const plan = this.planQuery(req, targetServices, restricted);
-    modelJson.planner = {
-      intent: plan.intent,
-      institutionsSelected: plan.institutionsSelected,
-      plan: plan.plan,
+    // The planner result is already computed in the shared retrieval phase.
+    modelJson.planner = modelJson.planner ?? {
+      intent: searchPhase.plan.intent,
+      institutionsSelected: searchPhase.plan.institutionsSelected,
+      plan: searchPhase.plan.plan,
     };
 
-    return buildResult(modelJson, bundle);
+    return buildResult(modelJson, searchPhase.bundle);
   }
 
   /**
@@ -686,10 +444,10 @@ REGLAS DE REDACCIÓN:
       title: a.title, url: a.url, snippet: a.date || "", engine: "senado-api", institution: "Senado de la República",
     }));
     const datosAsResults: InstitutionResult[] = datosActivity.map((a) => ({
-      title: a.title, url: a.url, snippet: a.snippet, engine: "datos-gob", institution: (a as any).source,
+      title: a.title, url: a.url, snippet: a.snippet, engine: "datos-gob", institution: (a as any).institution || "Datos Abiertos RD",
     }));
     const newsAsResults: InstitutionResult[] = newsActivity.map((a) => ({
-      title: a.title, url: a.url, snippet: a.snippet || "", engine: "medio", institution: a.source,
+      title: a.title, url: a.url, snippet: a.snippet || "", engine: "medio", institution: (a as any).institution || a.source || "Medio",
     }));
 
     const congressMerged = dedupeByKey([...officialAsResults, ...congressResults, ...senadoAsResults, ...datosAsResults], (r) => normUrl(r.url)).slice(0, 36);

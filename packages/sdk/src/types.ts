@@ -11,4 +11,5 @@ export type {
   BulletinRef,
   InstitutionDescriptor,
   HealthStatus,
+  FetchedPage,
 } from "@intel.dom.gob/types";

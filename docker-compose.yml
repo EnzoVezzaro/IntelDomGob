@@ -59,6 +59,11 @@ services:
         condition: service_healthy
     expose:
       - "4000"
+    # Host port mapping for local debugging: lets host-side clients (CLI, curl)
+    # reach the API over plain HTTP, bypassing Caddy's self-signed *.localhost
+    # cert that Node's fetch would otherwise reject.
+    ports:
+      - "4000:4000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4000/health"]
       interval: 30s
@@ -121,6 +126,11 @@ services:
       INTEL_API_TOKEN: "${INTEL_API_TOKEN:-}"
     expose:
       - "4100"
+    # Host port mapping for local debugging: lets the host-side CLI reach the
+    # MCP server over plain HTTP (http://localhost:4100/mcp) instead of going
+    # through Caddy's self-signed *.localhost cert.
+    ports:
+      - "4100:4100"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4100/health"]
       interval: 30s
@@ -165,7 +175,7 @@ services:
     expose:
       - "4300"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4300/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4300/healthz"]
       interval: 30s
       timeout: 5s
       retries: 5

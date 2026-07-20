@@ -512,6 +512,7 @@ function lawToResult(law: InstitutionLaw): InstitutionResult {
     title: `${law.numero} — ${law.descripcion}`.slice(0, 220),
     url: law.url,
     snippet,
+    description: law.descripcion.slice(0, 400).replace(/\s+/g, " ").trim(),
     engine: "camara-sil",
     institution: chamberConfig.name,
   };

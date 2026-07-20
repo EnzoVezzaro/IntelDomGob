@@ -510,3 +510,58 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [AGENTS.md](./AGENTS.md).
 ## License
 
 MIT.
+
+## Pricing
+
+INTEL.DOM.GOB separates **public record access** from **intelligence synthesis**. Raw official data stays free and unmetered, permanently. What's metered is the compute-intensive layer we add on top: multi-agent reasoning, document intelligence, workflows, and knowledge graph synthesis.
+
+> Official data is a public good. Synthesis is a paid service. We meter the second, never the first.
+
+### What's always free
+
+No API key, no quota, no rate limit beyond standard abuse protection:
+
+| Category | Endpoints |
+|---|---|
+| Source registry | `/v1/institutions`, `/v1/url-tree` |
+| SIL raw data | `/v1/sil/camara/*`, `/v1/sil/senado/*` |
+| Public search | `/v1/senado/news`, `/v1/sil/senado/search`, `/v1/sil/senado/communities`, `/v1/sil/senado/collections/:id/items` |
+| Knowledge graph (read) | `/v1/graph` |
+| System | `/v1/health`, `/v1/docs`, `/v1/openapi.json` |
+
+This is the transparency floor. It doesn't move, regardless of plan.
+
+### What's metered
+
+The Orchestrator's compute cost (AI provider calls, search provider calls, OCR, embeddings) lives behind these routes:
+
+| Category | Endpoints |
+|---|---|
+| Intelligence queries | `/v1/query`, `/v1/query/stream`, `/v1/chat`, `/v1/chat/completions` |
+| Document intelligence | `/v1/documents/process`, `/v1/entities/extract`, `/v1/graph/ingest` |
+| Workflow engine | `/v1/workflows/*` |
+| Embeddings & evaluation | `/v1/embeddings`, `/v1/evaluate/*` |
+| Tools & plugins | `/v1/tools/:id/execute`, `/v1/plugins/:id/run` |
+
+### Plans
+
+| Plan | Audience | Raw data | Intelligence queries | Streaming | Workflows / Document Intelligence | Price |
+|---|---|---|---|---|---|---|
+| **Público** | Anyone, no signup | Unlimited | 20/day | ❌ | ❌ | Free |
+| **Investigador** | Verified journalists, researchers, academics, `.gob.do` | Unlimited | 200/day | ✅ | ❌ | Free |
+| **Pro** | Businesses, law firms, analysts | Unlimited | 1,000/day included, metered overage | ✅ | ✅ | Flat fee/mo |
+| **Institucional** | Ministries, large orgs, integrators | Unlimited | Custom | ✅ | ✅ + dedicated tenancy, SLA, priority workers | Custom contract |
+
+Overage on Pro is billed per query at a fixed per-unit rate, calculated from `services/observability` usage events — no surprise invoices, usage visible in real time via `/v1/tenant`.
+
+### Verification for the Investigador tier
+
+Free-but-full-strength access is granted on identity, not payment: `.gob.do` / accredited university domains auto-qualify; independent journalists and civil-society researchers apply for manual approval. This is the mechanism that keeps the free tier meaningful instead of symbolic — it's the FOI commitment made operational, not just a marketing line.
+
+### Why this split
+
+- **Raw public data was never ours to sell.** Charging for it would work against the Estado's own transparency mandate.
+- **Synthesis has a real, variable cost** (LLM inference, search API calls, OCR compute) and scales with usage — this is what has to be sustainable for the platform to keep running and improving.
+- **One gateway, one policy.** Because every client (Studio, Web, CLI, Admin, MCP, SDKs) routes through the same API, this pricing applies identically everywhere — no client gets a cheaper or more privileged path to the Orchestrator.
+
+Full plan details and the Investigador application form: `https://intel.dom.gob/pricing`.

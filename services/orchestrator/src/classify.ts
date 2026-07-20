@@ -55,10 +55,10 @@ export function isTribunalSource(item: { institution?: string; url?: string }): 
   return inst.includes("tribunal") || url.includes("tribunalconstitucional");
 }
 
-export function isDatosSource(item: { institution?: string; url?: string }): boolean {
+export function isDatosSource(item: { institution?: string; url?: string; engine?: string }): boolean {
   const inst = (item.institution || "").toLowerCase();
   const url = (item.url || "").toLowerCase();
-  return inst.includes("datos") || url.includes("datos.gob.do");
+  return inst.includes("datos") || url.includes("datos.gob.do") || item.engine === "datos-gob";
 }
 
 export function isCongressStream(item: { institution?: string; url?: string }): boolean {

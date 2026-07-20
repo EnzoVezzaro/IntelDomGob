@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "echo \"no tests\"",
+    "test": "node --import tsx --test tests/*.test.ts",
     "clean": "echo \"nothing to clean\""
   },
   "dependencies": {

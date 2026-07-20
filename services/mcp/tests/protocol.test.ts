@@ -60,7 +60,14 @@ before(async () => {
 });
 
 after(() => {
+  // Close the listen socket AND any lingering keep-alive connections so the
+  // process actually exits (the protocol layer opens SSE streams with ping
+  // intervals that otherwise keep the event loop alive).
+  server?.closeAllConnections?.();
   server?.close();
+  // Guaranteed clean exit: the ping intervals inside mountMcpProtocol can hold
+  // the event loop open; once tests are done we don't need to wait for them.
+  setTimeout(() => process.exit(0), 50).unref?.();
 });
 
 // ── tests ────────────────────────────────────────────────────────────────────

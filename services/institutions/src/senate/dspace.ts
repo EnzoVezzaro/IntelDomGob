@@ -371,6 +371,7 @@ export function expedienteToResult(exp: SenateExpediente): InstitutionResult {
     title: `${exp.numero} — ${exp.descripcion}`.slice(0, 220),
     url: exp.url,
     snippet: `Tipo: ${exp.tipo} | Estado: ${exp.estado} | Fecha: ${exp.fecha}`,
+    description: exp.descripcion.slice(0, 400).replace(/\s+/g, " ").trim(),
     engine: "senado-dspace",
     institution: "Senado de la República",
   };

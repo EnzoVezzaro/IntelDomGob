@@ -1,0 +1,51 @@
+# docker-compose.override.yml
+#
+# LOCALHOST DEVELOPMENT OVERRIDE for the docs site.
+#
+# When this file is present, `docker compose` automatically merges it with
+# docker-compose.yml, switching the `docs` service from the standalone
+# production build to a hot-reloading `next dev` server with the source
+# tree bind-mounted. Edits to apps/docs/* appear at docs.<DOMAIN> without
+# a rebuild.
+#
+# Conventions respected (see AGENTS.md):
+#   - No changes to docker-compose.yml.
+#   - No published host ports (docs stays on the internal :3000, Caddy-proxied).
+#   - Only the docs service is overridden; everything else is untouched.
+#
+# Production (deploy.sh) runs `docker compose -f docker-compose.yml` and
+# never references this override, so prod keeps the standalone build.
+#
+# To disable hot-reload locally: `mv docker-compose.override.yml /tmp` (or
+# delete it) and `docker compose up -d --build docs`.
+
+services:
+  docs:
+    build:
+      context: apps/docs
+      dockerfile: Dockerfile.dev
+    command: ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+    # Read-write mount of the live source. node_modules is intentionally NOT
+    # mounted — the dev image installs deps at build time.
+    volumes:
+      - ./apps/docs/app:/app/app
+      - ./apps/docs/content:/app/content
+      - ./apps/docs/lib:/app/lib
+      - ./apps/docs/stubs:/app/stubs
+      - ./apps/docs/scripts:/app/scripts
+      - ./apps/docs/source.config.ts:/app/source.config.ts
+      - ./apps/docs/postcss.config.mjs:/app/postcss.config.mjs
+      - ./apps/docs/next.config.mjs:/app/next.config.mjs
+      - ./apps/docs/tsconfig.json:/app/tsconfig.json
+    # next dev is a long-running dev server; warm-up probe instead of a
+    # strict readiness gate.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    # Pick up file changes faster and disable the dev poll throttling.
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"

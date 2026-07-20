@@ -162,6 +162,8 @@ export interface InstitutionDocument {
   title: string;
   url: string;
   snippet?: string;
+  /** Human-readable summary/description of the document or initiative. */
+  description?: string;
   engine?: string;
   date?: string;
   category?: string;
@@ -272,5 +274,6 @@ export interface HealthStatus {
   status: "ok" | "degraded" | "error";
   timestamp: string;
   service: string;
+  apiKeyConfigured?: boolean;
   details?: Record<string, unknown>;
 }

@@ -1,15 +1,93 @@
 @import "tailwindcss";
-@import "fumadocs-ui/style.css";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+/* ── Design tokens ─────────────────────────────────────────────────────────
+   Tailwind v4 promotes these CSS variables into utilities (bg-primary,
+   text-muted-foreground, border-border, …). The DocsLayout and the
+   landing page both rely on them, so a full palette is defined here for
+   both light and dark. Primary is a Dominican-government deep blue. */
 
 @theme {
   --color-background: #ffffff;
-  --color-foreground: #171717;
+  --color-foreground: #18181b;
+
+  --color-card: #ffffff;
+  --color-card-foreground: #18181b;
+
+  --color-popover: #ffffff;
+  --color-popover-foreground: #18181b;
+
+  --color-primary: #1e3a8;
+  --color-primary-foreground: #f8fafc;
+
+  --color-secondary: #f4f4f5;
+  --color-secondary-foreground: #18181b;
+
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
+
+  --color-accent: #f4f4f5;
+  --color-accent-foreground: #18181b;
+
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #f8fafc;
+
+  --color-border: #e4e4e7;
+  --color-input: #e4e4e7;
+  --color-ring: #1e3a8;
+
+  --color-sidebar: #fafafa;
+  --color-sidebar-foreground: #18181b;
+  --color-sidebar-border: #e4e4e7;
+  --color-sidebar-primary: #1e3a8;
+  --color-sidebar-primary-foreground: #f8fafc;
+  --color-sidebar-accent: #f4f4f5;
+  --color-sidebar-accent-foreground: #18181b;
+
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+  --radius-sm: 0.375rem;
+  --radius-xl: 1rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --color-background: #0a0a0a;
     --color-foreground: #ededed;
+
+    --color-card: #141417;
+    --color-card-foreground: #ededed;
+
+    --color-popover: #141417;
+    --color-popover-foreground: #ededed;
+
+    --color-primary: #3b82f6;
+    --color-primary-foreground: #0a0a0a;
+
+    --color-secondary: #1f1f23;
+    --color-secondary-foreground: #ededed;
+
+    --color-muted: #1f1f23;
+    --color-muted-foreground: #a1a1aa;
+
+    --color-accent: #1f1f23;
+    --color-accent-foreground: #ededed;
+
+    --color-destructive: #ef4444;
+    --color-destructive-foreground: #0a0a0a;
+
+    --color-border: #27272a;
+    --color-input: #27272a;
+    --color-ring: #3b82f6;
+
+    --color-sidebar: #0f0f12;
+    --color-sidebar-foreground: #ededed;
+    --color-sidebar-border: #27272a;
+    --color-sidebar-primary: #3b82f6;
+    --color-sidebar-primary-foreground: #0a0a0a;
+    --color-sidebar-accent: #1f1f23;
+    --color-sidebar-accent-foreground: #ededed;
   }
 }
 
@@ -17,4 +95,6 @@ body {
   color: var(--color-foreground);
   background: var(--color-background);
   font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }

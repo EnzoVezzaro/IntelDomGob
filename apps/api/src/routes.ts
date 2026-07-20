@@ -9,6 +9,11 @@ import { registerAllInstitutions, describeAll, getInstitution } from "@intel.dom
 import { tools as mcpTools } from "@intel.dom.gob/service-mcp";
 import { buildCategorizedUrlTree } from "@intel.dom.gob/service-crawler";
 import { parseBearer, AuthError } from "@intel.dom.gob/service-auth";
+import { BillingService } from "@intel.dom.gob/service-billing";
+import { METERED_SCOPES } from "@intel.dom.gob/service-billing";
+import type { TelemetryService } from "@intel.dom.gob/service-telemetry";
+import { setLogSink } from "@intel.dom.gob/logger";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { QueryRequest, ChatRequest } from "@intel.dom.gob/types";
 import type { DocumentIntelligenceService } from "@intel.dom.gob/service-document-intelligence";
 import type { EntitiesService } from "@intel.dom.gob/service-entities";
@@ -64,10 +69,42 @@ export interface RouterDeps {
   observability?: ObservabilityService;
   tenancy?: TenantResolver;
   plugins?: PluginRegistry;
+  billing?: BillingService;
+  telemetry?: TelemetryService;
+  /** Identifier of this API instance for fleet-wide log/metric attribution. */
+  nodeId?: string;
 }
+
+/**
+ * Per-request correlation store. The API registers a log sink (see createRouter)
+ * that tags every emitted log with the fields collected here, so the Admin
+ * console can filter logs by apiKey / tenant / product / node / user.
+ */
+const requestContext = new AsyncLocalStorage<Record<string, string>>();
 
 export function createRouter(deps: RouterDeps): Router {
   const router = Router();
+
+  // Per-request correlation: run every request inside an AsyncLocalStorage store
+  // (node id + anything authz adds later), and forward all structured logs to
+  // Telemetry tagged with those fields. This is what lets the Admin console
+  // "see all logs everywhere" filtered by apiKey / tenant / product / node.
+  router.use((req: Request, res: Response, next: NextFunction) => {
+    const store: Record<string, string> = { node: deps.nodeId ?? process.env.NODE_ID ?? "api" };
+    (req as any).__res = res;
+    requestContext.run(store, () => {
+      (req as any).__ctx = store;
+      next();
+    });
+  });
+
+  if (deps.telemetry) {
+    setLogSink((entry) => {
+      const ctx = requestContext.getStore();
+      if (ctx) Object.assign(entry, ctx);
+      deps.telemetry!.appendLog(entry).catch(() => {});
+    });
+  }
 
   // Observability: time every request and count status codes. Skipped for the
   // SSE/streaming path to avoid misleading durations. This is the API's only
@@ -91,6 +128,9 @@ export function createRouter(deps: RouterDeps): Router {
     const record = await deps.auth.verifyApiKey(key);
     if (!record) throw new AuthError("Invalid API key.");
     deps.auth.authorize(record, { scope });
+    // Billing gate: enforce payment status, rate limit and daily quota for
+    // metered scopes. Throws AuthError when the key is not entitled.
+    if (deps.billing) await deps.billing.guard(record, Array.isArray(scope) ? scope[0] : scope);
     // Multi-tenancy: resolve tenant from the key (deny-by-default). A spoofed
     // X-Tenant-Id header is rejected by the resolver.
     if (deps.tenancy) {
@@ -99,6 +139,23 @@ export function createRouter(deps: RouterDeps): Router {
       (req as any).tenant = tenant;
     }
     (req as any).apiKeyRecord = record;
+    // Collect correlation fields for structured logs (consumed by the sink).
+    const ctx = (req as any).__ctx as Record<string, string> | undefined;
+    if (ctx) {
+      ctx.apiKeyId = record.id;
+      if (record.product) ctx.product = record.product;
+      if (record.tenantId) ctx.tenantId = record.tenantId;
+      if (record.organizationId) ctx.organizationId = record.organizationId;
+    }
+    // Metering: record the served request (counts, latency, errors) on finish.
+    if (deps.billing && METERED_SCOPES.has(Array.isArray(scope) ? scope[0] : scope)) {
+      const start = process.hrtime.bigint();
+      const r = (req as any).__res as Response;
+      r.on("finish", () => {
+        const ms = Number(process.hrtime.bigint() - start) / 1e6;
+        deps.billing!.recordRequest(record, { status: r.statusCode, latencyMs: ms }).catch(() => {});
+      });
+    }
   }
 
   // API-key gate (only enforced when REQUIRE_API_KEY is enabled). Default scope
@@ -1125,6 +1182,186 @@ export function createRouter(deps: RouterDeps): Router {
       })),
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Admin console (operator) endpoints. All require an admin-scoped API key.
+  // These delegate to AuthService / BillingService / TelemetryService; no
+  // business logic lives here.
+  // ---------------------------------------------------------------------------
+
+  /** Gate an admin endpoint. Independent of requireApiKey (always protected). */
+  async function adminOnly(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!deps.auth) {
+      res.status(501).json({ error: "Auth unavailable" });
+      return;
+    }
+    const key = parseBearer(req.headers["authorization"]) || (req.body as any)?.apiKey;
+    if (!key) {
+      res.status(401).json({ error: "Admin API key required" });
+      return;
+    }
+    const record = await deps.auth.verifyApiKey(key);
+    if (!record) {
+      res.status(401).json({ error: "Invalid API key" });
+      return;
+    }
+    try {
+      deps.auth.authorize(record, { scope: "admin" });
+    } catch {
+      res.status(403).json({ error: "Admin scope required" });
+      return;
+    }
+    (req as any).adminRecord = record;
+    next();
+  }
+
+  const admin = Router();
+  admin.use(adminOnly);
+
+  // --- API keys -------------------------------------------------------------
+  admin.get("/apikeys", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    const keys = await deps.auth.listApiKeys({
+      product: req.query.product ? String(req.query.product) : undefined,
+      tenantId: req.query.tenantId ? String(req.query.tenantId) : undefined,
+      active: req.query.active === undefined ? undefined : req.query.active === "true",
+      paymentStatus: req.query.paymentStatus ? String(req.query.paymentStatus) : undefined,
+    });
+    res.json({ total: keys.length, keys });
+  });
+
+  admin.post("/apikeys", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    const b = req.body ?? {};
+    if (!b.name || !b.product) {
+      res.status(400).json({ error: "name and product are required" });
+      return;
+    }
+    const scopes = Array.isArray(b.scopes) ? b.scopes : BillingService.scopesForPlan(b.plan ?? "free");
+    const { key, record } = await deps.auth.createApiKey({
+      name: b.name,
+      product: b.product,
+      tenantId: b.tenantId,
+      organizationId: b.organizationId,
+      userId: b.userId,
+      scopes,
+      plan: b.plan ?? "free",
+      quotaDaily: b.quotaDaily ?? 0,
+      rateLimit: b.rateLimit ?? 0,
+      paymentStatus: b.paymentStatus ?? "ok",
+      expiresAt: b.expiresAt,
+      attributes: b.attributes,
+    });
+    res.status(201).json({ key, record });
+  });
+
+  admin.get("/apikeys/:id", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    const k = await deps.auth.getApiKeyById(req.params.id);
+    if (!k) return res.status(404).json({ error: "Key not found" });
+    const usage = deps.billing ? await deps.billing.dailyUsage(k.id) : 0;
+    res.json({ ...k, dailyUsage: usage });
+  });
+
+  admin.post("/apikeys/:id/revoke", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    await deps.auth.revokeApiKey(req.params.id);
+    res.json({ ok: true });
+  });
+
+  admin.post("/apikeys/:id/activate", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    await deps.auth.activateApiKey(req.params.id);
+    res.json({ ok: true });
+  });
+
+  admin.delete("/apikeys/:id", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    await deps.auth.deleteApiKey(req.params.id);
+    res.json({ ok: true });
+  });
+
+  admin.post("/apikeys/:id/billing", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    await deps.auth.updateApiKeyBilling(req.params.id, req.body ?? {});
+    res.json({ ok: true });
+  });
+
+  // --- Products (client surfaces) -------------------------------------------
+  admin.get("/products", async (_req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    const keys = await deps.auth.listApiKeys();
+    const byProduct = new Map<string, { keys: number; active: number }>();
+    for (const k of keys) {
+      const p = byProduct.get(k.product ?? "custom") ?? { keys: 0, active: 0 };
+      p.keys++;
+      if (k.active) p.active++;
+      byProduct.set(k.product ?? "custom", p);
+    }
+    res.json({ products: [...byProduct.entries()].map(([product, stats]) => ({ product, ...stats })) });
+  });
+
+  // --- Logs & metrics -------------------------------------------------------
+  admin.get("/logs", async (req, res) => {
+    if (!deps.telemetry) return res.status(501).json({ error: "Telemetry unavailable" });
+    const logs = await deps.telemetry.queryLogs({
+      service: req.query.service ? String(req.query.service) : undefined,
+      level: req.query.level ? String(req.query.level) : undefined,
+      apiKeyId: req.query.apiKeyId ? String(req.query.apiKeyId) : undefined,
+      tenantId: req.query.tenantId ? String(req.query.tenantId) : undefined,
+      product: req.query.product ? String(req.query.product) : undefined,
+      node: req.query.node ? String(req.query.node) : undefined,
+      userId: req.query.userId ? String(req.query.userId) : undefined,
+      from: req.query.from ? String(req.query.from) : undefined,
+      until: req.query.until ? String(req.query.until) : undefined,
+      search: req.query.search ? String(req.query.search) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : 200,
+    });
+    res.json(logs);
+  });
+
+  admin.get("/metrics", async (req, res) => {
+    if (!deps.telemetry) return res.status(501).json({ error: "Telemetry unavailable" });
+    const scope = (req.query.scope as any) ?? "global";
+    const id = (req.query.id as string) ?? "all";
+    const m = await deps.telemetry.getMetrics(scope, id, req.query.from ? String(req.query.from) : undefined, req.query.until ? String(req.query.until) : undefined);
+    res.json(m);
+  });
+
+  admin.get("/nodes", async (_req, res) => {
+    if (!deps.telemetry) return res.status(501).json({ error: "Telemetry unavailable" });
+    res.json({ nodes: await deps.telemetry.getNodes() });
+  });
+
+  // --- Employees / orgs / tenants -------------------------------------------
+  admin.get("/users", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    res.json({ users: await deps.auth.listUsers(req.query.organizationId ? String(req.query.organizationId) : undefined) });
+  });
+  admin.post("/users", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    const b = req.body ?? {};
+    if (!b.email) return res.status(400).json({ error: "email is required" });
+    const u = await deps.auth.createUser(b);
+    res.status(201).json(u);
+  });
+  admin.get("/organizations", async (_req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    res.json({ organizations: await deps.auth.listOrganizations() });
+  });
+  admin.post("/organizations", async (req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    const b = req.body ?? {};
+    if (!b.name || !b.slug) return res.status(400).json({ error: "name and slug are required" });
+    const o = await deps.auth.createOrganization(b);
+    res.status(201).json(o);
+  });
+  admin.get("/tenants", async (_req, res) => {
+    if (!deps.auth) return res.status(501).json({ error: "Auth unavailable" });
+    res.json({ tenants: await deps.auth.listTenants() });
+  });
+
+  router.use("/admin", admin);
 
   return router;
 }
