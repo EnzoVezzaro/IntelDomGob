@@ -7,7 +7,7 @@ engines:
   - name: "brave"
     disabled: true
   - name: "duckduckgo"
-    disabled: true
+    disabled: false
   - name: "startpage"
     disabled: true
   - name: "google"
@@ -19,13 +19,11 @@ engines:
   - name: "bing"
     disabled: false
   - name: "mojeek"
-    disabled: false
+    disabled: true
   - name: "wikipedia"
-    disabled: false
-  - name: "duckduckgo_lite"
-    disabled: false
+    disabled: true
   - name: "wikidata"
-    disabled: false
+    disabled: true
 
 general:
   # Allow the JSON API to be used without a user account
@@ -45,10 +43,7 @@ search:
   default_engine: "bing"
   default_engines:
     - bing
-    - mojeek
-    - wikipedia
-    - duckduckgo_lite
-    - wikidata
+    - duckduckgo
 
 server:
   # Bind inside the container
