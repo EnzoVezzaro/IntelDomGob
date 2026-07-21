@@ -305,7 +305,7 @@ export function createRouter(deps: RouterDeps): Router {
   // fallback. Write/internal routes call `authz(...)` explicitly in-handler.
   const PUBLIC_READ_PREFIXES = [
     "/institutions", "/sil/", "/senado/news", "/graph", "/url-tree",
-    "/models", "/tools", "/prompts", "/plugins", "/mcp/tools",
+    "/models", "/tools", "/prompts", "/plugins", "/mcp/tools", "/key/",
   ];
   const isPublicRead = (path: string): boolean =>
     !path.startsWith("/graph/ingest") &&
@@ -1331,6 +1331,31 @@ export function createRouter(deps: RouterDeps): Router {
     } catch (e: any) {
       res.status(400).json({ error: "Plugin run failed", message: e.message });
     }
+  });
+
+  // --- Key verification (client onboarding) -----------------------------------
+  // Public-facing: a missing key → returns the Público preview record so
+  // clients (CLI, Studio, MCP) can confirm they are running unauthenticated
+  // without erroring. A present-but-invalid key → 401. A valid key returns the
+  // tier metadata (plan, scopes, quota, rate limit) so the client can show a
+  // resume ("Plan: Investigador · 200/day") before the first query.
+  router.get("/key/verify", async (req: Request, res: Response) => {
+    try {
+      await authz(req, "read", true);
+    } catch (e) {
+      res.status((e as any).status ?? 401).json({ error: "Unauthorized", message: (e as Error).message });
+      return;
+    }
+    const record = (req as any).apiKeyRecord as ApiKeyRecord | undefined;
+    res.json({
+      valid: !!record && record.id !== "preview",
+      plan: record?.plan ?? "publico",
+      scopes: record?.scopes ?? ["read", "query", "chat"],
+      quotaDaily: record?.quotaDaily ?? 20,
+      rateLimit: record?.rateLimit ?? 10,
+      product: record?.product ?? "preview",
+      keyId: record?.id ?? "preview",
+    });
   });
 
   // --- Tenancy ----------------------------------------------------------------

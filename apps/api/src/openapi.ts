@@ -36,6 +36,39 @@ export function buildOpenApiSpec(version = "v1"): Record<string, unknown> {
           },
         },
       },
+      [`/${version}/key/verify`]: {
+        get: {
+          tags: ["system"],
+          summary: "Verify the caller's API key and return tier metadata",
+          description:
+            "Public-facing. A missing key returns the Público preview record (valid=false). " +
+            "A present-but-invalid key returns 401. A valid key returns its plan, scopes, " +
+            "daily quota and rate limit so clients can show a resume before first use.",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            "200": {
+              description: "Key verification result",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      valid: { type: "boolean" },
+                      plan: { type: "string" },
+                      scopes: { type: "array", items: { type: "string" } },
+                      quotaDaily: { type: "number" },
+                      rateLimit: { type: "number" },
+                      product: { type: "string" },
+                      keyId: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+            "401": { description: "Invalid API key" },
+          },
+        },
+      },
       [`/${version}/institutions`]: {
         get: {
           tags: ["discovery"],
@@ -326,6 +359,9 @@ export function buildOpenApiSpec(version = "v1"): Record<string, unknown> {
       },
     },
     components: {
+      securitySchemes: {
+        bearerAuth: { type: "http", scheme: "bearer", description: "API key (e.g. idg_xxx) sent as `Authorization: Bearer <key>`." },
+      },
       schemas: {
         Health: {
           type: "object",

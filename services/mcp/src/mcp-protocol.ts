@@ -32,6 +32,19 @@ interface JsonRpcResponse {
   error?: { code: number; message: string; data?: unknown };
 }
 
+// A JSON-RPC notification: per the 2.0 spec it has NO `id` — it has only
+// `method` + `params`. The MCP SDK's `JSONRPCNotificationSchema` is `.strict()`,
+// so including `id: null` makes zod reject the frame entirely (silently on
+// the wire). Per MCP 2025-03-26, `notifications/message` (LoggingMessageNotification)
+// must carry its payload in `params: { level, data, logger?, _meta? }`.
+interface JsonRpcNotification {
+  jsonrpc: "2.0";
+  method: string;
+  params?: unknown;
+}
+
+type JsonRpcMessage = JsonRpcResponse | JsonRpcNotification;
+
 const PROTOCOL_VERSION = "2025-03-26";
 
 // Wrap a tool's raw return value into MCP content blocks. MCP requires
@@ -61,20 +74,25 @@ function err(id: JsonRpcResponse["id"], code: number, message: string): JsonRpcR
 // Dispatch a single JSON-RPC request according to the MCP method set.
 // Returns null for notifications (no id) where no response should be sent.
 // `sendNotification` writes MCP notifications/message to the transport.
-async function dispatch(req: JsonRpcRequest, client: any, sendNotification?: (notification: JsonRpcResponse) => void): Promise<JsonRpcResponse | null> {
+async function dispatch(req: JsonRpcRequest, client: any, sendNotification?: (notification: JsonRpcNotification) => void): Promise<JsonRpcResponse | null> {
   const id = req.id ?? null;
   const method = req.method ?? "";
   const params = req.params ?? {};
 
   // Build a ProgressNotifier that sends notifications/message to the client.
+  // Per MCP `LoggingMessageNotification`, the payload goes in `params`:
+  //   { level: "info"|"warning"|..., data: <any>, _meta?: {...} }
   const notify: ProgressNotifier | undefined = sendNotification
     ? (level, message, extra) => {
         sendNotification({
           jsonrpc: "2.0",
-          id: null, // notification (no response expected)
+          // Per JSON-RPC 2.0 & MCP: a Notification has NO `id` field.
+          // Including `id: null` breaks strict parsers (zod .strict() on
+          // JSONRPCNotificationSchema rejects unknown keys, so the SDK
+          // drops the frame silently).
           method: "notifications/message",
-          result: { level, data: message, ...extra },
-        } as any);
+          params: { level, data: message, _meta: extra },
+        });
       }
     : undefined;
 
@@ -254,7 +272,7 @@ export function mountMcpProtocol(app: Express, makeClient: (product?: string) =>
       streamableSessions.set(activeSid, { res: null, queue: [], ping: setInterval(() => {}, 1e9) });
     }
 
-    const respond = async (sendNotification?: (n: JsonRpcResponse) => void): Promise<JsonRpcResponse[]> => {
+    const respond = async (sendNotification?: (n: JsonRpcNotification) => void): Promise<JsonRpcResponse[]> => {
       // Forward the originating client surface (CLI → MCP → API records `cli`).
       // Absent header means the MCP server itself is the origin → default "mcp".
       const inbound = req.headers["x-intel-client"];
@@ -287,8 +305,18 @@ export function mountMcpProtocol(app: Express, makeClient: (product?: string) =>
         Connection: "keep-alive",
         "Mcp-Session-Id": activeSid,
       });
-      // Notifications stream to the client's open GET /mcp (Streamable HTTP) stream.
-      const results = await respond((n) => writeToSession(activeSid, n));
+      // The POST response is itself an SSE stream — write notifications AND
+      // the final result onto it. (Per MCP 2025-03-26: a POST with
+      // `Accept: text/event-stream` returns its results as an SSE stream that
+      // may also interleave notifications before the terminal JSON-RPC
+      // response. We also fan-out to the session's GET stream for clients
+      // that keep a separate long-lived GET open.)
+      const results = await respond((n) => {
+        // Inline: write to the POST SSE stream the client is currently reading.
+        res.write(`event: message\ndata: ${JSON.stringify(n)}\n\n`);
+        // Fan-out: also push to the auxiliary GET stream if one is attached.
+        writeToSession(activeSid, n);
+      });
       for (const r of results) {
         res.write(`event: message\ndata: ${JSON.stringify(r)}\n\n`);
       }

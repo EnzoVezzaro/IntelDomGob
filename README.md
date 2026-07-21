@@ -10,13 +10,13 @@
 
 INTEL.DOM.GOB es una plataforma de inteligencia estatal impulsada por IA que realiza *deep research* en tiempo real sobre las fuentes oficiales de la República Dominicana. Cada consulta dispara un **bucle multi-agente de recuperación y razonamiento** que busca, lee, contrasta y sintetiza información oficial antes de responder.
 
-La arquitectura gira en torno al **API**. Todo fluye a través de:
+La arquitectura gira en torno al **API**. El SDK es la única superficie de acceso; los clientes hablan con el SDK y el SDK habla con el API. Todo fluye a través de:
 
 ```
-Cliente → API → Orchestrator → Services → Providers → External Systems
+Cliente → SDK → API → Orchestrator → Services → Providers → External Systems
 ```
 
-Ningún cliente habla directamente con servicios o proveedores.
+Ningún cliente habla directamente con servicios o proveedores. Los clientes que no importan el SDK (Studio v1, CLI) se conectan al **servidor MCP**, que es él mismo un cliente del SDK.
 
 ### Core Principles
 
@@ -33,38 +33,47 @@ Ningún cliente habla directamente con servicios o proveedores.
 ## Architecture
 
 ```
-Clients
-─────────────────────────────────────────────
-Studio · Web · CLI · Admin · MCP · SDKs
-
-        │  (HTTPS via reverse proxy / subdomains)
-        ▼
-   API (api.intel.dom.gob)        ← gateway, REST + SSE, versioned /v1
-        │
-        ▼
-   Orchestrator                   ← heart: planning, search, AI, merge
-        │
-        ▼
-   Core Services
-   ───────────────────────────────
-   Search · AI · Institutions · Crawler · OCR · Memory · RAG ·
-   Knowledge Graph · Entities · Document Intelligence · Workflow ·
-   Embeddings · Storage · Auth · Evaluation · Observability ·
-   Tool Registry · Prompts · Scheduler · Tenancy · Plugins
-        │
-        ▼
-   Providers
-   ───────────────────────────────
-   SearXNG (default search) · Gemini (default AI) · + 10 optional providers
-        │
-        ▼
-   Infrastructure
-   ───────────────────────────────
-   PostgreSQL · DragonflyDB · Object Storage · Docker · Caddy
+Clients (two surfaces)
+──────────────────────────────────────────────────────────────────────────────
+  Direct SDK clients: Web (presentation/landing) · Admin · Studio v0
+                         │
+                         ▼
+  MCP-only clients:  Studio v1 · CLI
+                         │  (MCP protocol — Streamable HTTP / SSE / JSON-RPC)
+                         ▼
+                    MCP server (@intel.dom.gob/services/mcp — pure SDK client)
+                         │
+                         ▼
+    SDK  (@intel.dom.gob/sdk — the ONLY surface that talks to the API)
+         │  (HTTPS via reverse proxy / subdomains)
+         ▼
+    API (api.intel.dom.gob)        ← gateway, REST + SSE, versioned /v1
+         │
+         ▼
+    Orchestrator                   ← heart: planning, search, AI, merge
+         │
+         ▼
+    Core Services
+    ───────────────────────────────
+    Search · AI · Institutions · Crawler · OCR · Memory · RAG ·
+    Knowledge Graph · Entities · Document Intelligence · Workflow ·
+    Embeddings · Storage · Auth · Evaluation · Observability ·
+    Tool Registry · Prompts · Scheduler · Tenancy · Plugins
+         │
+         ▼
+    Providers
+    ───────────────────────────────
+    SearXNG (default search) · Gemini (default AI) · + 10 optional providers
+         │
+         ▼
+    Infrastructure
+    ───────────────────────────────
+    PostgreSQL · DragonflyDB · Object Storage · Docker · Caddy
 ```
 
 ### Layered principles
 
+* **SDK is the only API surface** — `@intel.dom.gob/sdk` is the one and only way any client reaches the API. Web (presentation/landing), Admin and Studio v0 import the SDK directly; the MCP server imports the SDK; Studio v1 and the CLI never import the SDK — they go through the MCP server, which itself is a pure SDK client.
 * **Separation of Concerns** — cada capa tiene exactamente una responsabilidad.
 * **Provider abstraction** — todo lo externo está detrás de un Provider. Añadir Brave/OpenAI/Ollama = crear una implementación, nada más.
 * **Pluggable services** — cada servicio es independiente y testeable.
@@ -78,11 +87,11 @@ Studio · Web · CLI · Admin · MCP · SDKs
 intel.dom.gob/
 ├── apps/
 │   ├── api/              # Express API gateway (delegates to Orchestrator)
-│   ├── studio/v0/        # Legacy React SPA client (preserved for rollback)
-│   ├── studio/v1/        # Active Studio: Odysseus workspace (AGPL-3.0 submodule)
-│   ├── web/              # Lightweight no-JS web client
-│   ├── admin/            # Operator/admin console
-│   └── cli/              # Command-line client
+│   ├── studio/v0/        # Legacy React SPA client (preserved for rollback) — SDK-direct
+│   ├── studio/v1/        # Active Studio: Odysseus workspace (AGPL-3.0 fork) — MCP-only
+│   ├── web/              # Lightweight no-JS presentation/landing client (SDK-direct)
+│   ├── admin/            # Operator/admin console (SDK-direct)
+│   └── cli/              # Command-line client (MCP-only)
 ├── services/
 │   ├── orchestrator/     # business logic: multi-agent reasoning, planning, streaming
 │   ├── search/           # Web/news retrieval via Search Provider
@@ -132,7 +141,7 @@ intel.dom.gob/
 │   ├── logger/           # structured logging
 │   ├── config/           # env configuration
 │   ├── utils/            # shared utilities
-│   ├── sdk/              # the ONLY way clients talk to the API
+│   ├── sdk/              # the ONLY surface that talks to the API
 │   ├── database/         # ORM-free Postgres pool + migrations
 │   ├── events/           # Event bus (DragonflyDB Streams + in-memory fallback)
 │   └── ui/               # shared Panel + Button primitives
@@ -208,7 +217,7 @@ Only `DOMAIN` changes. Caddy auto-manages HTTPS via Let's Encrypt.
 
 INTEL.DOM.GOB can be used **without self-hosting or an API key**. The platform runs in **public preview mode** by default:
 
-- **No API key required** — all clients (Studio, Web, CLI, MCP, SDK) work out of the box when `REQUIRE_API_KEY=false` (the development default).
+- **No API key required** — all clients (Web, Admin, Studio v0 via SDK; Studio v1, CLI via MCP; MCP via SDK) work out of the box when `REQUIRE_API_KEY=false` (the development default).
 - **Público tier** — 20 intelligence queries/day, no signup. Raw official data (institutions, SIL legislative data, knowledge graph reads) is always free and unmetered.
 - **Beyond Público** — create API keys in the Admin console and set `REQUIRE_API_KEY=true`. The Investigador (200/day, free for `.gob.do`/researchers) and Pro (1,000+/day, paid) tiers unlock streaming, workflows, and document intelligence.
 
@@ -263,7 +272,23 @@ All operational scripts live in `scripts/`:
 
 ## Development
 
-Run services independently (no Docker needed for code changes):
+### Hot Reload in Docker (Recommended)
+
+Full hot reload setup — edit any file and changes appear immediately without rebuilding:
+
+```bash
+# Start everything with hot reload
+./scripts/dev.sh up
+
+# Or manually
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+```
+
+See **[DEVELOPMENT.md](./DEVELOPMENT.md)** for the complete guide.
+
+### Local Development (No Docker)
+
+Run services independently for fastest iteration:
 
 ```bash
 npm install --workspaces
@@ -431,21 +456,21 @@ Versioned REST (`/v1`). The API contains **no business logic** — every endpoin
 | Público | GET | `/v1/sil/senado/communities` | Senado DSpace community tree |
 | Público | GET | `/v1/sil/senado/collections/:id/items` | Senado collection items |
 
-All clients (Studio, CLI, MCP, SDKs) use `@intel.dom.gob/sdk`.
+Clients reach the API through the SDK (`@intel.dom.gob/sdk`) — the single client surface. Web, Admin and Studio v0 import it directly; the MCP server imports it; Studio v1 and the CLI go through the MCP server (which itself is a pure SDK client), so they never import `@intel.dom.gob/sdk`.
 
 ---
 
 ## Studio
 
-The Studio is the primary application — built on Odysseus (AGPL-3.0 submodule at `apps/studio/v1`). It communicates **exclusively** with the platform via the MCP server. It contains no platform business logic.
+The active Studio is **IntelDomGob Studio** — our own AGPL-3.0 in-tree fork of [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus) at `apps/studio/v1`. It communicates **exclusively** with the platform via the MCP server — it does not import the SDK. It contains no platform business logic.
 
-The legacy React SPA is preserved at `apps/studio/v0` for reference/rollback.
+The legacy React SPA at `apps/studio/v0` is preserved for rollback; unlike v1 it talks to the API directly through the SDK.
 
 ---
 
 ## MCP
 
-The MCP server is another client of the platform: it calls the API like any other client and never invokes providers or services directly. It exposes both a legacy JSON-RPC surface (`POST /`) and the official MCP protocol (`/mcp`, Streamable HTTP + SSE) with a shared tool registry. 20+ tools covering intelligence queries, SIL data, Senado DSpace, and institutional data.
+The MCP server is just another client of the platform — it imports `@intel.dom.gob/sdk` and calls the API through it, never invoking providers or services directly. It exposes both a legacy JSON-RPC surface (`POST /`) and the official MCP protocol (`/mcp`, Streamable HTTP + SSE) with a shared tool registry. 20+ tools covering intelligence queries, SIL data, Senado DSpace, and institutional data. Studio v1 and the CLI connect here instead of importing the SDK directly.
 
 ---
 

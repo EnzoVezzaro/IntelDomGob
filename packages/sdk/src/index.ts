@@ -16,6 +16,24 @@ import type {
   FetchedPage,
 } from "./types";
 
+/** Result of `GET /v1/key/verify`. Mirrors the API response. */
+export interface KeyVerification {
+  /** `true` when the request carried a valid (non-preview) API key. */
+  valid: boolean;
+  /** Billing plan bound to the key (publico|investigador|pro|institucional|free). */
+  plan: string;
+  /** Scopes the key is authorized for. */
+  scopes: string[];
+  /** Daily metered-request quota (0 = unlimited). */
+  quotaDaily: number;
+  /** Requests-per-minute rate limit (0 = unlimited). */
+  rateLimit: number;
+  /** Client surface the key authenticates. */
+  product: string;
+  /** API-key record id ("preview" for the anonymous Público tier). */
+  keyId: string;
+}
+
 export interface SdkOptions {
   /** Base URL of the API, e.g. https://api.intel.dom.gob or http://api.localhost. */
   baseUrl: string;
@@ -63,6 +81,15 @@ export class IntelDomGobClient {
     return h;
   }
 
+  /** Same as `headers()`, but with an optional per-call key override. */
+  private headersWithOverride(key: string | undefined, extra?: Record<string, string>): Record<string, string> {
+    const h = { ...(extra ?? {}) };
+    if (this.product) h["X-Intel-Client"] = this.product;
+    const token = key ?? this.token;
+    if (token) h["Authorization"] = `Bearer ${token}`;
+    return h;
+  }
+
   /** Check that a fetch response is OK; throw a meaningful error otherwise. */
   private async requireOk(res: Response): Promise<any> {
     if (!res.ok) {
@@ -74,6 +101,28 @@ export class IntelDomGobClient {
 
   async health(): Promise<HealthStatus> {
     const res = await this.fetchImpl(this.url("/health"), { headers: this.headers() });
+    return this.requireOk(res);
+  }
+
+  /**
+   * Verify the caller's API key against the platform.
+   *
+   * Calls `GET /v1/key/verify`. With no token (`Bearer` header omitted) the
+   * API returns the Público preview record (`valid: false`). With a present
+   * but invalid key the API returns 401 (throws here with the API's message).
+   * With a valid key it returns tier metadata (plan, scopes, quota, rate).
+   *
+   * Use this during client onboarding (CLI / Studio) to confirm a key is
+   * live and to show a resume ("Plan: Investigador · 200/day") before the
+   * first real query.
+   *
+   * Pass `confirmKey` to override the client's stored token for this single
+   * call — used by the MCP server's `verify_key` tool so a client can verify
+   * its own candidate key (different from the MCP server's platform token)
+   * without the MCP server having to build a fresh client itself.
+   */
+  async verifyKey(confirmKey?: string): Promise<KeyVerification> {
+    const res = await this.fetchImpl(this.url("/key/verify"), { headers: this.headersWithOverride(confirmKey) });
     return this.requireOk(res);
   }
 

@@ -117,6 +117,38 @@ registerTool({
   },
 });
 
+// Verify an INTEL.DOM.GOB API key without the client having to talk to the API
+// directly. The CLI / Studio / MCP browser call this during onboarding: they
+// pass the candidate key as `apiKey`, the MCP server forwards it to the API
+// (via the SDK) and returns tier metadata (plan, scopes, quota, rate limit).
+// `apiKey` empty/omitted → returns the Público preview record (valid=false).
+// `apiKey` present but invalid → the API returns 401, surfaced here as
+// `{ valid: false, error: <message> }` (the tool itself never throws).
+registerTool({
+  name: "verify_key",
+  description:
+    "Verify an INTEL.DOM.GOB API key and return its tier metadata (plan, scopes, quotaDaily, rateLimit). " +
+    "Pass `apiKey` to verify a candidate key; omit it to read the current session's key (or the Público preview when unauthenticated).",
+  inputSchema: {
+    type: "object",
+    properties: {
+      apiKey: { type: "string", description: "INTEL.DOM.GOB API key to verify (e.g. idg_xxx). Leave empty to verify the current (or Público) session." },
+    },
+    required: [],
+  },
+  annotations: { title: "Verificar API Key", readOnlyHint: true },
+  async run(args, client) {
+    try {
+      return await client.verifyKey(args.apiKey);
+    } catch (e: any) {
+      // 401 from the API → the tool shouldn't raise an MCP error (that would
+      // surface as a generic tool failure). Return a structured invalid shape
+      // so the caller can show "invalid key" cleanly.
+      return { valid: false, error: e?.message ?? String(e) };
+    }
+  },
+});
+
 // Friendly, discoverable tool names for the non-legislative institutions so
 // users see e.g. `tribunal_search` / `dgcp_search` instead of a generic
 // `institution_search_<id>`. Legislative chambers (senate/chamber) keep their

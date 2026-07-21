@@ -12,6 +12,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { LoggingMessageNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 
 export const DEFAULT_MCP_URL =
   process.env.INTEL_MCP_URL || "http://mcp.localhost/mcp";
@@ -22,6 +23,18 @@ export interface ConnectedClient {
   close: () => Promise<void>;
   url?: string;
 }
+
+/**
+ * Callback invoked for each `notifications/message` (LoggingMessageNotification)
+ * the server streams during a tool call. `data` is the server's progress
+ * payload; `_meta` carries extra structured context (event type, sub-queries,
+ * etc.) when available.
+ */
+export type NotificationHandler = (
+  level: string,
+  data: unknown,
+  meta?: Record<string, unknown>,
+) => void;
 
 /**
  * Candidate MCP endpoints to try, in order. The explicit URL (or the Docker
@@ -56,7 +69,10 @@ function candidateUrls(primary: string): string[] {
  * (explicit URL first, then localhost fallbacks) and returns on the first
  * successful connection, plus the tool catalog.
  */
-export async function connectMcp(url: string = DEFAULT_MCP_URL): Promise<ConnectedClient> {
+export async function connectMcp(
+  url: string = DEFAULT_MCP_URL,
+  onNotification?: NotificationHandler,
+): Promise<ConnectedClient> {
   let lastErr: unknown = null;
   for (const endpointUrl of candidateUrls(url)) {
     const endpoint = new URL(endpointUrl);
@@ -77,6 +93,21 @@ export async function connectMcp(url: string = DEFAULT_MCP_URL): Promise<Connect
         });
         await client.connect(sse);
       }
+      // Register the logging notification handler so progress updates
+      // (Planning…, Searching…, Generating response…) emitted by the MCP
+      // server during a tool call reach the CLI instead of being silently
+      // dropped. Per MCP 2025-03-26 LoggingMessageNotification: params is
+      // { level, data, logger?, _meta? }.
+      if (onNotification) {
+        client.setNotificationHandler(LoggingMessageNotificationSchema, (n) => {
+          const params: any = n.params ?? {};
+          onNotification(
+            typeof params.level === "string" ? params.level : "info",
+            params.data,
+            params._meta && typeof params._meta === "object" ? params._meta : undefined,
+          );
+        });
+      }
       const { tools } = await client.listTools();
       return {
         client,
@@ -92,11 +123,27 @@ export async function connectMcp(url: string = DEFAULT_MCP_URL): Promise<Connect
   throw lastErr ?? new Error("No MCP endpoint could be reached");
 }
 
+/**
+ * Per-request timeout for tool calls. The MCP orchestrator's `query` tool is
+ * multi-step (plan → search → retrieve → generate) and can run for several
+ * minutes, well beyond the SDK's default 60 s request timeout.
+ *
+ * We set a generous per-request ceiling AND enable
+ * `resetTimeoutOnProgress: true` so every `notifications/message` the server
+ * streams during the call resets the countdown — giving us a sliding deadline
+ * that only fires if the server truly goes silent.
+ */
+const TOOL_TIMEOUT_MSEC = 5 * 60 * 1000; // 5 minutes
+
 /** Call an MCP tool by name with the given arguments. Returns the raw result. */
 export async function callTool(
   conn: ConnectedClient,
   name: string,
   args: Record<string, unknown>,
 ): Promise<any> {
-  return conn.client.callTool({ name, arguments: args });
+  return conn.client.callTool(
+    { name, arguments: args },
+    undefined,
+    { timeout: TOOL_TIMEOUT_MSEC, resetTimeoutOnProgress: true },
+  );
 }
