@@ -1,0 +1,128 @@
+---
+title: "Quick Start — MCP Server"
+description: Model Context Protocol server — Streamable HTTP + SSE at /mcp. Connect any MCP client (Claude Desktop, Cursor, Studio, CLI).
+---
+
+The MCP server exposes **all platform capabilities** as MCP tools via the official **Model Context Protocol** (2025-03-26 spec). Any MCP-compatible client can connect.
+
+## Endpoint
+
+| Environment | URL |
+|-------------|-----|
+| Local (Docker) | `http://mcp.localhost/mcp` |
+| Production | `https://mcp.intel.dom.gob/mcp` |
+
+**Transport:** Streamable HTTP (POST + SSE streaming) + SSE fallback (GET). Port `4100`.
+
+## Connect Any MCP Client
+
+### Claude Desktop
+
+```json
+// ~/Library/Application Support/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "intel-dom-gob": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://mcp.localhost/mcp"]
+    }
+  }
+}
+```
+
+### Cursor
+
+```json
+// ~/.cursor/mcp.json
+{
+  "mcpServers": {
+    "intel-dom-gob": {
+      "url": "http://mcp.localhost/mcp"
+    }
+  }
+}
+```
+
+### Generic (any MCP client)
+
+```bash
+# Test with mcp-remote
+npx mcp-remote http://mcp.localhost/mcp
+```
+
+## Available Tools (40+)
+
+| Category | Tools |
+|----------|-------|
+| **Intelligence** | `query`, `chat`, `query_stream` |
+| **Institutions** | `list_institutions`, `search_institution`, `get_url_tree` |
+| **Congress (SIL)** | `sil_camara_iniciativas`, `sil_camara_iniciativa_detalle`, `sil_camara_comisiones`, `sil_camara_sesiones`, `sil_camara_legislador`, `sil_senado_iniciativas`, `sil_senado_boletines`, `sil_senado_resoluciones`, `sil_senado_search`, `sil_senado_communities`, `sil_senado_senadores` |
+| **Senate News** | `senado_news` |
+| **Knowledge Graph** | `graph`, `graph_ingest` |
+| **Documents** | `fetch_url`, `mcp_tools` |
+| **System** | `health` |
+
+## Tool Example: `query`
+
+```json
+{
+  "name": "query",
+  "arguments": {
+    "query": "¿Cuáles son las últimas iniciativas sobre compras públicas?",
+    "scope": "sil",
+    "responseLang": "es"
+  }
+}
+```
+
+Returns structured `IntelligenceResult` (summary, citations, evidence, validation, timeline).
+
+## Authentication
+
+| Mode | How |
+|------|-----|
+| **Preview** | None — works without key (Público tier) |
+| **API Key** | MCP server authenticates to API via `INTEL_API_TOKEN` (set in Docker Compose). Client never handles keys. |
+
+In production (`REQUIRE_API_KEY=true`), the MCP server uses `INTEL_API_TOKEN` to call the API. The client (Claude, Cursor, etc.) just connects to the MCP endpoint.
+
+## Local Development
+
+```bash
+# Start full stack (includes MCP)
+./scripts/up.sh
+
+# MCP available at http://localhost:4100/mcp
+curl -X POST http://localhost:4100/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+## Transports
+
+| Transport | Endpoint | Use Case |
+|-----------|----------|----------|
+| **Streamable HTTP** | `POST /mcp` | Primary (JSON-RPC batch + SSE streaming) |
+| **SSE** | `GET /mcp` | Fallback for older clients |
+| **DELETE** | `DELETE /mcp` | Session teardown (spec-compliant no-op) |
+
+## Protocol Version
+
+- **MCP Spec:** 2025-03-26
+- **Transports:** `jsonrpc`, `mcp-streamable-http`, `mcp-sse`
+- **Endpoint:** `/mcp` (mounted at root)
+
+## Relationship to Other Products
+
+| Product | Connection |
+|---------|------------|
+| **Studio** | Registers MCP on boot (`STUDIO_MCP_URL`) |
+| **CLI** | Connects via `INTEL_MCP_URL` (default `http://mcp.localhost/mcp`) |
+| **API** | MCP server is a pure SDK client of the API |
+| **SDK** | Same tools available via `client.mcpTools()` |
+
+## Next Steps
+
+- [CLI Quick Start](/docs/products/cli) — terminal client using this MCP
+- [API](/docs/products/api) — the underlying REST API
+- [SDK](/docs/products/sdk) — programmatic access to same tools

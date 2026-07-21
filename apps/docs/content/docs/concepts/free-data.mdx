@@ -1,0 +1,120 @@
+---
+title: Free Public Data
+description: Complete list of always-free, no-key, no-quota endpoints — raw official Dominican sources.
+---
+
+**Raw official data is always free.** No API key, no quota, no signup. You only pay for the **intelligence layer** (search + retrieval + synthesis).
+
+---
+
+## Always Free Endpoints
+
+### Source Registry & Discovery
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/institutions` | GET | List all registered government source plugins |
+| `/v1/url-tree` | GET | Categorized source registry (SIL, Senado, portals, etc.) |
+| `/v1/models` | GET | List available AI models |
+
+### SIL Congress (Cámara de Diputados)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/sil/camara/iniciativas` | GET | Search legislative initiatives |
+| `/v1/sil/camara/iniciativa/:id` | GET | Initiative detail |
+| `/v1/sil/camara/iniciativa/:id/completa` | GET | Full initiative text |
+| `/v1/sil/camara/iniciativa/:id/:sub` | GET | Initiative sub-sections |
+| `/v1/sil/camara/iniciativa/count` | GET | Initiative count |
+| `/v1/sil/camara/iniciativa/grupos` | GET | Parliamentary groups |
+| `/v1/sil/camara/iniciativa/materias` | GET | Subject matters |
+| `/v1/sil/camara/sesiones` | GET | Plenary sessions |
+| `/v1/sil/camara/grupos` | GET | Parliamentary groups |
+| `/v1/sil/camara/legislador` | GET | Legislator profiles |
+| `/v1/sil/camara/comisiones` | GET | Committees |
+| `/v1/sil/camara/comision/tipo` | GET | Committee types |
+
+### Senado de la República
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/sil/senado/iniciativas` | GET | Senate legislative initiatives |
+| `/v1/sil/senado/boletines` | GET | Senate bulletins |
+| `/v1/sil/senado/resoluciones` | GET | Senate resolutions |
+| `/v1/sil/senado/search` | GET | Full-text search across Senate portal |
+| `/v1/sil/senado/communities` | GET | Document communities/collections |
+| `/v1/sil/senado/collections/:id/items` | GET | Collection items |
+| `/v1/sil/senado/senadores` | GET | Senators & periods |
+| `/v1/sil/senado/senadores/periodos` | GET | Legislative periods |
+| `/v1/sil/senado/senadores/periodo/:periodo` | GET | Senators by period |
+| `/v1/sil/senado/senadores/:itemId` | GET | Senator detail |
+| `/v1/sil/senado/expediente/:itemId` | GET | Legislative file |
+| `/v1/senado/news` | GET | Senate press releases / news |
+
+### Knowledge Graph (Read)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/graph` | GET | Traverse entity-relation graph |
+| `/v1/graph/ingest` | POST | Ingest intelligence result into graph (requires key) |
+
+### System & Docs
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/health` | GET | Liveness probe |
+| `/v1/ready` | GET | Readiness probe |
+| `/v1/live` | GET | Live probe |
+| `/v1/docs` | GET | Swagger UI |
+| `/v1/openapi.json` | GET | OpenAPI 3.1 spec |
+| `/v1/mcp/tools` | GET | MCP tool catalog |
+
+---
+
+## What's NOT Free (Requires API Key + Quota)
+
+| Endpoint | Why It's Metered |
+|----------|------------------|
+| `POST /v1/query` | Full multi-agent intelligence pipeline |
+| `POST /v1/query/stream` | Streaming synthesis |
+| `POST /v1/chat` | Grounded follow-up chat |
+| `POST /v1/chat/stream` | Streaming chat |
+| `POST /v1/chat/completions` | OpenAI-compatible chat |
+| `POST /v1/entities/extract` | Named entity extraction |
+| `POST /v1/documents/process` | Document intelligence pipeline |
+| `POST /v1/workflows` | DAG workflow engine |
+| `POST /v1/evaluate/faithfulness` | Faithfulness evaluation |
+| `POST /v1/evaluate/quality` | Quality evaluation |
+| `POST /v1/embeddings` | Embedding generation |
+| `POST /v1/fetch` | Single URL fetch + extraction |
+| `POST /v1/graph/ingest` | Graph ingestion |
+| `POST /v1/tools/:id/execute` | Arbitrary tool execution |
+
+---
+
+## Quick Test (No Key)
+
+```bash
+# All of these work without any API key:
+curl https://api.intel.dom.gob/v1/institutions
+curl https://api.intel.dom.gob/v1/sil/camara/iniciativas?q=compras%20p%C3%BAblicas
+curl https://api.intel.dom.gob/v1/sil/senado/search?q=compras%20p%C3%BAblicas
+curl https://api.intel.dom.gob/v1/graph?entity=Ley%20340-06
+curl https://api.intel.dom.gob/v1/health
+```
+
+---
+
+## Philosophy
+
+> **Official data is a public good. Synthesis is a paid service.**
+
+We meter the **intelligence layer** (search + retrieval + LLM synthesis + validation), never the **data layer** (raw official sources). This ensures journalists, researchers, citizens, and civil society always have free access to the raw evidence.
+
+---
+
+## Next Steps
+
+- [Plans & Limits](/docs/concepts/plans) — choose your tier
+- [Quick Start: API](/docs/products/api) — start querying
+- [Quick Start: CLI](/docs/products/cli) — terminal access

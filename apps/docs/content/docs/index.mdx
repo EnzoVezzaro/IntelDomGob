@@ -1,98 +1,108 @@
 ---
-title: Overview
-description: INTEL.DOM.GOB — API-first open-source AI platform for Dominican Republic Government Intelligence.
+title: INTEL.DOM.GOB Documentation
+description: Plataforma de Inteligencia Gubernamental del Estado Dominicano — API-first, multi-agente, basada en evidencia oficial.
 ---
 
-## What is INTEL.DOM.GOB?
+# INTEL.DOM.GOB
 
-INTEL.DOM.GOB is a state-level AI intelligence platform that performs **real-time deep research** on official Dominican Republic government sources. Each query triggers a **multi-agent retrieval and reasoning loop** that searches, reads, contrasts, and synthesizes official information before responding.
+**Plataforma de Inteligencia Gubernamental del Estado Dominicano** — API-first, multi-agente, basada en evidencia oficial.
 
-The architecture revolves around the **API**. Everything flows through:
+## What Is It?
+
+A unified intelligence platform that connects AI agents to **official Dominican government sources** (Congress SIL, Senate, official gazettes, open data) and delivers **structured, cited, verifiable answers** — not hallucinations.
 
 ```
-Client → API → Orchestrator → Services → Providers → External Systems
+Question → Planner → Search → Retrieval → Evidence → Synthesis → Cited Answer
 ```
 
-No client ever talks directly to services or providers.
+**Every claim cites its source.** No black boxes.
 
----
+## Products
 
-## Core Principles
+| Product | Description | Quick Start |
+|---------|-------------|-------------|
+| **API** | REST + SSE, the core platform | [API](/docs/products/api) |
+| **Studio** | Multi-agent workspace (AGPL fork of Odysseus) | [Studio](/docs/products/studio) |
+| **Web** | Zero-JS public site + live demo | [Web](/docs/products/web) |
+| **MCP Server** | Model Context Protocol (Cursor, Claude, CLI) | [MCP](/docs/products/mcp) |
+| **CLI** | Interactive terminal client | [CLI](/docs/products/cli) |
+| **SDK** | TypeScript/Node client for browsers & servers | [SDK](/docs/products/sdk) |
 
-| Principle | Description |
-|-----------|-------------|
-| **Local-first** | Local open-source components (SearXNG, Gemini, Ollama, DragonflyDB) as defaults |
-| **Open Source First** | MIT license, fully self-hostable |
-| **Vendor Neutral** | Swap any provider without code changes |
-| **Offline Friendly** | Ollama + local SearXNG + hash embeddings work without internet |
-| **Docker First** | Single `docker-compose.yml`, develop exactly like production |
-| **S3 Compatible Storage** | Pluggable `StorageBackend` interface (local default; adapters designed) |
-| **Zero Vendor Lock-in** | Every external system behind a Provider interface |
+## Key Differentiators
 
----
+| Feature | Description |
+|---------|-------------|
+| **Official Sources Only** | SIL Congress, Senate, Gaceta Oficial, open data portals — no random web scraping |
+| **Cited Answers** | Every fact links to an official document (SIL initiative, Senate resolution, Gaceta decree) |
+| **Multi-Agent Pipeline** | Planner → Search → Retrieval → Evidence → Validation → Response |
+| **MCP Native** | Full Model Context Protocol server — works with Cursor, Claude Desktop, Continue, our CLI |
+| **Tiered Access** | Público (free, no key) → Investigador (free, verified) → Pro (metered) → Institucional (SLA) |
+| **Self-Hostable** | Single `docker compose up` — identical dev/prod, Caddy auto-TLS |
 
-## Quick Start
+## Quick Links
+
+| Resource | Link |
+|----------|------|
+| **Get Started** | [Getting Started](/docs/getting-started) |
+| **API Reference** | [Swagger UI](https://api.intel.dom.gob/docs) / [OpenAPI](https://api.intel.dom.gob/v1/openapi.json) |
+| **Public Demo** | [web.intel.dom.gob](https://web.intel.dom.gob) |
+| **Studio** | [studio.intel.dom.gob](https://studio.intel.dom.gob) |
+| **MCP Endpoint** | `https://mcp.intel.dom.gob/mcp` |
+| **SDK** | `npm i @intel.dom.gob/sdk` |
+
+## Try It Now (No Install)
 
 ```bash
-# 1. Clone & configure
-git clone <repo> intel.dom.gob
-cd intel.dom.gob
-cp .env.example .env          # set DEFAULT_AI_API_KEY, DOMAIN
+# Public instance — 20 queries/day, no key
+curl -X POST https://api.intel.dom.gob/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "¿Qué leyes regulan las compras públicas en RD?"}'
+```
 
-# 2. One command brings up the whole platform
+Or open the live demo: **[web.intel.dom.gob](https://web.intel.dom.gob)**
+
+## Self-Host in 2 Minutes
+
+```bash
+git clone <repo-url> intel.dom.gob
+cd intel.dom.gob
+cp .env.example .env
+# Set DEFAULT_AI_API_KEY or DEFAULT_AI_PROVIDER=ollama
 ./scripts/up.sh
 ```
 
-Then open:
+Open `http://studio.localhost` — full multi-agent workspace running locally.
 
-- **Studio** → http://studio.localhost
-- **API** → http://api.localhost/v1/health
-- **API Docs (Swagger)** → http://api.localhost/v1/docs
-- **MCP** → http://mcp.localhost/health
-- **Web** → http://web.localhost
-- **Admin** → http://admin.localhost
-- **Docs** → http://docs.localhost
-
----
-
-## Architecture Overview
+## Architecture at a Glance
 
 ```
-Clients
-─────────────────────────────────────────────
-Studio · Web · CLI · Admin · MCP · SDKs
-
-        │  (HTTPS via reverse proxy / subdomains)
-        ▼
-   API (api.intel.dom.gob)        ← gateway, REST + SSE, versioned /v1
+Client (Studio, Web, CLI, MCP, SDK)
         │
         ▼
-   Orchestrator                   ← heart: planning, search, AI, merge
+    MCP Server (Port 4100) ── JSON-RPC 2.0 over Streamable HTTP + SSE
         │
         ▼
-   Core Services (25+)
-   ───────────────────────────────
-   Search · AI · Institutions · Crawler · OCR · Memory · RAG ·
-   Knowledge Graph · Entities · Document Intelligence · Workflow ·
-   Embeddings · Storage · Auth · Evaluation · Observability ·
-   Tool Registry · Prompts · Scheduler · Tenancy · Plugins
+   API Gateway (Port 4000) ── /v1/query, /v1/chat, /v1/tools, ...
         │
         ▼
-   Providers (12)
-   ───────────────────────────────
-   SearXNG (default search) · Gemini (default AI) · + 10 optional
+Orchestrator (Planner → Search → Retrieval → Evidence → Synthesis)
         │
-        ▼
-   Infrastructure
-   ───────────────────────────────
-   PostgreSQL · DragonflyDB · Object Storage · Docker · Caddy
+        ├──▶ Providers: SearXNG, Brave, Tavily, Exa
+        ├──▶ AI: Gemini, OpenAI, Anthropic, DeepSeek, Ollama, Custom
+        ├──▶ Institutions: 8 SIL/Senado plugins
+        ├──▶ Knowledge Graph + Vector DB (ChromaDB)
+        └──▶ Document Intelligence: OCR → Entities → Embeddings → KG
 ```
 
----
+## License
 
-## What's Next?
+- **Platform (MIT)**: `packages/`, `services/`, `apps/api`, `apps/admin`, `apps/web`, `apps/cli`, `apps/docs`
+- **Studio (AGPL-3.0)**: `apps/studio/v1` — fork of [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus)
 
-- [Quick Start](/docs/quick-start) — Get running in 2 minutes
-- [Architecture](/docs/architecture) — Deep dive into the layered design
-- [API Reference](/docs/api) — All 40+ endpoints documented
-- [Providers](/docs/providers) — 12 swappable provider adapters
+## Next Steps
+
+1. [Getting Started](/docs/getting-started) — choose your path
+2. [API Quick Start](/docs/products/api) — first query in 30 seconds
+3. [Studio](/docs/products/studio) — full workspace tour
+4. [Concepts: Plans & Limits](/docs/concepts/plans) — Público vs Pro vs Institutional
+5. [Concepts: Free Data](/docs/concepts/free-data) — always-free raw endpoints

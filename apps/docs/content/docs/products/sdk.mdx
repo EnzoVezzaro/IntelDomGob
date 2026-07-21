@@ -1,0 +1,140 @@
+---
+title: "Quick Start — SDK"
+description: Type-safe client for Node.js and browsers — query, chat, stream, tools, and more.
+---
+
+The **SDK** is the official TypeScript client for INTEL.DOM.GOB. It works identically in Node.js and browsers, and every official client (Studio, Web, CLI, MCP server, Admin) uses it.
+
+## Install
+
+```bash
+npm i @intel.dom.gob/sdk
+# or
+pnpm add @intel.dom.gob/sdk
+```
+
+## Quick Start
+
+```ts
+import { createIntelClient } from "@intel.dom.gob/sdk";
+
+const client = createIntelClient({
+  baseUrl: "https://api.intel.dom.gob",   // or http://api.localhost
+  token: "idg_xxx",                       // optional in preview mode
+  product: "my-app"                       // identifies your surface
+});
+
+// Run a full intelligence query
+const result = await client.query({
+  query: "Últimas leyes sobre transparencia en RD",
+  responseLang: "es"
+});
+
+console.log(result.summary);
+console.log(result.citations);
+```
+
+## Core Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `health()` | `Promise<HealthStatus>` | Liveness check |
+| `query(req)` | `Promise<IntelligenceResult>` | Full multi-agent query |
+| `queryStream(req, onEvent)` | `Promise<void>` | SSE streaming query |
+| `chat(req)` | `Promise<{reply:string}>` | Grounded follow-up chat |
+| `streamChat(opts, onEvent)` | `Promise<void>` | Streaming chat |
+| `listInstitutions()` | `Promise<InstitutionDescriptor[]>` | Source plugins |
+| `searchInstitution(id, q)` | `Promise<...>` | Search specific institution |
+| `getUrlTree(opts)` | `Promise<{portals}>` | Source registry |
+| `fetchUrl(url, opts)` | `Promise<FetchedPage>` | Extract readable text from URL |
+| `entities.extract(text)` | `Promise<EntitiesResult>` | Named entity extraction |
+| `documents.process(...)` | `Promise<...>` | Document intelligence pipeline |
+| `workflows.create(...)` | `Promise<Workflow>` | Create DAG workflow |
+| `tools.list()` | `Promise<ToolDescriptor[]>` | MCP tool catalog |
+| `prompts.get(key)` | `Promise<PromptTemplate>` | Prompt template |
+| `evaluate.faithfulness(ans, ctx)` | `Promise<EvalResult>` | Faithfulness evaluation |
+| `openApi()` | `Promise<OpenAPISpec>` | Full OpenAPI spec |
+
+## Query Options
+
+```ts
+await client.query({
+  query: "string (required)",
+  institutions?: string[],           // specific plugins, omit for auto
+  model?: string,                    // override default model
+  provider?: "gemini" | "openai" | "ollama" | "custom",
+  apiKey?: string,                   // per-request override
+  scope?: "all" | "sil" | "legislativo" | "senate" | "camara" | "senate-news" | "camara-news" | "diputado",
+  search?: {                         // search tuning
+    lang?: string;
+    category?: string;
+    safe?: boolean;
+    timeRange?: string;
+    engines?: string;
+    maxResults?: number;
+  },
+  responseLang?: string;
+});
+```
+
+## Streaming
+
+```ts
+for await (const event of client.queryStream({
+  query: "Ley 340-06 procedimientos excepción"
+}, (e) => console.log(e.type, e.data))) {
+  // event types: plan, search, token, result, done
+}
+```
+
+## Chat (Grounded)
+
+```ts
+const result = await client.query({ query: "Ley 340-06" });
+
+await client.chat({
+  systemInstruction: "Eres un asistente legal.",
+  grounding: result.detailedAnalysis,
+  message: "¿Qué dice sobre procedimientos de excepción?",
+  history: [{ role: "user", content: "Ley 340-06" }],
+  model: "gemini-3.1-flash-lite"
+});
+```
+
+## Error Handling
+
+```ts
+import { IntelApiError } from "@intel.dom.gob/sdk";
+
+try {
+  await client.query({ query: "..." });
+} catch (e) {
+  if (e instanceof IntelApiError) {
+    console.error(e.status, e.message, e.details);
+  }
+}
+```
+
+## Running the SDK Locally
+
+The SDK is a pure TypeScript package — no build step required for consumers. Just install and import.
+
+```bash
+# In your project
+npm i @intel.dom.gob/sdk
+```
+
+If you want to develop the SDK itself:
+
+```bash
+cd packages/sdk
+npm install
+npm run build   # tsc
+npm run test
+```
+
+## Next Steps
+
+- [API Quick Start](/docs/products/api) — same endpoints, raw HTTP
+- [MCP Server](/docs/products/mcp) — same tools via MCP protocol
+- [Plans & Limits](/docs/concepts/plans) — SDK inherits your tier

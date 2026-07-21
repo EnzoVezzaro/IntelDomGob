@@ -14,23 +14,28 @@
     });
   }
 
-  // ---- Tabs (quick start) ----
-  document.querySelectorAll("[data-tabs]").forEach(function (group) {
-    var tabs = group.querySelectorAll(".tab");
-    var panels = document.querySelectorAll(
-      '.code-panel[data-group="' + group.getAttribute("data-tabs") + '"]'
-    );
-    tabs.forEach(function (tab) {
-      tab.addEventListener("click", function () {
-        var id = tab.getAttribute("data-tab");
-        tabs.forEach(function (t) { t.classList.remove("active"); });
-        tab.classList.add("active");
-        panels.forEach(function (p) {
-          p.classList.toggle("active", p.getAttribute("data-panel") === id);
-        });
+  // ---- Surfaces (quick start gallery) ----
+  (function () {
+    var surfaces = document.querySelectorAll("[data-surface]");
+    var panels = document.querySelectorAll("[data-qs-panel]");
+    if (!surfaces.length) return;
+    function activate(id) {
+      surfaces.forEach(function (s) {
+        s.classList.toggle("active", s.getAttribute("data-surface") === id && !s.disabled);
+      });
+      panels.forEach(function (p) {
+        p.classList.toggle("active", p.getAttribute("data-qs-panel") === id);
+      });
+    }
+    surfaces.forEach(function (s) {
+      if (s.disabled) return;
+      s.addEventListener("click", function () {
+        activate(s.getAttribute("data-surface"));
       });
     });
-  });
+    // Start with Studio active so the panel is never empty on load.
+    activate("studio");
+  })();
 
   // ---- Copy buttons ----
   document.querySelectorAll("[data-copy]").forEach(function (btn) {
@@ -43,6 +48,22 @@
       });
     });
   });
+
+  // ---- Back to top ----
+  (function () {
+    var btn = document.querySelector("[data-to-top]");
+    if (!btn) return;
+    function onScroll() {
+      var show = window.scrollY > 480;
+      btn.classList.toggle("show", show);
+      btn.hidden = !show;
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    btn.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    onScroll();
+  })();
 
   // ---- Newsletter (client-side confirmation only) ----
   var news = document.querySelector("[data-news]");

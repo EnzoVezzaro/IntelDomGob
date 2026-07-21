@@ -49,18 +49,28 @@ const ASCII = `<pre class="ascii" aria-hidden="true"> ██╗███╗   �
  ██║██║ ╚████║   ██║   ███████╗██████╗
  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═════╝</pre>`;
 
+const MARK_ASCII = `<pre class="ascii mini" aria-hidden="true"> ██╗███╗    ████╗   
+ ██║   ██╗██║   ██╗
+ ██║   ██║██║   ██║
+ ██║   ██║██║   ██║
+ ██████║    ████║  
+ ╚═════╝    ╚═══╝  </pre>`;
+
+
 function nav(): string {
   return `
   <header class="nav">
     <div class="nav-inner">
       <a class="brand" href="#top" aria-label="INTEL.DOM.GOB">
-        <span class="mark">ID</span>
+        ${MARK_ASCII}
         <span class="name">INTEL<span>.DOM.GOB</span></span>
       </a>
       <nav class="nav-links" aria-label="Principal">
+        <a href="#inicio">Elígelo</a>
+        <a href="#demo">Pruébalo</a>
         <a href="#producto">Producto</a>
         <a href="#ecosistema">Ecosistema</a>
-        <a href="#integraciones">Integraciones</a>
+        <a href="#testimonios">Quienes</a>
         <a href="#precios">Precios</a>
         <a href="https://docs.intel.dom.gob" target="_blank" rel="noopener">Documentación</a>
       </nav>
@@ -73,9 +83,11 @@ function nav(): string {
       </div>
     </div>
     <div class="nav-mobile" data-nav-mobile>
+      <a href="#inicio">Elígelo</a>
+      <a href="#demo">Pruébalo</a>
       <a href="#producto">Producto</a>
       <a href="#ecosistema">Ecosistema</a>
-      <a href="#integraciones">Integraciones</a>
+      <a href="#testimonios">Quienes</a>
       <a href="#precios">Precios</a>
       <a href="https://docs.intel.dom.gob" target="_blank" rel="noopener">Documentación</a>
     </div>
@@ -100,52 +112,51 @@ function hero(): string {
 }
 
 function quickStart(): string {
-  return `
-  <section id="inicio">
-    <div class="wrap">
-      <span class="eyebrow">Cómo empezar</span>
-      <h2 class="section-title">Elígelo tu forma de usarla.</h2>
-      <p class="section-sub">Escritorio, terminal, web o tu propia app. Cada superficie habla con la misma plataforma.</p>
-      <div class="qs" style="margin-top:40px">
-        <div data-tabs="start" class="tabs">
-          <button class="tab active" data-tab="studio">Studio</button>
-          <button class="tab" data-tab="api">API</button>
-          <button class="tab" data-tab="cli">CLI</button>
-          <button class="tab" data-tab="web">Web</button>
-          <button class="tab" data-tab="mcp">MCP</button>
-        </div>
-        <div class="code-panel active" data-group="start" data-panel="studio">
-          <button class="copy" data-copy="docker compose up -d --build">Copiar</button>
-          <pre><span class="c"># Studio: workspace multi-agente (fork AGPL-3.0 de Odysseus)</span>
+  // Surfaces: image-led (Studio, CLI) vs code-mockup-led (API, MCP, SDK).
+  // API is "próximamente" → greyed out, not selectable as the active tab.
+  const cards = [
+    {
+      id: "studio",
+      kind: "image",
+      title: "Studio",
+      tag: "Workspace multi-agente",
+      desc: "Fork AGPL-3.0 de Odysseus. Se conecta a la plataforma sólo vía MCP.",
+      img: "/assets/img/studio.png",
+      href: "https://studio.intel.dom.gob",
+      cta: "Abrir Studio",
+      copy: "docker compose up -d --build",
+      code: `<span class="c"># Studio: workspace multi-agente (fork AGPL-3.0 de Odysseus)</span>
 <span class="k">git clone</span> https://github.com/EnzoVezzaro/IntelDomGob.git
 <span class="k">cd</span> IntelDomGob && <span class="k">cp</span> .env.example .env
 <span class="k">docker compose up</span> -d --build
-<span class="c"># Abre http://studio.localhost — se conecta vía MCP</span></pre>
-        </div>
-        <div class="code-panel" data-group="start" data-panel="api">
-          <button class="copy" data-copy="npm install @intel.dom.gob/sdk">Copiar</button>
-          <pre><span class="c">// Conéctala a tu app, o úsala desde Studio / MCP / CLI.</span>
-<span class="k">import</span> { createClient } <span class="k">from</span> <span class="s">"@intel.dom.gob/sdk"</span>;
-<span class="k">const</span> client = <span class="k">createClient</span>({ baseUrl: <span class="s">"https://api.intel.dom.gob"</span> });
-<span class="k">const</span> r = <span class="k">await</span> client.<span class="k">query</span>({ query: <span class="s">"¿Leyes de energía 2026?"</span> });
-console.<span class="k">log</span>(r.response.summary); <span class="c">// con fuentes</span></pre>
-        </div>
-        <div class="code-panel" data-group="start" data-panel="cli">
-          <button class="copy" data-copy="npm run dev --workspace=apps/cli">Copiar</button>
-          <pre><span class="c"># CLI: terminal interactivo (estilo OpenCode), vía MCP</span>
+<span class="c"># Abre http://studio.localhost — se conecta vía MCP</span>`,
+    },
+    {
+      id: "cli",
+      kind: "image",
+      title: "CLI",
+      tag: "Terminal interactivo",
+      desc: "Linux/macOS/Windows. Estilo OpenCode, conversa con el orquestador.",
+      img: "/assets/img/cli.png",
+      href: "https://github.com/EnzoVezzaro/IntelDomGob/tree/main/apps/cli",
+      cta: "Ver CLI",
+      copy: "npm run dev --workspace=apps/cli",
+      code: `<span class="c"># CLI: terminal interactivo (estilo OpenCode), vía MCP</span>
 <span class="k">npm run dev</span> --workspace=apps/cli
 <span class="c"># o en modo una-línea:</span>
-<span class="k">intel</span> -p <span class="s">"¿Iniciativas recientes del Senado?"</span></pre>
-        </div>
-        <div class="code-panel" data-group="start" data-panel="web">
-          <button class="copy" data-copy="npm run dev --workspace=apps/web">Copiar</button>
-          <pre><span class="c"># Web: este sitio. Sin build, sin JS obligatorio.</span>
-<span class="k">npm run dev</span> --workspace=apps/web
-<span class="c"># Abre http://localhost:4200 — funciona sin API key</span></pre>
-        </div>
-        <div class="code-panel" data-group="start" data-panel="mcp">
-          <button class="copy" data-copy="docker compose up -d">Copiar</button>
-          <pre><span class="c"># MCP: servidor Model Context Protocol (Streamable HTTP + SSE)</span>
+<span class="k">intel</span> -p <span class="s">"¿Iniciativas recientes del Senado?"</span>`,
+    },
+    {
+      id: "mcp",
+      kind: "mockup",
+      title: "MCP",
+      tag: "Model Context Protocol",
+      desc: "Streamable HTTP + SSE. Conéctalo desde Claude, cursor, Studio.",
+      mockup: "mcp",
+      href: "https://mcp.intel.dom.gob/health",
+      cta: "Conectar",
+      copy: "docker compose up -d",
+      code: `<span class="c"># MCP: servidor Model Context Protocol (Streamable HTTP + SSE)</span>
 <span class="k">docker compose up</span> -d   <span class="c"># expone mcp:4100/mcp</span>
 
 <span class="c"># Conéctalo desde cualquier cliente MCP (Claude, Studio, cursor…):</span>
@@ -153,35 +164,141 @@ console.<span class="k">log</span>(r.response.summary); <span class="c">// con f
   <span class="s">"mcpServers"</span>: {
     <span class="s">"intel-dom-gob"</span>: { <span class="s">"url"</span>: <span class="s">"https://mcp.intel.dom.gob/mcp"</span> }
   }
-}</pre>
-        </div>
-      </div>
-    </div>
-  </section>`;
-}
-
-function accessRow(): string {
-  const items = [
-    { ico: ICON.globe, t: "Web", d: "En el navegador, al instante.", l: "https://web.intel.dom.gob", c: "Abrir por SDK" },
-    { ico: ICON.terminal, t: "Studio", d: "Workspace multi-agente (Docker).", l: "https://studio.intel.dom.gob", c: "Abrir" },
-    { ico: ICON.code, t: "CLI", d: "Terminal interactivo vía MCP.", l: "https://github.com/EnzoVezzaro/IntelDomGob/tree/main/apps/cli", c: "Ver" },
-    { ico: ICON.plug, t: "MCP", d: "Para Claude, cursor y más.", l: "https://mcp.intel.dom.gob/health", c: "Conectar" },
+}`,
+    },
+    {
+      id: "sdk",
+      kind: "mockup",
+      title: "SDK",
+      tag: "TypeScript · ESM",
+      desc: "El único cliente para hablar con la API. Úsalo desde tu app o scripts.",
+      mockup: "sdk",
+      href: "https://docs.intel.dom.gob/docs/sdk-reference",
+      cta: "Referencia SDK",
+      copy: "npm install @intel.dom.gob/sdk",
+      code: `<span class="c">// Conéctala a tu app, o úsala desde Studio / MCP / CLI.</span>
+<span class="k">import</span> { createClient } <span class="k">from</span> <span class="s">"@intel.dom.gob/sdk"</span>;
+<span class="k">const</span> client = <span class="k">createClient</span>({ baseUrl: <span class="s">"https://api.intel.dom.gob"</span> });
+<span class="k">const</span> r = <span class="k">await</span> client.<span class="k">query</span>({ query: <span class="s">"¿Leyes de energía 2026?"</span> });
+console.<span class="k">log</span>(r.response.summary); <span class="c">// con fuentes</span>`,
+    },
+    {
+      id: "api",
+      kind: "mockup",
+      title: "API",
+      tag: "Próximamente",
+      soon: true,
+      desc: "REST + SSE ya expuesto internamente. El panel público viene pronto.",
+      mockup: "api",
+      href: "https://docs.intel.dom.gob",
+      cta: "Ver documentación",
+      copy: "",
+      code: `<span class="c">// API REST + SSE — panel público próximamente.</span>
+<span class="c">// Hoy ya alimentan todas las superficies:</span>
+<span class="k">const</span> r = <span class="k">await</span> fetch(<span class="s">"https://api.intel.dom.gob/v1/query"</span>, {
+  method: <span class="s">"POST"</span>,
+  headers: { <span class="s">"Content-Type"</span>: <span class="s">"application/json"</span> },
+  body: JSON.stringify({ query: <span class="s">"¿Sesiones del Senado?"</span> }),
+});`,
+    },
   ];
-  return `
-  <section id="acceso">
-    <div class="wrap center">
-      <span class="eyebrow">Cero instalación</span>
-      <h2 class="section-title">Accede como quieras.</h2>
-      <p class="section-sub">¿Solo quieres probarlo? Usa la Web al instante — sin API key. ¿Quieres integrarlo? Hay una superficie para eso.</p>
-      <div class="grid grid-4">
-        ${items.map((i) => `
-          <a class="card access" href="${i.l}" target="_blank" rel="noopener">
-            <div class="ico">${i.ico}</div>
-            <h3>${i.t}</h3>
-            <p>${i.d}</p>
-            <span class="access-link">${i.c} ${ICON.arrow}</span>
-          </a>`).join("")}
+
+  const mockups: Record<string, string> = {
+    mcp: `<div class="mockwin">
+  <div class="mockbar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="mockpath">mcp.intel.dom.gob/mcp</span></div>
+  <div class="mockbody">
+    <div class="mockline"><span class="mtok k">POST</span> <span class="mtok p">/mcp</span></div>
+    <div class="mockline"><span class="mtok c">Content-Type:</span> <span class="mtok s">application/json</span></div>
+    <div class="mockline">&nbsp;</div>
+    <div class="mockline"><span class="mtok c">{</span></div>
+    <div class="mockline">&nbsp;&nbsp;<span class="mtok s">"jsonrpc"</span>: <span class="mtok s">"2.0"</span>,</div>
+    <div class="mockline">&nbsp;&nbsp;<span class="mtok s">"method"</span>: <span class="mtok s">"tools/call"</span>,</div>
+    <div class="mockline">&nbsp;&nbsp;<span class="mtok s">"params"</span>: { <span class="mtok s">"name"</span>: <span class="mtok s">"intel_query"</span>,</div>
+    <div class="mockline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="mtok s">"arguments"</span>: { <span class="mtok s">"q"</span>: <span class="mtok s">"…"</span> } }</div>
+    <div class="mockline"><span class="mtok c">}</span></div>
+  </div>
+</div>`,
+    sdk: `<div class="mockwin">
+  <div class="mockbar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="mockpath">query.ts</span></div>
+  <div class="mockbody">
+    <div class="mockline"><span class="mtok k">import</span> { createClient } <span class="mtok k">from</span> <span class="mtok s">"@intel.dom.gob/sdk"</span>;</div>
+    <div class="mockline">&nbsp;</div>
+    <div class="mockline"><span class="mtok k">const</span> client = <span class="mtok k">createClient</span>({</div>
+    <div class="mockline">&nbsp;&nbsp;baseUrl: <span class="mtok s">"https://api.intel.dom.gob"</span></div>
+    <div class="mockline">});</div>
+    <div class="mockline">&nbsp;</div>
+    <div class="mockline"><span class="mtok k">const</span> r = <span class="mtok k">await</span> client.<span class="mtok k">query</span>({</div>
+    <div class="mockline">&nbsp;&nbsp;query: <span class="mtok s">"¿Leyes de energía 2026?"</span></div>
+    <div class="mockline">});</div>
+    <div class="mockline">&nbsp;</div>
+    <div class="mockline">console.<span class="mtok k">log</span>(r.response.summary); <span class="mtok c">// con fuentes</span></div>
+  </div>
+</div>`,
+    api: `<div class="mockwin">
+  <div class="mockbar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="mockpath">api.intel.dom.gob/v1/query</span></div>
+  <div class="mockbody">
+    <div class="mockline"><span class="mtok k">POST</span> <span class="mtok p">/v1/query</span>&nbsp;&nbsp;<span class="mtok c">200 OK</span></div>
+    <div class="mockline"><span class="mtok k">↑</span> { <span class="mtok s">"query"</span>: <span class="mtok s">"…"</span> }</div>
+    <div class="mockline"><span class="mtok k">↓</span> text/event-stream · SSE</div>
+    <div class="mockline">&nbsp;</div>
+    <div class="mockline"><span class="mtok c">event: summary</span></div>
+    <div class="mockline"><span class="mtok c">data:</span> <span class="mtok s">{ "sources": [...] }</span></div>
+    <div class="mockline"><span class="mtok c">event: done</span></div>
+  </div>
+</div>`,
+  };
+
+  const card = (c: typeof cards[number]) => {
+    const soon = !!c.soon;
+    const visual = c.kind === "image"
+      ? `<div class="surf-shot${soon ? " soon" : ""}">
+           <img src="${c.img}" alt="Captura de ${c.title}" loading="lazy" />
+           ${soon ? '<span class="soon-badge">Próximamente</span>' : ""}
+         </div>`
+      : `<div class="surf-mock${soon ? " soon" : ""}">
+           ${mockups[c.mockup as string] || ""}
+           ${soon ? '<span class="soon-badge">Próximamente</span>' : ""}
+         </div>`;
+    return `
+    <button class="surface${soon ? " soon" : ""}" data-surface="${c.id}"${soon ? " disabled aria-disabled=\"true\"" : ""}>
+      ${visual}
+      <div class="surf-meta">
+        <span class="surf-tag">${c.tag}</span>
+        <h3>${c.title}</h3>
+        <p>${c.desc}</p>
+        <span class="surf-cta">${c.cta} ${ICON.arrow}</span>
       </div>
+    </button>`;
+  };
+
+  const panel = (c: typeof cards[number]) => {
+    if (c.soon || !c.code) return "";
+    return `
+    <div class="qs-panel" data-qs-panel="${c.id}">
+      <div class="qs-panel-head">
+        <div><b>${c.title}</b> · <span class="mono">${c.copy || ""}</span></div>
+        ${c.href ? `<a class="qs-open" href="${c.href}" target="_blank" rel="noopener">Abrir ${ICON.arrow}</a>` : ""}
+      </div>
+      <div class="code">
+        ${c.copy ? `<button class="copy" data-copy="${esc(c.copy)}">Copiar</button>` : ""}
+        <pre>${c.code}</pre>
+      </div>
+    </div>`;
+  };
+
+  return `
+  <section id="inicio">
+    <div class="wrap">
+      <span class="eyebrow">Cómo empezar</span>
+      <h2 class="section-title">Elígelo tu forma de usarla.</h2>
+      <p class="section-sub">Escritorio, terminal, protocolo o tu propia app — cada superficie habla con la misma plataforma.</p>
+      <div class="surfaces" style="margin-top:40px">
+        ${cards.map(card).join("")}
+      </div>
+      <div class="qs-panels" data-qs-panels>
+        ${cards.map(panel).join("")}
+      </div>
+      <p class="center muted" style="margin-top:18px;font-size:13px">Toca una superficie para ver el código de arranque.</p>
     </div>
   </section>`;
 }
@@ -232,7 +349,7 @@ function resources(): string {
         <a class="res-feature" href="https://docs.intel.dom.gob/docs/products" target="_blank" rel="noopener">
           <span class="tag">Guía</span>
           <h3>Productos de INTEL.DOM.GOB</h3>
-          <p>Studio, API, MCP, Web, CLI y Admin: qué es cada uno y cómo se autentican.</p>
+          <p>Studio, API, MCP, CLI y Admin: qué es cada uno y cómo se autentican.</p>
           <span class="access-link">Leer ${ICON.arrow}</span>
         </a>
         <div class="res-list">
@@ -270,33 +387,6 @@ function features(): string {
   </section>`;
 }
 
-function integrations(): string {
-  const items = [
-    { ico: ICON.terminal, t: "Studio", tag: "Workspace", l: "https://studio.intel.dom.gob" },
-    { ico: ICON.code, t: "API", tag: "REST + SSE (próximamente)", l: "https://api.intel.dom.gob/docs" },
-    { ico: ICON.plug, t: "MCP", tag: "Protocolo", l: "https://mcp.intel.dom.gob/health" },
-    { ico: ICON.terminal, t: "CLI", tag: "Terminal", l: "https://github.com/EnzoVezzaro/IntelDomGob/tree/main/apps/cli" },
-  ];
-  return `
-  <section id="integraciones">
-    <div class="wrap">
-      <span class="eyebrow">Superficies</span>
-      <h2 class="section-title">Funciona con todo lo que ya usas.</h2>
-      <p class="section-sub">Misma plataforma, muchas puertas. Conéctate desde donde te convenga.</p>
-      <div class="grid grid-3">
-        ${items.map((i) => `
-          <a class="card link" href="${i.l}" target="_blank" rel="noopener">
-            <div class="ico">${i.ico}</div>
-            <h3>${i.t}</h3>
-            <span class="tag">${i.tag}</span>
-            <span class="arrow">${ICON.arrow}</span>
-          </a>`).join("")}
-      </div>
-      <p class="center" style="margin-top:32px"><a class="access-link" href="https://docs.intel.dom.gob/docs/products" target="_blank" rel="noopener">Ver todas las superficies ${ICON.arrow}</a></p>
-    </div>
-  </section>`;
-}
-
 function showcase(): string {
   const items = [
     { pill: "Congreso", t: "Seguimiento legislativo", d: "Alerta y resume iniciativas, comisiones y sesiones de Cámara y Senado." },
@@ -324,7 +414,7 @@ function showcase(): string {
 
 function pricing(): string {
   const tiers = [
-    { n: "Público", p: "Gratis", sub: "/siempre", d: "Para explorar. Sin registro, sin tarjeta.", feats: ["20 consultas/día", "Sin API key", "Fuentes oficiales", "Web + búsqueda"], cta: "Empezar", href: "#demo", feat: false },
+    { n: "Público", p: "Gratis", sub: "/siempre", d: "Para explorar. Sin registro, sin tarjeta.", feats: ["20 consultas/día", "Sin API key", "Fuentes oficiales", "Studio + búsqueda"], cta: "Empezar", href: "#demo", feat: false },
     { n: "Investigador", p: "Gratis", sub: "/ .gob.do", d: "Para investigadores y sector público.", feats: ["200 consultas/día", "Sin costo para .gob.do", "SDK + MCP", "Sin límite de fuentes"], cta: "Solicitar", href: "https://admin.intel.dom.gob", feat: true },
     { n: "Pro", p: "Desde $", sub: "/mes", d: "Para equipos e integraciones.", feats: ["1000+ consultas/día", "API key propia", "Límites a medida", "Soporte prioritario"], cta: "Contactar", href: "https://admin.intel.dom.gob", feat: false },
     { n: "Institucional", p: "A medida", sub: "", d: "Para organismos del Estado.", feats: ["Cuotas por contrato", "Tenant dedicado", "RBAC/ABAC", "Despliegue propio"], cta: "Hablar", href: "https://admin.intel.dom.gob", feat: false },
@@ -422,7 +512,7 @@ function footer(): string {
     <div class="wrap">
       <div class="foot-grid">
         <div class="foot-brand">
-          <a class="brand" href="#top"><span class="mark">ID</span><span class="name">INTEL<span>.DOM.GOB</span></span></a>
+          <a class="brand" href="#top">${MARK_ASCII}<span class="name">INTEL<span>.DOM.GOB</span></span></a>
           <p class="muted" style="margin-top:14px;max-width:280px;font-size:14px">Inteligencia abierta del Estado Dominicano. Código abierto, datos oficiales.</p>
           <div class="foot-social">
             <a href="https://github.com/EnzoVezzaro/IntelDomGob" target="_blank" rel="noopener" aria-label="GitHub">${ICON.github}</a>
@@ -454,7 +544,7 @@ function footer(): string {
       </div>
       <div class="foot-bottom">
         <span>© ${new Date().getFullYear()} INTEL.DOM.GOB — plataforma MIT · Studio AGPL-3.0.</span>
-        <span class="mono">API · SDK · MCP · Web · CLI</span>
+        <span class="mono">Studio · CLI · MCP · SDK · API</span>
       </div>
     </div>
   </footer>`;
@@ -480,12 +570,10 @@ export function home(instCount: number): string {
     <main>
       ${hero()}
       ${quickStart()}
-      ${accessRow()}
       ${demoSection(instCount)}
       ${testimonials()}
       ${resources()}
       ${features()}
-      ${integrations()}
       ${showcase()}
       ${pricing()}
       ${footerCtas()}
@@ -494,6 +582,9 @@ export function home(instCount: number): string {
     ${techRow()}
     ${footer()}
   </div>
+  <button class="to-top" data-to-top aria-label="Volver arriba" hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+  </button>
   <script src="/app.js"></script>
 </body>
 </html>`;
