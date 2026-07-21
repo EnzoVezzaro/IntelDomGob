@@ -124,7 +124,9 @@ section.alt { background: linear-gradient(180deg, var(--bg-elev), var(--bg)); }
   font-family: var(--mono); color: var(--accent); font-size: clamp(6px, 1.5vw, 13px);
   line-height: 1.15; letter-spacing: 1px; text-shadow: 0 0 26px rgba(233,78,49,0.45);
   margin: 0 auto 24px; display: inline-block; text-align: left;
+  white-space: pre;
 }
+.ascii[data-ascii-canvas] { min-height: calc(6 * 1.15em); }
 .hero h1 { font-size: clamp(36px, 6vw, 62px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.04; max-width: 16ch; }
 .hero h1 em { font-style: italic; color: var(--accent); }
 .hero p.lead { color: var(--muted); font-size: 19px; margin-top: 22px; max-width: 600px; }

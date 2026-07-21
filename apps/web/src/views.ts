@@ -42,12 +42,39 @@ export function esc(s: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-const ASCII = `<pre class="ascii" aria-hidden="true"> ██╗███╗   ██╗████████╗███████╗██╗
- ██║████╗  ██║╚══██╔══╝██╔════╝██║
- ██║██╔██╗ ██║   ██║   █████╗  ██║
- ██║██║╚██╗██║   ██║   ██╔══╝  ██║
- ██║██║ ╚████║   ██║   ███████╗██████╗
- ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═════╝</pre>`;
+// Hero ASCII animation frames — all 38 cols × 6 rows, same-grid layout.
+const ASCII_FRAMES: string[][] = [
+  // 0 — INTEL.DOM.GOB logo
+  [
+    " ██╗███╗   ██╗████████╗███████╗██╗    ",
+    " ██║████╗  ██║╚══██╔══╝██╔════╝██║    ",
+    " ██║██╔██╗ ██║   ██║   █████╗  ██║    ",
+    " ██║██║╚██╗██║   ██║   ██╔══╝  ██║    ",
+    " ██║██║ ╚████║   ██║   ███████╗██████╗",
+    " ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═════╝",
+  ],
+  // 1 — Eye (inner field is uniform ░; the iris ████ is placed by JS at runtime)
+  [
+    "                                      ",
+    "  ╭───────────────────────────────╮   ",
+    "  │░░░░░░░░░░░░░░████░░░░░░░░░░░░░│   ",
+    "  │░░░░░░░░░░░░░░████░░░░░░░░░░░░░│   ",
+    "  ╰───────────────────────────────╯   ",
+    "                                      ",
+  ],
+  // 2 — Government dome
+  [
+    "            ╭──────────╮              ",
+    "         ╔═══════════════╗            ",
+    "       ╔╧╧╧╧╧╧╧╧╧╧╧╧╧╧╧╧═╗            ",
+    "       ║█▌║█▌║█▌║█▌║█▌║█▌║            ",
+    "     ╔═╧╧╧╧╧╧╧╧╧╧╧╧╧╧╧╧╧╧╧═╗          ",
+    "     ╚═══════════════════════╝        ",
+  ],
+];
+
+const ASCII = `<pre class="ascii" data-ascii-canvas aria-hidden="true">${ASCII_FRAMES[0].join("\n")}</pre>`;
+
 
 const MARK_ASCII = `<pre class="ascii mini" aria-hidden="true"> ██╗███╗    ████╗   
  ██║   ██╗██║   ██╗
@@ -99,6 +126,7 @@ function hero(): string {
   <section class="hero" id="top">
     <div class="wrap center">
       ${ASCII}
+      <script type="application/json" id="asciiFrames">${JSON.stringify(ASCII_FRAMES)}</script>
       <span class="eyebrow">Open source · Datos del Estado Dominicano</span>
       <h1>La inteligencia del <em>Estado Dominicano</em>, en tiempo real.</h1>
       <p class="lead">Un orquestador multi-agente que investiga sobre fuentes oficiales — Senado, Cámara de Diputados, Presidencia, Tribunal Constitucional — y responde con evidencia, no con alucinaciones. Sin API key para el modo público.</p>
