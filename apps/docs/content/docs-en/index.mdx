@@ -1,0 +1,108 @@
+---
+title: INTEL.DOM.GOB Documentation
+description: Dominican Government Intelligence Platform — API-first, multi-agent, evidence-based.
+---
+
+# INTEL.DOM.GOB
+
+**Dominican Government Intelligence Platform** — API-first, multi-agent, evidence-based.
+
+## What Is It?
+
+A unified intelligence platform that connects AI agents to **official Dominican government sources** (Congress SIL, Senate, official gazettes, open data) and delivers **structured, cited, verifiable answers** — not hallucinations.
+
+```
+Question → Planner → Search → Retrieval → Evidence → Synthesis → Cited Answer
+```
+
+**Every claim cites its source.** No black boxes.
+
+## Products
+
+| Product | Description | Quick Start |
+|---------|-------------|-------------|
+| **API** | REST + SSE, the core platform | [API](/docs/products/api) |
+| **Studio** | Multi-agent workspace (AGPL fork of Odysseus) | [Studio](/docs/products/studio) |
+| **Web** | Zero-JS public site + live demo | [Web](/docs/products/web) |
+| **MCP Server** | Model Context Protocol (Cursor, Claude, CLI) | [MCP](/docs/products/mcp) |
+| **CLI** | Interactive terminal client | [CLI](/docs/products/cli) |
+| **SDK** | TypeScript/Node client for browsers & servers | [SDK](/docs/products/sdk) |
+
+## Key Differentiators
+
+| Feature | Description |
+|---------|-------------|
+| **Official Sources Only** | SIL Congress, Senate, Gaceta Oficial, open data portals — no random web scraping |
+| **Cited Answers** | Every fact links to an official document (SIL initiative, Senate resolution, Gaceta decree) |
+| **Multi-Agent Pipeline** | Planner → Search → Retrieval → Evidence → Validation → Response |
+| **MCP Native** | Full Model Context Protocol server — works with Cursor, Claude Desktop, Continue, our CLI |
+| **Tiered Access** | Público (free, no key) → Investigador (free, verified) → Pro (metered) → Institucional (SLA) |
+| **Self-Hostable** | Single `docker compose up` — identical dev/prod, Caddy auto-TLS |
+
+## Quick Links
+
+| Resource | Link |
+|----------|------|
+| **Get Started** | [Getting Started](/docs/getting-started) |
+| **API Reference** | [Swagger UI](https://api.intel.dom.gob/docs) / [OpenAPI](https://api.intel.dom.gob/v1/openapi.json) |
+| **Public Demo** | [web.intel.dom.gob](https://web.intel.dom.gob) |
+| **Studio** | [studio.intel.dom.gob](https://studio.intel.dom.gob) |
+| **MCP Endpoint** | `https://mcp.intel.dom.gob/mcp` |
+| **SDK** | `npm i @intel.dom.gob/sdk` |
+
+## Try It Now (No Install)
+
+```bash
+# Public instance — 20 queries/day, no key
+curl -X POST https://api.intel.dom.gob/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "¿Qué leyes regulan las compras públicas en RD?"}'
+```
+
+Or open the live demo: **[web.intel.dom.gob](https://web.intel.dom.gob)**
+
+## Self-Host in 2 Minutes
+
+```bash
+git clone <repo-url> intel.dom.gob
+cd intel.dom.gob
+cp .env.example .env
+# Set DEFAULT_AI_API_KEY or DEFAULT_AI_PROVIDER=ollama
+./scripts/up.sh
+```
+
+Open `http://studio.localhost` — full multi-agent workspace running locally.
+
+## Architecture at a Glance
+
+```
+Client (Studio, Web, CLI, MCP, SDK)
+        │
+        ▼
+    MCP Server (Port 4100) ── JSON-RPC 2.0 over Streamable HTTP + SSE
+        │
+        ▼
+   API Gateway (Port 4000) ── /v1/query, /v1/chat, /v1/tools, ...
+        │
+        ▼
+Orchestrator (Planner → Search → Retrieval → Evidence → Synthesis)
+        │
+        ├──▶ Providers: SearXNG, Brave, Tavily, Exa
+        ├──▶ AI: Gemini, OpenAI, Anthropic, DeepSeek, Ollama, Custom
+        ├──▶ Institutions: 8 SIL/Senado plugins
+        ├──▶ Knowledge Graph + Vector DB (ChromaDB)
+        └──▶ Document Intelligence: OCR → Entities → Embeddings → KG
+```
+
+## License
+
+- **Platform (MIT)**: `packages/`, `services/`, `apps/api`, `apps/admin`, `apps/web`, `apps/cli`, `apps/docs`
+- **Studio (AGPL-3.0)**: `apps/studio/v1` — fork of [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus)
+
+## Next Steps
+
+1. [Getting Started](/docs/getting-started) — choose your path
+2. [API Quick Start](/docs/products/api) — first query in 30 seconds
+3. [Studio](/docs/products/studio) — full workspace tour
+4. [Concepts: Plans & Limits](/docs/concepts/plans) — Público vs Pro vs Institutional
+5. [Concepts: Free Data](/docs/concepts/free-data) — always-free raw endpoints

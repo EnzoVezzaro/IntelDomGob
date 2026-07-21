@@ -1,0 +1,100 @@
+---
+title: "Quick Start — Web Client"
+description: Lightweight no-JS public site with live demo — works without account or API key.
+---
+
+The Web client is the **public-facing website** with a live intelligence demo. No JavaScript required for the base experience (progressive enhancement).
+
+## Access
+
+| Environment | URL |
+|-------------|-----|
+| Local (Docker) | `http://web.localhost` |
+| Production | `https://web.intel.dom.gob` |
+
+## What It Does
+
+| Feature | Description |
+|---------|-------------|
+| **Live Demo** | Type a question → see full intelligence pipeline result |
+| **No Account** | Works in **Público** tier (20 queries/day) without API key |
+| **No JS Required** | Base HTML/CSS works without JavaScript (demo uses fetch if available) |
+| **SDK Demo** | Shows how to call the API from browser |
+| **Responsive** | Mobile-first, dark terminal aesthetic |
+
+## How It Works
+
+The Web client is an **Express server** (`apps/web/src/index.ts`) serving static HTML/CSS/JS from `public/`. It proxies API calls to the internal API gateway:
+
+```
+Browser → Web (Express :4200) → API Gateway (api:4000) → Orchestrator → Agents
+```
+
+The demo form POSTs to `/query` via the SDK (`createClient({ baseUrl })`) and renders the streaming or buffered response.
+
+## Quick Test
+
+```bash
+# Local
+open http://web.localhost
+
+# Or curl the demo endpoint directly
+curl -X POST http://api.localhost/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"query":"¿Qué es la Ley 340-06?"}'
+```
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Query Form** | Single input, enter to submit |
+| **Streaming** | Token-by-token if JS enabled |
+| **Citations** | Expandable evidence cards |
+| **Copy/Share** | Copy result markdown, share link |
+| **Theme** | Matches platform dark/red aesthetic |
+| **Accessible** | Semantic HTML, WCAG AA contrast |
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_BASE_URL` | `http://api:4000` | Internal API gateway |
+| `WEB_PORT` | `4200` | Express listen port |
+| `DOMAIN` | `localhost` | For CORS / absolute URLs |
+
+## Development
+
+```bash
+cd apps/web
+npm run dev    # tsx watch src/index.ts
+```
+
+## Production
+
+```bash
+docker compose up -d web
+# Served by Caddy at https://web.intel.dom.gob
+```
+
+## Relationship to Other Products
+
+| Product | Relationship |
+|---------|--------------|
+| **API** | Web calls `/v1/query`, `/v1/chat`, `/v1/institutions` |
+| **SDK** | Web uses the same `@intel.dom.gob/sdk` package |
+| **Studio** | Full-featured alternative (multi-agent, workspaces, tools) |
+| **CLI** | Terminal alternative, same backend |
+
+## No-JS Fallback
+
+If JavaScript is disabled:
+- Form submits via standard POST
+- Server renders result via template
+- No streaming, but full result works
+
+## Next Steps
+
+- [API](/docs/products/api) — the backend Web calls
+- [SDK](/docs/products/sdk) — use the same client in your app
+- [Studio](/docs/products/studio) — full-featured workspace

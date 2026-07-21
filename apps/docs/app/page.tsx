@@ -57,7 +57,7 @@ const PRODUCTS: Product[] = [
       "Cliente de terminal interactivo (estilo OpenCode) que se conecta vía MCP. Para desarrolladores y automatización.",
     status: "live",
     badge: "npm: @intel.dom.gob/app-cli",
-    href: "/docs/products",
+    href: "/docs",
   },
   {
     name: "Docs",
@@ -69,20 +69,123 @@ const PRODUCTS: Product[] = [
   },
 ];
 
+const PRODUCTS_EN: Product[] = [
+  {
+    name: "API",
+    tagline: "Government API",
+    description:
+      "The API-first entry point for the entire platform. Every capability is exposed via HTTP and an MCP server. Use it to build on INTEL.DOM.GOB.",
+    status: "live",
+    badge: "api.intel.dom.gob",
+    href: "https://api.intel.dom.gob/docs",
+    external: true,
+  },
+  {
+    name: "Studio",
+    tagline: "IntelDomGob Studio",
+    description:
+      "Multi-agent workspace (AGPL-3.0 fork of Odysseus) that connects to the platform only via the MCP server. Chat, agents, research and more.",
+    status: "live",
+    badge: "studio.intel.dom.gob",
+    href: "https://studio.intel.dom.gob",
+    external: true,
+  },
+  {
+    name: "MCP",
+    tagline: "MCP Server",
+    description:
+      "Model Context Protocol surface (Streamable HTTP + SSE). Studio, CLI and any standard MCP client connect equally.",
+    status: "live",
+    badge: "mcp.intel.dom.gob/mcp",
+    href: "https://mcp.intel.dom.gob/health",
+    external: true,
+  },
+  {
+    name: "Web",
+    tagline: "Public website",
+    description:
+      "Our public website (SDK only): product page + live demo that queries official sources without installing anything. Works without account or API key.",
+    status: "live",
+    href: "https://web.intel.dom.gob",
+    external: true,
+  },
+  {
+    name: "CLI",
+    tagline: "Terminal client",
+    description:
+      "Interactive terminal client (OpenCode style) that connects via MCP. For developers and automation.",
+    status: "live",
+    badge: "npm: @intel.dom.gob/app-cli",
+    href: "/en/docs",
+  },
+  {
+    name: "Docs",
+    tagline: "Project documentation",
+    description:
+      "Documentation for all products: architecture, providers, services, API, deployment and development.",
+    status: "live",
+    href: "/en/docs/",
+  },
+];
+
+const TEXTS = {
+  es: {
+    docs: "Documentación",
+    platform: "Plataforma de Inteligencia Gubernamental",
+    title: "INTEL.DOM.GOB",
+    subtitle: "Plataforma de Inteligencia Gubernamental del Estado Dominicano",
+    description:
+      "API-first, multi-agente, basada en evidencia oficial. Documentación de todos los productos en un solo lugar.",
+    cta: "Ver documentación",
+    products: "Productos",
+    productsDesc: "INTEL.DOM.GOB es un ecosistema de productos. Esta documentación cubre todos ellos.",
+    live: "En vivo",
+    soon: "Próximamente",
+    footer: "Estado Dominicano.",
+    project: "Proyecto de",
+  },
+  en: {
+    docs: "Documentation",
+    platform: "Government Intelligence Platform",
+    title: "INTEL.DOM.GOB",
+    subtitle: "Dominican Government Intelligence Platform",
+    description:
+      "API-first, multi-agent, evidence-based. Documentation for all products in one place.",
+    cta: "View documentation",
+    products: "Products",
+    productsDesc: "INTEL.DOM.GOB is an ecosystem of products. This documentation covers all of them.",
+    live: "Live",
+    soon: "Coming Soon",
+    footer: "Dominican Republic.",
+    project: "Project by",
+  },
+};
+
 export default function HomePage() {
+  const t = TEXTS.es;
+  const products = PRODUCTS;
+
   return (
     <main className="flex min-h-screen flex-col">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
           <div className="flex items-center gap-2 font-semibold">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-              ID
-            </span>
+            <pre className="ascii mini" aria-hidden="true">
+{` ██╗███╗    ████╗   
+ ██║   ██╗██║   ██╗
+ ██║   ██║██║   ██║
+ ██║   ██║██║   ██║
+ ██████║    ████║  
+ ╚═════╝    ╚═══╝  `}
+            </pre>
             <span>INTEL.DOM.GOB</span>
           </div>
           <nav className="flex items-center gap-4 text-sm text-muted-foreground">
             <Link href="/docs/" className="transition-colors hover:text-foreground">
-              Documentación
+              {t.docs}
+            </Link>
+            <Link href="/en/docs/" className="transition-colors hover:text-foreground">
+              EN
             </Link>
             <a
               href="https://www.agentix.com.do/"
@@ -96,47 +199,45 @@ export default function HomePage() {
 
       <section className="mx-auto flex max-w-5xl flex-1 flex-col items-center justify-center px-6 py-20 text-center">
         <span className="mb-6 inline-flex items-center rounded-full border border-border bg-muted px-4 py-1 text-xs font-medium text-muted-foreground">
-          Plataforma de Inteligencia Gubernamental
+          {t.platform}
         </span>
         <h1 className="mb-5 max-w-3xl text-5xl font-bold tracking-tight">
-          INTEL.DOM.GOB
+          {t.title}
         </h1>
         <p className="mb-3 max-w-2xl text-xl text-muted-foreground">
-          Plataforma de Inteligencia Gubernamental del Estado Dominicano
+          {t.subtitle}
          </p>
         <p className="mb-10 max-w-2xl text-muted-foreground">
-          API-first, multi-agente, basada en evidencia oficial. Documentación de
-          todos los productos en un solo lugar.
+          {t.description}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-4">
           <Link
             href="/docs/"
             className="inline-flex h-11 items-center rounded-lg bg-primary px-8 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Ver documentación
+            {t.cta}
           </Link>
         </div>
       </section>
 
       <section className="mx-auto w-full max-w-5xl px-6 pb-20">
-        <h2 className="mb-2 text-lg font-semibold">Productos</h2>
+        <h2 className="mb-2 text-lg font-semibold">{t.products}</h2>
         <p className="mb-6 text-sm text-muted-foreground">
-          INTEL.DOM.GOB es un ecosistema de productos. Esta documentación
-          cubre todos ellos.
+          {t.productsDesc}
         </p>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {PRODUCTS.map((p) => {
+          {products.map((p) => {
             const card = (
               <div className="flex h-full flex-col rounded-xl border border-border bg-card p-6 text-card-foreground">
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <h3 className="text-base font-semibold">{p.name}</h3>
                   {p.status === "live" ? (
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      En vivo
+                      {t.live}
                     </span>
                   ) : (
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      Próximamente
+                      {t.soon}
                     </span>
                   )}
                 </div>
@@ -169,10 +270,10 @@ export default function HomePage() {
       <footer className="mt-auto border-t border-border">
         <div className="mx-auto flex max-w-5xl flex-col gap-1 px-6 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>
-            © {new Date().getFullYear()} INTEL.DOM.GOB — Estado Dominicano.
+            © {new Date().getFullYear()} INTEL.DOM.GOB — {t.footer}
           </span>
           <span>
-            Proyecto de{" "}
+            {t.project}{" "}
             <a
               href="https://www.agentix.com.do/"
               target="_blank"

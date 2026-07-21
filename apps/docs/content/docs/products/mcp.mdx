@@ -1,20 +1,20 @@
 ---
-title: "Quick Start — MCP Server"
-description: Model Context Protocol server — Streamable HTTP + SSE at /mcp. Connect any MCP client (Claude Desktop, Cursor, Studio, CLI).
+title: "Inicio rápido — Servidor MCP"
+description: Servidor Model Context Protocol — Streamable HTTP + SSE en /mcp. Conecta cualquier cliente MCP (Claude Desktop, Cursor, Studio, CLI).
 ---
 
-The MCP server exposes **all platform capabilities** as MCP tools via the official **Model Context Protocol** (2025-03-26 spec). Any MCP-compatible client can connect.
+El servidor MCP expone **todas las capacidades de la plataforma** como herramientas MCP mediante el **Model Context Protocol** oficial (especificación 2025-03-26). Cualquier cliente compatible con MCP puede conectarse.
 
 ## Endpoint
 
-| Environment | URL |
-|-------------|-----|
+| Entorno | URL |
+|---------|-----|
 | Local (Docker) | `http://mcp.localhost/mcp` |
-| Production | `https://mcp.intel.dom.gob/mcp` |
+| Producción | `https://mcp.intel.dom.gob/mcp` |
 
-**Transport:** Streamable HTTP (POST + SSE streaming) + SSE fallback (GET). Port `4100`.
+**Transporte:** Streamable HTTP (POST + streaming SSE) + respaldo SSE (GET). Puerto `4100`.
 
-## Connect Any MCP Client
+## Conecta cualquier cliente MCP
 
 ### Claude Desktop
 
@@ -43,26 +43,26 @@ The MCP server exposes **all platform capabilities** as MCP tools via the offici
 }
 ```
 
-### Generic (any MCP client)
+### Genérico (cualquier cliente MCP)
 
 ```bash
-# Test with mcp-remote
+# Probar con mcp-remote
 npx mcp-remote http://mcp.localhost/mcp
 ```
 
-## Available Tools (40+)
+## Herramientas disponibles (+40)
 
-| Category | Tools |
-|----------|-------|
-| **Intelligence** | `query`, `chat`, `query_stream` |
-| **Institutions** | `list_institutions`, `search_institution`, `get_url_tree` |
-| **Congress (SIL)** | `sil_camara_iniciativas`, `sil_camara_iniciativa_detalle`, `sil_camara_comisiones`, `sil_camara_sesiones`, `sil_camara_legislador`, `sil_senado_iniciativas`, `sil_senado_boletines`, `sil_senado_resoluciones`, `sil_senado_search`, `sil_senado_communities`, `sil_senado_senadores` |
-| **Senate News** | `senado_news` |
+| Categoría | Herramientas |
+|-----------|--------------|
+| **Inteligencia** | `query`, `chat`, `query_stream` |
+| **Instituciones** | `list_institutions`, `search_institution`, `get_url_tree` |
+| **Congreso (SIL)** | `sil_camara_iniciativas`, `sil_camara_iniciativa_detalle`, `sil_camara_comisiones`, `sil_camara_sesiones`, `sil_camara_legislador`, `sil_senado_iniciativas`, `sil_senado_boletines`, `sil_senado_resoluciones`, `sil_senado_search`, `sil_senado_communities`, `sil_senado_senadores` |
+| **Noticias del Senado** | `senado_news` |
 | **Knowledge Graph** | `graph`, `graph_ingest` |
-| **Documents** | `fetch_url`, `mcp_tools` |
-| **System** | `health` |
+| **Documentos** | `fetch_url`, `mcp_tools` |
+| **Sistema** | `health` |
 
-## Tool Example: `query`
+## Ejemplo de herramienta: `query`
 
 ```json
 {
@@ -75,54 +75,54 @@ npx mcp-remote http://mcp.localhost/mcp
 }
 ```
 
-Returns structured `IntelligenceResult` (summary, citations, evidence, validation, timeline).
+Retorna `IntelligenceResult` estructurado (resumen, citas, evidencia, validación, línea de tiempo).
 
-## Authentication
+## Autenticación
 
-| Mode | How |
-|------|-----|
-| **Preview** | None — works without key (Público tier) |
-| **API Key** | MCP server authenticates to API via `INTEL_API_TOKEN` (set in Docker Compose). Client never handles keys. |
+| Modo | Cómo |
+|------|------|
+| **Preview** | Ninguno — funciona sin clave (tier Público) |
+| **API Key** | El servidor MCP autentica con la API mediante `INTEL_API_TOKEN` (configurado en Docker Compose). El cliente nunca maneja claves. |
 
-In production (`REQUIRE_API_KEY=true`), the MCP server uses `INTEL_API_TOKEN` to call the API. The client (Claude, Cursor, etc.) just connects to the MCP endpoint.
+En producción (`REQUIRE_API_KEY=true`), el servidor MCP usa `INTEL_API_TOKEN` para llamar a la API. El cliente (Claude, Cursor, etc.) solo se conecta al endpoint MCP.
 
-## Local Development
+## Desarrollo local
 
 ```bash
-# Start full stack (includes MCP)
+# Iniciar el stack completo (incluye MCP)
 ./scripts/up.sh
 
-# MCP available at http://localhost:4100/mcp
+# MCP disponible en http://localhost:4100/mcp
 curl -X POST http://localhost:4100/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-## Transports
+## Transportes
 
-| Transport | Endpoint | Use Case |
-|-----------|----------|----------|
-| **Streamable HTTP** | `POST /mcp` | Primary (JSON-RPC batch + SSE streaming) |
-| **SSE** | `GET /mcp` | Fallback for older clients |
-| **DELETE** | `DELETE /mcp` | Session teardown (spec-compliant no-op) |
+| Transporte | Endpoint | Caso de uso |
+|------------|----------|-------------|
+| **Streamable HTTP** | `POST /mcp` | Principal (lotes JSON-RPC + streaming SSE) |
+| **SSE** | `GET /mcp` | Respaldo para clientes antiguos |
+| **DELETE** | `DELETE /mcp` | Terminación de sesión (no-op según especificación) |
 
-## Protocol Version
+## Versión del protocolo
 
-- **MCP Spec:** 2025-03-26
-- **Transports:** `jsonrpc`, `mcp-streamable-http`, `mcp-sse`
-- **Endpoint:** `/mcp` (mounted at root)
+- **Especificación MCP:** 2025-03-26
+- **Transportes:** `jsonrpc`, `mcp-streamable-http`, `mcp-sse`
+- **Endpoint:** `/mcp` (montado en la raíz)
 
-## Relationship to Other Products
+## Relación con otros productos
 
-| Product | Connection |
-|---------|------------|
-| **Studio** | Registers MCP on boot (`STUDIO_MCP_URL`) |
-| **CLI** | Connects via `INTEL_MCP_URL` (default `http://mcp.localhost/mcp`) |
-| **API** | MCP server is a pure SDK client of the API |
-| **SDK** | Same tools available via `client.mcpTools()` |
+| Producto | Conexión |
+|----------|----------|
+| **Studio** | Registra MCP en el arranque (`STUDIO_MCP_URL`) |
+| **CLI** | Se conecta mediante `INTEL_MCP_URL` (por defecto `http://mcp.localhost/mcp`) |
+| **API** | El servidor MCP es un cliente SDK puro de la API |
+| **SDK** | Las mismas herramientas disponibles mediante `client.mcpTools()` |
 
-## Next Steps
+## Siguientes pasos
 
-- [CLI Quick Start](/docs/products/cli) — terminal client using this MCP
-- [API](/docs/products/api) — the underlying REST API
-- [SDK](/docs/products/sdk) — programmatic access to same tools
+- [Inicio rápido de la CLI](/docs/products/cli) — cliente terminal que usa este MCP
+- [API](/docs/products/api) — la API REST subyacente
+- [SDK](/docs/products/sdk) — acceso programático a las mismas herramientas

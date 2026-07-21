@@ -1,0 +1,19 @@
+{
+  "title": "INTEL.DOM.GOB Documentation",
+  "pages": [
+    "index",
+    "getting-started",
+    "---Products---",
+    "products/api",
+    "products/studio",
+    "products/web",
+    "products/mcp",
+    "products/cli",
+    "products/sdk",
+    "---Concepts---",
+    "concepts/plans",
+    "concepts/free-data",
+    "---Reference---",
+    "sdk-reference"
+  ]
+}

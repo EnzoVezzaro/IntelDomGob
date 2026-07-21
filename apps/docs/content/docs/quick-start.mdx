@@ -1,15 +1,15 @@
 ---
-title: Quick Start
-description: Get INTEL.DOM.GOB running in 2 minutes with Docker.
+title: Inicio Rápido
+description: Pon INTEL.DOM.GOB a funcionar en 2 minutos con Docker.
 ---
 
-## Prerequisites
+## Prerrequisitos
 
-- Docker and Docker Compose v2+
-- Node.js 20+ (for local development without Docker)
-- A Gemini API key (or any supported AI provider key)
+- Docker y Docker Compose v2+
+- Node.js 20+ (para desarrollo local sin Docker)
+- Una API key de Gemini (o cualquier clave de proveedor de IA soportada)
 
-## 1. Clone and Configure
+## 1. Clonar y Configurar
 
 ```bash
 git clone <repo-url> intel.dom.gob
@@ -17,7 +17,7 @@ cd intel.dom.gob
 cp .env.example .env
 ```
 
-Edit `.env` and set at minimum:
+Edita `.env` y configura al menos:
 
 ```bash
 DEFAULT_AI_PROVIDER=gemini
@@ -25,21 +25,21 @@ DEFAULT_AI_API_KEY=your-api-key-here
 DOMAIN=localhost
 ```
 
-## 2. Start the Platform
+## 2. Iniciar la Plataforma
 
 ```bash
 ./scripts/up.sh
 ```
 
-This single command:
-- Builds all Docker images
-- Starts all services (API, Studio, MCP, Web, Admin, Docs, SearXNG, PostgreSQL, DragonflyDB, Caddy, 5 workers)
-- Runs health checks
-- Prints service status
+Este único comando:
+- Construye todas las imágenes Docker
+- Inicia todos los servicios (API, Studio, MCP, Web, Admin, Docs, SearXNG, PostgreSQL, DragonflyDB, Caddy, 5 workers)
+- Ejecuta health checks
+- Muestra el estado de los servicios
 
-## 3. Access the Platform
+## 3. Acceder a la Plataforma
 
-| Service | URL |
+| Servicio | URL |
 |---------|-----|
 | Studio | http://studio.localhost |
 | API | http://api.localhost/v1/health |
@@ -47,15 +47,15 @@ This single command:
 | MCP Server | http://mcp.localhost/health |
 | Web Client | http://web.localhost |
 | Admin Console | http://admin.localhost |
-| Documentation | http://docs.localhost |
+| Documentación | http://docs.localhost |
 
-## 4. Verify Health
+## 4. Verificar el Estado
 
 ```bash
 curl http://api.localhost/v1/health
 ```
 
-Expected response:
+Respuesta esperada:
 ```json
 {
   "status": "ok",
@@ -65,34 +65,34 @@ Expected response:
 }
 ```
 
-## Try Without an API Key (Preview Mode)
+## Probar Sin una API Key (Modo Preview)
 
-The platform runs in **public preview mode** by default. No API key is required — clone, run, and query immediately. All clients (Studio, Web, CLI, MCP, SDK) work without credentials.
+La plataforma funciona en **modo de vista previa pública** por defecto. No se requiere API key — clona, ejecuta y consulta de inmediato. Todos los clientes (Studio, Web, CLI, MCP, SDK) funcionan sin credenciales.
 
-When you're ready for more, create API keys in the **Admin console** and set `REQUIRE_API_KEY=true`.
+Cuando estés listo para más, crea API keys en la **consola de administración** y configura `REQUIRE_API_KEY=true`.
 
-| Plan | Queries/day | API Key | Signup |
+| Plan | Consultas/día | API Key | Registro |
 |------|-------------|---------|--------|
-| **Público** | 20 | Not needed | No |
-| **Investigador** | 200 | Required | Yes (`.gob.do` or manual) |
-| **Pro** | 1,000+ | Required | Yes (paid) |
+| **Público** | 20 | No necesaria | No |
+| **Investigador** | 200 | Requerida | Yes (`.gob.do` o manual) |
+| **Pro** | 1,000+ | Requerida | Sí (pago) |
 
-Raw public data (institutions, SIL legislative data, knowledge graph reads) is **always free** and unmetered. See [Getting Started](/docs/getting-started) for the full guide and tier table.
+Los datos públicos crudos (instituciones, datos legislativos del SIL, lecturas del grafo de conocimiento) son **siempre gratuitos** y sin medición. Consulta la [Guía de Inicio](/docs/getting-started) para la guía completa y la tabla de niveles.
 
-## Local Development (without Docker)
+## Desarrollo Local (sin Docker)
 
 ```bash
 npm install --workspaces
-cd apps/api && npm run dev       # API on :4000
+cd apps/api && npm run dev       # API en :4000
 ```
 
 ---
 
-## Next Steps
+## Próximos Pasos
 
-- [Getting Started](/docs/getting-started) — Use the platform without self-hosting, get an API key, compare plans
-- [Products](/docs/products) — What each product is and who it's for
-- [SDK Reference](/docs/sdk-reference) — Talk to the API from Node.js, browsers, MCP
-- [Architecture](/docs/architecture) — Understand the layered design
-- [API Reference](/docs/api) — Explore all endpoints
-- [Configuration](/docs/configuration) — Full environment variable reference
+- [Guía de Inicio](/docs/getting-started) — Usa la plataforma sin auto-hospedaje, obtén una API key, compara planes
+- [Productos](/docs/products) — Qué es cada producto y para quién está dirigido
+- [Referencia del SDK](/docs/sdk-reference) — Habla con la API desde Node.js, navegadores, MCP
+- [Arquitectura](/docs/architecture) — Comprende el diseño en capas
+- [Referencia de la API](/docs/api) — Explora todos los endpoints
+- [Configuración](/docs/configuration) — Referencia completa de variables de entorno

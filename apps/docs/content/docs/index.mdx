@@ -1,5 +1,5 @@
 ---
-title: INTEL.DOM.GOB Documentation
+title: Documentación de INTEL.DOM.GOB
 description: Plataforma de Inteligencia Gubernamental del Estado Dominicano — API-first, multi-agente, basada en evidencia oficial.
 ---
 
@@ -7,50 +7,50 @@ description: Plataforma de Inteligencia Gubernamental del Estado Dominicano — 
 
 **Plataforma de Inteligencia Gubernamental del Estado Dominicano** — API-first, multi-agente, basada en evidencia oficial.
 
-## What Is It?
+## ¿Qué es?
 
-A unified intelligence platform that connects AI agents to **official Dominican government sources** (Congress SIL, Senate, official gazettes, open data) and delivers **structured, cited, verifiable answers** — not hallucinations.
+Una plataforma de inteligencia unificada que conecta agentes de IA con **fuentes oficiales del gobierno dominicano** (SIL Congreso, Senado, gacetas oficiales, datos abiertos) y entrega **respuestas estructuradas, citadas y verificables** — no alucinaciones.
 
 ```
 Question → Planner → Search → Retrieval → Evidence → Synthesis → Cited Answer
 ```
 
-**Every claim cites its source.** No black boxes.
+**Cada afirmación cita su fuente.** Sin cajas negras.
 
-## Products
+## Productos
 
-| Product | Description | Quick Start |
-|---------|-------------|-------------|
-| **API** | REST + SSE, the core platform | [API](/docs/products/api) |
-| **Studio** | Multi-agent workspace (AGPL fork of Odysseus) | [Studio](/docs/products/studio) |
-| **Web** | Zero-JS public site + live demo | [Web](/docs/products/web) |
+| Producto | Descricción | Inicio rápido |
+|---------|-------------|---------------|
+| **API** | REST + SSE, el núcleo de la plataforma | [API](/docs/products/api) |
+| **Studio** | Workspace multi-agente (fork AGPL de Odysseus) | [Studio](/docs/products/studio) |
+| **Web** | Sitio público sin JS + demo en vivo | [Web](/docs/products/web) |
 | **MCP Server** | Model Context Protocol (Cursor, Claude, CLI) | [MCP](/docs/products/mcp) |
-| **CLI** | Interactive terminal client | [CLI](/docs/products/cli) |
-| **SDK** | TypeScript/Node client for browsers & servers | [SDK](/docs/products/sdk) |
+| **CLI** | Cliente interactivo de terminal | [CLI](/docs/products/cli) |
+| **SDK** | Cliente TypeScript/Node para navegadores y servidores | [SDK](/docs/products/sdk) |
 
-## Key Differentiators
+## Diferenciadores Clave
 
-| Feature | Description |
-|---------|-------------|
-| **Official Sources Only** | SIL Congress, Senate, Gaceta Oficial, open data portals — no random web scraping |
-| **Cited Answers** | Every fact links to an official document (SIL initiative, Senate resolution, Gaceta decree) |
-| **Multi-Agent Pipeline** | Planner → Search → Retrieval → Evidence → Validation → Response |
-| **MCP Native** | Full Model Context Protocol server — works with Cursor, Claude Desktop, Continue, our CLI |
-| **Tiered Access** | Público (free, no key) → Investigador (free, verified) → Pro (metered) → Institucional (SLA) |
-| **Self-Hostable** | Single `docker compose up` — identical dev/prod, Caddy auto-TLS |
+| Característica | Descripción |
+|----------------|-------------|
+| **Solo Fuentes Oficiales** | SIL Congreso, Senado, Gaceta Oficial, portales de datos abiertos — sin scraping web random |
+| **Respuestas Citadas** | Cada dato enlaza a un documento oficial (iniciativa SIL, resolución del Senado, decreto de Gaceta) |
+| **Pipeline Multi-Agente** | Planner → Search → Retrieval → Evidence → Validation → Response |
+| **Nativo MCP** | Servidor completo Model Context Protocol — funciona con Cursor, Claude Desktop, Continue, nuestra CLI |
+| **Acceso Escalonado** | Público (gratis, sin clave) → Investigador (gratis, verificado) → Pro (con medición) → Institucional (SLA) |
+| **Auto-Hospedable** | Un solo `docker compose up` — dev/prod idénticos, Caddy auto-TLS |
 
-## Quick Links
+## Enlaces Rápidos
 
-| Resource | Link |
-|----------|------|
-| **Get Started** | [Getting Started](/docs/getting-started) |
-| **API Reference** | [Swagger UI](https://api.intel.dom.gob/docs) / [OpenAPI](https://api.intel.dom.gob/v1/openapi.json) |
-| **Public Demo** | [web.intel.dom.gob](https://web.intel.dom.gob) |
+| Recurso | Enlace |
+|---------|--------|
+| **Primeros Pasos** | [Getting Started](/docs/getting-started) |
+| **Referencia API** | [Swagger UI](https://api.intel.dom.gob/docs) / [OpenAPI](https://api.intel.dom.gob/v1/openapi.json) |
+| **Demo Pública** | [web.intel.dom.gob](https://web.intel.dom.gob) |
 | **Studio** | [studio.intel.dom.gob](https://studio.intel.dom.gob) |
-| **MCP Endpoint** | `https://mcp.intel.dom.gob/mcp` |
+| **Endpoint MCP** | `https://mcp.intel.dom.gob/mcp` |
 | **SDK** | `npm i @intel.dom.gob/sdk` |
 
-## Try It Now (No Install)
+## Pruébalo Ahora (Sin Instalar)
 
 ```bash
 # Public instance — 20 queries/day, no key
@@ -59,9 +59,9 @@ curl -X POST https://api.intel.dom.gob/v1/query \
   -d '{"query": "¿Qué leyes regulan las compras públicas en RD?"}'
 ```
 
-Or open the live demo: **[web.intel.dom.gob](https://web.intel.dom.gob)**
+O abre la demo en vivo: **[web.intel.dom.gob](https://web.intel.dom.gob)**
 
-## Self-Host in 2 Minutes
+## Auto-Hospedaje en 2 Minutos
 
 ```bash
 git clone <repo-url> intel.dom.gob
@@ -71,9 +71,9 @@ cp .env.example .env
 ./scripts/up.sh
 ```
 
-Open `http://studio.localhost` — full multi-agent workspace running locally.
+Abre `http://studio.localhost` — workspace multi-agente completo corriendo en local.
 
-## Architecture at a Glance
+## Arquitectura a simple vista
 
 ```
 Client (Studio, Web, CLI, MCP, SDK)
@@ -94,15 +94,15 @@ Orchestrator (Planner → Search → Retrieval → Evidence → Synthesis)
         └──▶ Document Intelligence: OCR → Entities → Embeddings → KG
 ```
 
-## License
+## Licencia
 
-- **Platform (MIT)**: `packages/`, `services/`, `apps/api`, `apps/admin`, `apps/web`, `apps/cli`, `apps/docs`
-- **Studio (AGPL-3.0)**: `apps/studio/v1` — fork of [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus)
+- **Plataforma (MIT)**: `packages/`, `services/`, `apps/api`, `apps/admin`, `apps/web`, `apps/cli`, `apps/docs`
+- **Studio (AGPL-3.0)**: `apps/studio/v1` — fork de [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus)
 
-## Next Steps
+## Siguientes Pasos
 
-1. [Getting Started](/docs/getting-started) — choose your path
-2. [API Quick Start](/docs/products/api) — first query in 30 seconds
-3. [Studio](/docs/products/studio) — full workspace tour
-4. [Concepts: Plans & Limits](/docs/concepts/plans) — Público vs Pro vs Institutional
-5. [Concepts: Free Data](/docs/concepts/free-data) — always-free raw endpoints
+1. [Getting Started](/docs/getting-started) — elige tu camino
+2. [API Quick Start](/docs/products/api) — primera consulta en 30 segundos
+3. [Studio](/docs/products/studio) — recorrido completo del workspace
+4. [Concepts: Plans & Limits](/docs/concepts/plans) — Público vs Pro vs Institucional
+5. [Concepts: Free Data](/docs/concepts/free-data) — endpoints siempre gratuitos

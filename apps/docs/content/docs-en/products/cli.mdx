@@ -1,0 +1,121 @@
+---
+title: "Quick Start — CLI"
+description: Interactive terminal client — connects via MCP, zero API logic, branded prompt loop.
+---
+
+The CLI is a **pure MCP client** — it connects to the MCP server and exposes all tools through an interactive branded prompt. No API logic lives here.
+
+## Install & Run
+
+```bash
+# From repo root
+cd apps/cli
+npm install
+npm run dev
+
+# Or from monorepo root
+npm run dev --workspace=apps/cli
+```
+
+The CLI connects to `http://mcp.localhost/mcp` by default (Docker Compose). Override:
+
+```bash
+INTEL_MCP_URL=http://your-mcp:4100/mcp npm run dev
+```
+
+## First Launch
+
+```
+$ npm run dev
+
+╭────────────────────────────────────────────────────────────╮
+│  INTEL.DOM.GOB — Terminal Intelligence Client              │
+│  Connected to MCP: http://mcp.localhost/mcp                │
+╰────────────────────────────────────────────────────────────╯
+
+intel> 
+```
+
+Type a question or use commands.
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| *(free text)* | Multi-agent intelligence query |
+| `/query <text>` | Explicit query |
+| `/chat <text>` | Follow-up grounded in previous result |
+| `/fetch <url>` | Fetch & extract readable text |
+| `/institutions` | List available government plugins |
+| `/tools` | Interactive MCP tool picker |
+| `/help` | Show help |
+| `/exit` | Quit |
+
+## One-Shot Mode (for scripts)
+
+```bash
+# Direct query
+npm run dev -- -p "¿Cuáles son las últimas iniciativas sobre compras públicas?"
+
+# Quiet + JSON output
+npm run dev -p "query" -q -f json
+```
+
+## Public / Preview Mode
+
+**No API key needed.** The CLI authenticates via the MCP server. When the platform runs with `REQUIRE_API_KEY=false` (default dev), everything works out of the box. In production, the MCP server authenticates to the API using `INTEL_API_TOKEN` — the CLI never sees keys.
+
+## Optional: Local LLM Rewrite
+
+The CLI can rewrite structured MCP results into fluent prose using any OpenAI-compatible endpoint. Configure via env or interactive prompt on first run:
+
+| Variable | Description |
+|----------|-------------|
+| `INTEL_LLM_BASE_URL` | OpenAI-compatible endpoint (e.g., `https://api.openai.com/v1`) |
+| `INTEL_LLM_API_KEY` | API key for the LLM provider |
+| `INTEL_LLM_MODEL` | Model name (e.g., `gpt-4o-mini`) |
+
+When unset, the CLI renders structured results directly (no rewrite).
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INTEL_MCP_URL` | `http://mcp.localhost/mcp` | MCP server endpoint |
+| `INTEL_LLM_BASE_URL` | *(disabled)* | Optional LLM for prose rewrite |
+| `INTEL_LLM_API_KEY` | *(disabled)* | Optional LLM API key |
+| `INTEL_LLM_MODEL` | *(disabled)* | Optional LLM model |
+
+## Standalone (without Docker)
+
+If you have the API + MCP running separately:
+
+```bash
+INTEL_MCP_URL=http://localhost:4100/mcp npm run dev
+```
+
+## Architecture
+
+```
+CLI (apps/cli
+├── src/
+│   ├── index.ts           # Entry, prompt loop, command router
+│   ├── mcp-client.ts      # MCP transport (Streamable HTTP + SSE)
+│   └── interpreter.ts     # Optional LLM prose rewrite
+```
+
+The CLI uses the **MCP protocol** (Streamable HTTP + SSE) to call tools on the MCP server. It never calls the API directly.
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| "MCP connection failed" | Check `INTEL_MCP_URL`, ensure MCP server is healthy (`curl http://mcp:4100/health`) |
+| "Tool not found" | Run `/tools` to see available tools; MCP server version may differ |
+| LLM rewrite fails | Check `INTEL_LLM_BASE_URL` + `INTEL_LLM_API_KEY`; leave unset to disable |
+
+## Next Steps
+
+- [MCP Server](/docs/products/mcp) — the server the CLI connects to
+- [API](/docs/products/api) — the REST API behind MCP
+- [Studio](/docs/products/studio) — GUI alternative with workspaces

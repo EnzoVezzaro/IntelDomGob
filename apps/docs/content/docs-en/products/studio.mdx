@@ -1,0 +1,81 @@
+---
+title: "Quick Start — Studio"
+description: IntelDomGob Studio — multi-agent workspace (AGPL-3.0 fork of Odysseus). Connects via MCP.
+---
+
+Studio is the **primary interactive client** for INTEL.DOM.GOB. It's our AGPL-3.0 fork of [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus) — a self-hosted multi-agent workspace.
+
+## Access
+
+| Environment | URL |
+|-------------|-----|
+| Local (Docker) | `http://studio.localhost` |
+| Production | `https://studio.intel.dom.gob` |
+
+Studio is a **separate Docker stack** (`docker/studio/v1.compose.yml`) on its own network (`studio-net`). It runs:
+- `odysseus` (main app, port 7000)
+- `studio-chromadb` (vector DB)
+- `studio-searxng` (private search)
+- `studio-ntfy` (notifications)
+
+## First Launch (Local)
+
+```bash
+# From repo root
+./scripts/up.sh
+
+# Wait for health checks...
+# Open http://studio.localhost
+```
+
+Studio registers the MCP server **automatically on first boot** via an on-boot hook (`scripts/studio-onboot.sh` mounted into the container). The MCP endpoint: `http://mcp:4100/mcp`.
+
+## What You Get
+
+| Feature | Description |
+|---------|-------------|
+| **Chat** | Multi-turn, context-grounded, streaming |
+| **Agents** | Planner, Search, Retrieval, Evidence, Validation, Response |
+| **Sources** | Live web, SIL Congress, Senate news, Knowledge Graph, custom docs |
+| **Workspaces** | Persistent sessions, history, branching |
+| **Tools** | 40+ MCP tools (search, fetch, SIL, Senate, KG, fetch-url, etc.) |
+| **Export** | Markdown, PDF, JSON |
+
+## Quick Tour
+
+1. **New Chat** → type a question → watch the agent pipeline (Plan → Search → Retrieve → Evidence → Response)
+2. **Sources Panel** — every claim cites evidence (SIL initiative, Senate news, web page, KG entity)
+3. **Workspace Switcher** — top-left, create isolated contexts per project
+4. **Settings** → Model (Gemini, Ollama, OpenAI-compatible), Search (lang, safe, time range), UI theme
+
+## Connect to Your Own MCP
+
+Studio only talks to **one MCP server** (configured at `STUDIO_MCP_URL`, default `http://mcp:4100/mcp`). To point at a different platform:
+
+```yaml
+# docker/studio/v1.compose.yml
+environment:
+  STUDIO_MCP_URL: http://your-mcp-host:4100/mcp
+```
+
+## Public Instance
+
+`https://studio.intel.dom.gob` — connects to the public platform. No account needed for **Público** tier (20 queries/day). For higher tiers, create an API key in Admin Console and add it in Studio Settings → API Key.
+
+## License
+
+**AGPL-3.0** — Studio is a fork of Odysseus. We keep the license, attribution, and upstream compatibility. See `apps/studio/v1/ACKNOWLEDGMENTS.md` and `LICENSE`.
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| "MCP connection failed" | Check `docker compose logs mcp` — MCP must be healthy on port 4100 |
+| Studio shows blank | `docker compose restart studio` — ChromaDB may need restart |
+| No results | Check `STUDIO_SEARXNG_URL` points to `studio-searxng:8080` (not platform SearXNG) |
+
+## Next Steps
+
+- [MCP Server](/docs/products/mcp) — the protocol Studio speaks
+- [API](/docs/products/api) — the underlying platform Studio calls
+- [CLI](/docs/products/cli) — terminal alternative to Studio

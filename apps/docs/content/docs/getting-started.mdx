@@ -1,41 +1,41 @@
 ---
-title: Getting Started
-description: Choose your path — public instance, self-hosted preview, API integration, or full self-host.
+title: Primeros Pasos
+description: Elige tu camino — instancia pública, auto-hospedaje de prueba, integración API, o despliegue completo.
 ---
 
-INTEL.DOM.GOB is built so you can start using it in seconds, with or without infrastructure.
+INTEL.DOM.GOB está diseñado para que puedas empezar a usarlo en segundos, con o sin infraestructura.
 
-## Choose Your Path
+## Elige Tu Camino
 
-| Path | Best for | Setup time | API key |
-|------|----------|------------|---------|
-| **Public Instance** | Try now, quick queries | 0 min | Not needed (Público tier) |
-| **Self-Host (Preview)** | Evaluate locally, no signup | 2 min | Not needed |
-| **API Integration** | Build on the platform | 5 min | Created in Admin |
-| **Self-Host (Production)** | Your own deployment | 10 min | Created in Admin |
+| Camino | Ideal para | Tiempo de setup | API key |
+|--------|-----------|-----------------|---------|
+| **Instancia Pública** | Probar ahora, consultas rápidas | 0 min | No necesaria (nivel Público) |
+| **Auto-Hospedaje (Prueba)** | Evaluar en local, sin registro | 2 min | No necesaria |
+| **Integración API** | Construir sobre la plataforma | 5 min | Se crea en Admin |
+| **Auto-Hospedaje (Producción)** | Tu propio despliegue | 10 min | Se crea en Admin |
 
 ---
 
-## 1. Public Instance (Instant, No Signup)
+## 1. Instancia Pública (Instantánea, Sin Registro)
 
-The hosted instance runs in **Público** mode by default — 20 queries/day, no account needed.
+La instancia hospedada corre en modo **Público** por defecto — 20 consultas/día, sin necesidad de cuenta.
 
-| Product | URL |
+| Producto | URL |
 |---------|-----|
-| **Web (Live Demo)** | `https://web.intel.dom.gob` |
+| **Web (Demo en Vivo)** | `https://web.intel.dom.gob` |
 | **Studio (Workspace)** | `https://studio.intel.dom.gob` |
 | **MCP Server** | `https://mcp.intel.dom.gob/mcp` |
 | **API** | `https://api.intel.dom.gob/v1` |
 
-Just open **Web** or **Studio** and start asking. Or point any MCP client (Claude Desktop, Cursor, our CLI) to the MCP endpoint.
+Solo abre **Web** o **Studio** y empieza a preguntar. O apunta cualquier cliente MCP (Claude Desktop, Cursor, nuestra CLI) al endpoint MCP.
 
-> **Público tier limits**: 20 intelligence queries/day per IP. Raw data endpoints (SIL, Senate, Knowledge Graph, etc.) are **always free and unmetered**.
+> **Límites del nivel Público**: 20 consultas de inteligencia/día por IP. Los endpoints de datos crudos (SIL, Senado, Knowledge Graph, etc.) son **siempre gratuitos y sin medición**.
 
 ---
 
-## 2. Self-Host Preview (2 Minutes)
+## 2. Auto-Hospedaje de Prueba (2 Minutos)
 
-Full stack locally — no API key, no signup, all features enabled.
+Stack completo en local — sin API key, sin registro, todas las funciones habilitadas.
 
 ```bash
 git clone <repo-url> intel.dom.gob
@@ -45,7 +45,7 @@ cp .env.example .env
 ./scripts/up.sh
 ```
 
-| Service | Local URL |
+| Servicio | URL Local |
 |---------|-----------|
 | Studio | `http://studio.localhost` |
 | Web | `http://web.localhost` |
@@ -54,25 +54,25 @@ cp .env.example .env
 | Admin | `http://admin.localhost` |
 | Docs | `http://docs.localhost` |
 
-The platform boots with `REQUIRE_API_KEY=false` — everything works without keys (Público tier limits apply).
+La plataforma arranca con `REQUIRE_API_KEY=false` — todo funciona sin claves (se aplican los límites del nivel Público).
 
 ---
 
-## 3. Get an API Key (For Higher Limits)
+## 3. Obtener una API Key (Para Límites Mayores)
 
-To go beyond Público tier (20/day):
+Para ir más allá del nivel Público (20/día):
 
-1. **Self-host**: Open Admin Console (`http://admin.localhost`), log in with the admin key (see logs or set `INTEL_API_TOKEN` in `.env`), go to **API Keys → Create Key**, pick a plan.
-2. **Public instance**: Same flow at `https://admin.intel.dom.gob`.
+1. **Auto-hospedaje**: Abre la Consola Admin (`http://admin.localhost`), inicia sesión con la clave de admin (revisa los logs o configura `INTEL_API_TOKEN` en `.env`), ve a **API Keys → Create Key**, elige un plan.
+2. **Instancia pública**: Mismo flujo en `https://admin.intel.dom.gob`.
 
-| Plan | Audience | Queries/day | Streaming | Workflows |
-|------|----------|-------------|-----------|-----------|
-| **Público** | Anyone, no signup | 20 | ❌ | ❌ |
-| **Investigador** | Journalists, researchers, academics, `.gob.do` | 200 | ✅ | ❌ |
-| **Pro** | Businesses, law firms, analysts | 1,000+ (metered) | ✅ | ✅ |
-| **Institucional** | Ministries, large orgs | Custom | ✅ | ✅ + SLA |
+| Plan | Audiencia | Consultas/día | Streaming | Workflows |
+|------|-----------|---------------|-----------|-----------|
+| **Público** | Cualquiera, sin registro | 20 | ❌ | ❌ |
+| **Investigador** | Periodistas, investigadores, académicos, `.gob.do` | 200 | ✅ | ❌ |
+| **Pro** | Empresas, bufetes de abogados, analistas | 1,000+ (con medición) | ✅ | ✅ |
+| **Institucional** | Ministerios, grandes organizaciones | Personalizado | ✅ | ✅ + SLA |
 
-Use the key:
+Usa la clave:
 
 ```bash
 # CLI
@@ -87,9 +87,9 @@ curl -H "Authorization: Bearer idg_xxx" ...
 
 ---
 
-## 4. Self-Host Production (10 Minutes)
+## 4. Auto-Hospedaje en Producción (10 Minutos)
 
-When ready for production:
+Cuando estés listo para producción:
 
 ```bash
 # In .env
@@ -102,36 +102,36 @@ CADDY_ACME_EMAIL=ops@yourdomain.com
 ./scripts/deploy.sh
 ```
 
-Caddy auto-manages HTTPS via Let's Encrypt. Only `DOMAIN` changes between dev and prod — develop exactly like production.
+Caddy gestiona HTTPS automáticamente vía Let's Encrypt. Solo `DOMAIN` cambia entre dev y prod — desarrolla exactamente como en producción.
 
 ---
 
-## Product Quick Starts
+## Inicio Rápido por Producto
 
-Each product has its own 5-minute guide:
+Cada producto tiene su propia guía de 5 minutos:
 
-| Product | What it is | Quick Start |
-|---------|------------|-------------|
-| **API** | REST + SSE, the core platform | [API Quick Start](/docs/products/api) |
-| **Studio** | Multi-agent workspace (AGPL fork of Odysseus) | [Studio](/docs/products/studio) |
-| **Web** | Zero-JS public site + live demo | [Web](/docs/products/web) |
+| Producto | Qué es | Inicio rápido |
+|---------|--------|---------------|
+| **API** | REST + SSE, el núcleo de la plataforma | [API Quick Start](/docs/products/api) |
+| **Studio** | Workspace multi-agente (fork AGPL de Odysseus) | [Studio](/docs/products/studio) |
+| **Web** | Sitio público sin JS + demo en vivo | [Web](/docs/products/web) |
 | **MCP Server** | Model Context Protocol (Cursor, Claude, CLI) | [MCP Server](/docs/products/mcp) |
-| **CLI** | Interactive terminal client | [CLI](/docs/products/cli) |
-| **SDK** | TypeScript/Node client for browsers & servers | [SDK](/docs/products/sdk) |
+| **CLI** | Cliente interactivo de terminal | [CLI](/docs/products/cli) |
+| **SDK** | Cliente TypeScript/Node para navegadores y servidores | [SDK](/docs/products/sdk) |
 
 ---
 
-## Key Concepts
+## Conceptos Clave
 
-| Topic | Description |
-|-------|-------------|
+| Tema | Descripción |
+|------|-------------|
 | [Plans & Limits](/docs/concepts/plans) | Público / Investigador / Pro / Institucional |
-| [Free Public Data](/docs/concepts/free-data) | Endpoints that never need a key |
+| [Free Public Data](/docs/concepts/free-data) | Endpoints que nunca necesitan clave |
 
 ---
 
-## Need Help?
+## ¿Necesitas Ayuda?
 
 - **Issues**: GitHub Issues
 - **Discussions**: GitHub Discussions
-- **Security**: `security@intel.dom.gob`
+- **Seguridad**: `security@intel.dom.gob`

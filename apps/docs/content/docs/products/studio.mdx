@@ -1,56 +1,56 @@
 ---
-title: "Quick Start — Studio"
-description: IntelDomGob Studio — multi-agent workspace (AGPL-3.0 fork of Odysseus). Connects via MCP.
+title: "Inicio rápido — Studio"
+description: IntelDomGob Studio — workspace multi-agente (fork AGPL-3.0 de Odysseus). Se conecta vía MCP.
 ---
 
-Studio is the **primary interactive client** for INTEL.DOM.GOB. It's our AGPL-3.0 fork of [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus) — a self-hosted multi-agent workspace.
+Studio es el **cliente interactivo principal** de INTEL.DOM.GOB. Es nuestro fork AGPL-3.0 de [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus) — un workspace multi-agente auto-hospedado.
 
-## Access
+## Acceso
 
-| Environment | URL |
-|-------------|-----|
+| Entorno | URL |
+|---------|-----|
 | Local (Docker) | `http://studio.localhost` |
-| Production | `https://studio.intel.dom.gob` |
+| Producción | `https://studio.intel.dom.gob` |
 
-Studio is a **separate Docker stack** (`docker/studio/v1.compose.yml`) on its own network (`studio-net`). It runs:
-- `odysseus` (main app, port 7000)
-- `studio-chromadb` (vector DB)
-- `studio-searxng` (private search)
-- `studio-ntfy` (notifications)
+Studio es un **stack Docker separado** (`docker/studio/v1.compose.yml`) en su propia red (`studio-net`). Ejecuta:
+- `odysseus` (aplicación principal, puerto 7000)
+- `studio-chromadb` (base de datos vectorial)
+- `studio-searxng` (búsqueda privada)
+- `studio-ntfy` (notificaciones)
 
-## First Launch (Local)
+## Primer arranque (Local)
 
 ```bash
-# From repo root
+# Desde la raíz del repositorio
 ./scripts/up.sh
 
-# Wait for health checks...
-# Open http://studio.localhost
+# Espera las verificaciones de salud...
+# Abre http://studio.localhost
 ```
 
-Studio registers the MCP server **automatically on first boot** via an on-boot hook (`scripts/studio-onboot.sh` mounted into the container). The MCP endpoint: `http://mcp:4100/mcp`.
+Studio registra el servidor MCP **automáticamente en el primer arranque** mediante un hook de inicio (`scripts/studio-onboot.sh` montado en el contenedor). El endpoint MCP: `http://mcp:4100/mcp`.
 
-## What You Get
+## Qué incluye
 
-| Feature | Description |
+| Función | Descripción |
 |---------|-------------|
-| **Chat** | Multi-turn, context-grounded, streaming |
-| **Agents** | Planner, Search, Retrieval, Evidence, Validation, Response |
-| **Sources** | Live web, SIL Congress, Senate news, Knowledge Graph, custom docs |
-| **Workspaces** | Persistent sessions, history, branching |
-| **Tools** | 40+ MCP tools (search, fetch, SIL, Senate, KG, fetch-url, etc.) |
-| **Export** | Markdown, PDF, JSON |
+| **Chat** | Multi-turno, con contexto, streaming |
+| **Agentes** | Planificador, Búsqueda, Recuperación, Evidencia, Validación, Respuesta |
+| **Fuentes** | Web en vivo, SIL Congreso, noticias del Senado, Knowledge Graph, docs personalizados |
+| **Workspaces** | Sesiones persistentes, historial, ramificación |
+| **Herramientas** +40 herramientas MCP (search, fetch, SIL, Senado, KG, fetch-url, etc.) |
+| **Exportación** | Markdown, PDF, JSON |
 
-## Quick Tour
+## Recorrido rápido
 
-1. **New Chat** → type a question → watch the agent pipeline (Plan → Search → Retrieve → Evidence → Response)
-2. **Sources Panel** — every claim cites evidence (SIL initiative, Senate news, web page, KG entity)
-3. **Workspace Switcher** — top-left, create isolated contexts per project
-4. **Settings** → Model (Gemini, Ollama, OpenAI-compatible), Search (lang, safe, time range), UI theme
+1. **Nuevo Chat** → escribe una pregunta → observa el pipeline de agentes (Planificar → Buscar → Recuperar → Evidencia → Respuesta)
+2. **Panel de Fuentes** — cada afirmación cita evidencia (iniciativa SIL, noticia del Senado, página web, entidad del KG)
+3. **Selector de Workspace** — arriba a la izquierda, crea contextos aislados por proyecto
+4. **Configuración** → Modelo (Gemini, Ollama, compatible con OpenAI), Búsqueda (idioma, seguro, rango de tiempo), tema de la interfaz
 
-## Connect to Your Own MCP
+## Conectar tu propio MCP
 
-Studio only talks to **one MCP server** (configured at `STUDIO_MCP_URL`, default `http://mcp:4100/mcp`). To point at a different platform:
+Studio solo se comunica con **un servidor MCP** (configurado en `STUDIO_MCP_URL`, por defecto `http://mcp:4100/mcp`). Para apuntar a una plataforma diferente:
 
 ```yaml
 # docker/studio/v1.compose.yml
@@ -58,24 +58,24 @@ environment:
   STUDIO_MCP_URL: http://your-mcp-host:4100/mcp
 ```
 
-## Public Instance
+## Instancia pública
 
-`https://studio.intel.dom.gob` — connects to the public platform. No account needed for **Público** tier (20 queries/day). For higher tiers, create an API key in Admin Console and add it in Studio Settings → API Key.
+`https://studio.intel.dom.gob` — se conecta a la plataforma pública. No se necesita cuenta para el tier **Público** (20 consultas/día). Para tiers superiores, crea una API key en Admin Console y agrégala en Studio Settings → API Key.
 
-## License
+## Licencia
 
-**AGPL-3.0** — Studio is a fork of Odysseus. We keep the license, attribution, and upstream compatibility. See `apps/studio/v1/ACKNOWLEDGMENTS.md` and `LICENSE`.
+**AGPL-3.0** — Studio es un fork de Odysseus. Mantenemos la licencia, la atribución y la compatibilidad con el upstream. Consulta `apps/studio/v1/ACKNOWLEDGMENTS.md` y `LICENSE`.
 
-## Troubleshooting
+## Solución de problemas
 
-| Issue | Fix |
-|-------|-----|
-| "MCP connection failed" | Check `docker compose logs mcp` — MCP must be healthy on port 4100 |
-| Studio shows blank | `docker compose restart studio` — ChromaDB may need restart |
-| No results | Check `STUDIO_SEARXNG_URL` points to `studio-searxng:8080` (not platform SearXNG) |
+| Problema | Solución |
+|----------|----------|
+| "MCP connection failed" | Revisa `docker compose logs mcp` — MCP debe estar saludable en el puerto 4100 |
+| Studio muestra pantalla en blanco | `docker compose restart studio` — ChromaDB puede necesitar reinicio |
+| Sin resultados | Verifica que `STUDIO_SEARXNG_URL` apunte a `studio-searxng:8080` (no al SearXNG de la plataforma) |
 
-## Next Steps
+## Siguientes pasos
 
-- [MCP Server](/docs/products/mcp) — the protocol Studio speaks
-- [API](/docs/products/api) — the underlying platform Studio calls
-- [CLI](/docs/products/cli) — terminal alternative to Studio
+- [Servidor MCP](/docs/products/mcp) — el protocolo que Studio utiliza
+- [API](/docs/products/api) — la plataforma subyacente que Studio invoca
+- [CLI](/docs/products/cli) — alternativa en terminal a Studio

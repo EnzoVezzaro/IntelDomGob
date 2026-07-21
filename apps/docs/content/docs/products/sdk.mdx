@@ -1,30 +1,30 @@
 ---
-title: "Quick Start — SDK"
-description: Type-safe client for Node.js and browsers — query, chat, stream, tools, and more.
+title: "Inicio rápido — SDK"
+description: Cliente tipado para Node.js y navegadores — query, chat, stream, herramientas y más.
 ---
 
-The **SDK** is the official TypeScript client for INTEL.DOM.GOB. It works identically in Node.js and browsers, and every official client (Studio, Web, CLI, MCP server, Admin) uses it.
+El **SDK** es el cliente oficial de TypeScript para INTEL.DOM.GOB. Funciona de manera idéntica en Node.js y navegadores, y cada cliente oficial (Studio, Web, CLI, servidor MCP, Admin) lo utiliza.
 
-## Install
+## Instalación
 
 ```bash
 npm i @intel.dom.gob/sdk
-# or
+# o
 pnpm add @intel.dom.gob/sdk
 ```
 
-## Quick Start
+## Inicio rápido
 
 ```ts
 import { createIntelClient } from "@intel.dom.gob/sdk";
 
 const client = createIntelClient({
-  baseUrl: "https://api.intel.dom.gob",   // or http://api.localhost
-  token: "idg_xxx",                       // optional in preview mode
-  product: "my-app"                       // identifies your surface
+  baseUrl: "https://api.intel.dom.gob",   // o http://api.localhost
+  token: "idg_xxx",                       // opcional en modo preview
+  product: "my-app"                       // identifica tu superficie
 });
 
-// Run a full intelligence query
+// Ejecutar una consulta de inteligencia completa
 const result = await client.query({
   query: "Últimas leyes sobre transparencia en RD",
   responseLang: "es"
@@ -34,38 +34,38 @@ console.log(result.summary);
 console.log(result.citations);
 ```
 
-## Core Methods
+## Métodos principales
 
-| Method | Returns | Description |
+| Método | Retorna | Descripción |
 |--------|---------|-------------|
-| `health()` | `Promise<HealthStatus>` | Liveness check |
-| `query(req)` | `Promise<IntelligenceResult>` | Full multi-agent query |
-| `queryStream(req, onEvent)` | `Promise<void>` | SSE streaming query |
-| `chat(req)` | `Promise<{reply:string}>` | Grounded follow-up chat |
-| `streamChat(opts, onEvent)` | `Promise<void>` | Streaming chat |
-| `listInstitutions()` | `Promise<InstitutionDescriptor[]>` | Source plugins |
-| `searchInstitution(id, q)` | `Promise<...>` | Search specific institution |
-| `getUrlTree(opts)` | `Promise<{portals}>` | Source registry |
-| `fetchUrl(url, opts)` | `Promise<FetchedPage>` | Extract readable text from URL |
-| `entities.extract(text)` | `Promise<EntitiesResult>` | Named entity extraction |
-| `documents.process(...)` | `Promise<...>` | Document intelligence pipeline |
-| `workflows.create(...)` | `Promise<Workflow>` | Create DAG workflow |
-| `tools.list()` | `Promise<ToolDescriptor[]>` | MCP tool catalog |
-| `prompts.get(key)` | `Promise<PromptTemplate>` | Prompt template |
-| `evaluate.faithfulness(ans, ctx)` | `Promise<EvalResult>` | Faithfulness evaluation |
-| `openApi()` | `Promise<OpenAPISpec>` | Full OpenAPI spec |
+| `health()` | `Promise<HealthStatus>` | Verificación de actividad |
+| `query(req)` | `Promise<IntelligenceResult>` | Consulta multi-agente completa |
+| `queryStream(req, onEvent)` | `Promise<void>` | Consulta con streaming SSE |
+| `chat(req)` | `Promise<{reply:string}>` | Chat de seguimiento con contexto |
+| `streamChat(opts, onEvent)` | `Promise<void>` | Chat con streaming |
+| `listInstitutions()` | `Promise<InstitutionDescriptor[]>` | Plugins de fuentes |
+| `searchInstitution(id, q)` | `Promise<...>` | Buscar en una institución específica |
+| `getUrlTree(opts)` | `Promise<{portals}>` | Registro de fuentes |
+| `fetchUrl(url, opts)` | `Promise<FetchedPage>` | Extraer texto legible de una URL |
+| `entities.extract(text)` | `Promise<EntitiesResult>` | Extracción de entidades nombradas |
+| `documents.process(...)` | `Promise<...>` | Pipeline de inteligencia documental |
+| `workflows.create(...)` | `Promise<Workflow>` | Crear workflow DAG |
+| `tools.list()` | `Promise<ToolDescriptor[]>` | Catálogo de herramientas MCP |
+| `prompts.get(key)` | `Promise<PromptTemplate>` | Plantilla de prompt |
+| `evaluate.faithfulness(ans, ctx)` | `Promise<EvalResult>` | Evaluación de fidelidad |
+| `openApi()` | `Promise<OpenAPISpec>` | Especificación OpenAPI completa |
 
-## Query Options
+## Opciones de consulta
 
 ```ts
 await client.query({
-  query: "string (required)",
-  institutions?: string[],           // specific plugins, omit for auto
-  model?: string,                    // override default model
+  query: "string (requerido)",
+  institutions?: string[],           // plugins específicos, omitir para automático
+  model?: string,                    // sobreescribir modelo por defecto
   provider?: "gemini" | "openai" | "ollama" | "custom",
-  apiKey?: string,                   // per-request override
+  apiKey?: string,                   // sobreescribir por consulta
   scope?: "all" | "sil" | "legislativo" | "senate" | "camara" | "senate-news" | "camara-news" | "diputado",
-  search?: {                         // search tuning
+  search?: {                         // ajuste de búsqueda
     lang?: string;
     category?: string;
     safe?: boolean;
@@ -83,11 +83,11 @@ await client.query({
 for await (const event of client.queryStream({
   query: "Ley 340-06 procedimientos excepción"
 }, (e) => console.log(e.type, e.data))) {
-  // event types: plan, search, token, result, done
+  // tipos de evento: plan, search, token, result, done
 }
 ```
 
-## Chat (Grounded)
+## Chat (con contexto)
 
 ```ts
 const result = await client.query({ query: "Ley 340-06" });
@@ -101,7 +101,7 @@ await client.chat({
 });
 ```
 
-## Error Handling
+## Manejo de errores
 
 ```ts
 import { IntelApiError } from "@intel.dom.gob/sdk";
@@ -115,16 +115,16 @@ try {
 }
 ```
 
-## Running the SDK Locally
+## Ejecutar el SDK localmente
 
-The SDK is a pure TypeScript package — no build step required for consumers. Just install and import.
+El SDK es un paquete TypeScript puro — no requiere paso de compilación para los consumidores. Solo instala e importa.
 
 ```bash
-# In your project
+# En tu proyecto
 npm i @intel.dom.gob/sdk
 ```
 
-If you want to develop the SDK itself:
+Si quieres desarrollar el SDK en sí:
 
 ```bash
 cd packages/sdk
@@ -133,8 +133,8 @@ npm run build   # tsc
 npm run test
 ```
 
-## Next Steps
+## Siguientes pasos
 
-- [API Quick Start](/docs/products/api) — same endpoints, raw HTTP
-- [MCP Server](/docs/products/mcp) — same tools via MCP protocol
-- [Plans & Limits](/docs/concepts/plans) — SDK inherits your tier
+- [Inicio rápido de la API](/docs/products/api) — mismos endpoints, HTTP raw
+- [Servidor MCP](/docs/products/mcp) — mismas herramientas vía protocolo MCP
+- [Planes y límites](/docs/concepts/plans) — el SDK hereda tu tier

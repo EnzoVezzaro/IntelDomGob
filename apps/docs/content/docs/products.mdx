@@ -1,72 +1,72 @@
 ---
-title: Products
-description: INTEL.DOM.GOB is an ecosystem of products for Dominican Republic government intelligence.
+title: Productos
+description: INTEL.DOM.GOB es un ecosistema de productos para inteligencia gubernamental de la República Dominicana.
 ---
 
-## INTEL.DOM.GOB Products
+## Productos de INTEL.DOM.GOB
 
-INTEL.DOM.GOB is not a single app — it's an ecosystem of products for Dominican Republic government intelligence.
+INTEL.DOM.GOB no es una sola aplicación — es un ecosistema de productos para inteligencia gubernamental de la República Dominicana.
 
-| Product | What it is | For whom | Status |
-|---------|-------------|-----------|--------|
-| **API** | API-first gateway — every capability exposed over REST + SSE | Developers, integrators | Live |
-| **Studio** | Multi-agent AI workspace (AGPL-3.0 fork of Odysseus) | Power users, researchers | Live |
-| **MCP** | Model Context Protocol server — tools over Streamable HTTP + SSE | Any MCP-compatible client | Live |
-| **Web** | Lightweight no-JS web client for quick queries | Anyone, no install | Live |
-| **CLI** | Interactive terminal client (MCP) | Developers, automation | Live |
-| **Admin** | Operator console for keys, quotas, tenants | Operators | Live |
-| **Docs** | This documentation site | Everyone | Live |
+| Producto | Qué es | Para quién | Estado |
+|----------|--------|------------|--------|
+| **API** | Gateway API-first — cada capacidad expuesta vía REST + SSE | Desarrolladores, integradores | En vivo |
+| **Studio** | Workspace de IA multi-agente (fork AGPL-3.0 de Odysseus) | Usuarios avanzados, investigadores | En vivo |
+| **MCP** | Servidor Model Context Protocol — herramientas vía Streamable HTTP + SSE | Cualquier cliente compatible con MCP | En vivo |
+| **Web** | Cliente web ligero sin JavaScript para consultas rápidas | Cualquiera, sin instalación | En vivo |
+| **CLI** | Cliente terminal interactivo (MCP) | Desarrolladores, automatización | En vivo |
+| **Admin** | Consola de operador para claves, cuotas, tenants | Operadores | En vivo |
+| **Docs** | Este sitio de documentación | Todos | En vivo |
 
 ---
 
 ## API
 
-The entry point for everything. Versioned (`/v1`), REST + SSE streaming, OpenAI-compatible. Every client above talks to it through the SDK.
+El punto de entrada para todo. Versionada (`/v1`), REST + streaming SSE, compatible con OpenAI. Cada cliente anterior se comunica con ella a través del SDK.
 
 - **Core**: `query`, `query/stream`, `chat`, `institutions`, `url-tree`
-- **OpenAI-compatible**: `chat/completions`, `models`, `embeddings`
-- **Legislative (SIL)**: Cámara de Diputados + Senado endpoints
-- **Intelligence services**: document intelligence, entities, knowledge graph
-- **Workflow engine**: DAG execution with human-in-the-loop
+- **Compatible con OpenAI**: `chat/completions`, `models`, `embeddings`
+- **Legislativo (SIL)**: Endpoints de Cámara de Diputados + Senado
+- **Servicios de inteligencia**: inteligencia documental, entidades, knowledge graph
+- **Motor de workflows**: ejecución DAG con intervención humana
 
-See the [API Reference](/docs/api) for all 40+ endpoints.
+Consulta la [Referencia de la API](/docs/api) para los +40 endpoints.
 
 ## Studio
 
-A self-hosted AI workspace — chat, agents, deep research, documents, email, notes, calendar, and local model workflows. Connects to INTEL.DOM.GOB **only via the MCP server**.
+Un workspace de IA auto-hospedado — chat, agentes, investigación profunda, documentos, correo, notas, calendario y workflows con modelos locales. Se conecta a INTEL.DOM.GOB **solo vía el servidor MCP**.
 
-- Forked from [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus) (AGPL-3.0)
-- Multi-user with bcrypt auth, session cookies, TOTP 2FA, RBAC
-- Built-in MCP servers for email, memory, RAG, image generation, browser
-- Runs on FastAPI + Uvicorn + SQLite + ChromaDB
+- Fork de [Odysseus](https://github.com/pewdiepie-archdaemon/odysseus) (AGPL-3.0)
+- Multi-usuario con autenticación bcrypt, cookies de sesión, TOTP 2FA, RBAC
+- Servidores MCP integrados para correo, memoria, RAG, generación de imágenes, navegador
+- Ejecuta en FastAPI + Uvicorn + SQLite + ChromaDB
 
 ## MCP
 
-A Model Context Protocol server exposing 20+ tools: intelligence queries, SIL data, Senado DSpace, institutional data. Any standard MCP client (Claude Desktop, the Studio, the CLI, custom agents) connects identically.
+Un servidor Model Context Protocol que expone +20 herramientas: consultas de inteligencia, datos SIL, Senado DSpace, datos institucionales. Cualquier cliente MCP estándar (Claude Desktop, Studio, CLI, agentes personalizados) se conecta de la misma manera.
 
 - **Streamable HTTP**: `http://mcp.localhost/mcp`
-- **Legacy SSE**: `http://mcp.localhost/sse`
-- **Legacy JSON-RPC**: `POST http://mcp.localhost/`
+- **SSE heredado**: `http://mcp.localhost/sse`
+- **JSON-RPC heredado**: `POST http://mcp.localhost/`
 
 ## Web
 
-A server-rendered, no-JS web client. Lists government institutions and runs intelligence queries. No build step, no client-side JS — a reference implementation of the SDK.
+Un cliente web renderizado por servidor, sin JavaScript. Lista instituciones gubernamentales y ejecuta consultas de inteligencia. Sin paso de compilación, sin JS del lado del cliente — una implementación de referencia del SDK.
 
-- Runs on port `4200` (Docker: `web.localhost`)
-- Uses only `listInstitutions()` and `query()`
+- Ejecuta en el puerto `4200` (Docker: `web.localhost`)
+- Usa solo `listInstitutions()` y `query()`
 
 ## CLI
 
-An interactive terminal client modeled on OpenCode. Connects to the MCP server and exposes all platform capabilities through a prompt loop. No API logic, no SDK — just MCP.
+Un cliente terminal interactivo modelado en OpenCode. Se conecta al servidor MCP y expone todas las capacidades de la plataforma mediante un bucle de prompt. Sin lógica de API, sin SDK — solo MCP.
 
 ```bash
-intel                 # interactive terminal
-intel -p "question"  # one-shot
+intel                 # terminal interactivo
+intel -p "pregunta"   # one-shot
 ```
 
 ## Admin
 
-Operator console for managing API keys, quotas, tenants, and RBAC/ABAC. Log in with the admin key (`INTEL_API_TOKEN`) created on first boot.
+Consola de operador para gestionar API keys, cuotas, tenants y RBAC/ABAC. Inicia sesión con la clave de administrador (`INTEL_API_TOKEN`) creada en el primer arranque.
 
 ---
 
@@ -74,4 +74,4 @@ Operator console for managing API keys, quotas, tenants, and RBAC/ABAC. Log in w
 
 Los planes y límites se aplican de la misma forma en cada producto (web, Studio, API, CLI, MCP) — sin excepciones.
 
-See [Getting Started](/docs/getting-started) to choose your path.
+Consulta [Primeros pasos](/docs/getting-started) para elegir tu camino.

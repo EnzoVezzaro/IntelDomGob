@@ -193,6 +193,7 @@ services:
     command: ["sh", "-c", "if [ \"$NODE_ENV\" = \"production\" ]; then npm run start; else npm run dev; fi"]
     volumes:
       - ./apps/admin/src:/app/apps/admin/src
+      - ./apps/admin/public:/app/apps/admin/public
       - ./apps/admin/index.html:/app/apps/admin/index.html
       - ./apps/admin/vite.config.ts:/app/apps/admin/vite.config.ts
       - ./apps/admin/tailwind.config.js:/app/apps/admin/tailwind.config.js

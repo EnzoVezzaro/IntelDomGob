@@ -12,7 +12,6 @@ import {
   Activity,
   Server,
   LogOut,
-  ShieldCheck,
   Radio,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
@@ -70,9 +69,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-grid">
       <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card/40">
         <div className="flex items-center gap-2.5 border-b border-border px-4 py-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 text-primary">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
+          <pre className="ascii mini" aria-hidden="true">
+{` ██╗███╗    ████╗   
+ ██║   ██╗██║   ██╗
+ ██║   ██║██║   ██║
+ ██║   ██║██║   ██║
+ ██████║    ████║  
+ ╚═════╝    ╚═══╝  `}
+          </pre>
           <div className="leading-tight">
             <div className="text-sm font-semibold tracking-tight">INTEL.DOM.GOB</div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">

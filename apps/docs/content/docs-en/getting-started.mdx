@@ -1,0 +1,137 @@
+---
+title: Getting Started
+description: Choose your path — public instance, self-hosted preview, API integration, or full self-host.
+---
+
+INTEL.DOM.GOB is built so you can start using it in seconds, with or without infrastructure.
+
+## Choose Your Path
+
+| Path | Best for | Setup time | API key |
+|------|----------|------------|---------|
+| **Public Instance** | Try now, quick queries | 0 min | Not needed (Público tier) |
+| **Self-Host (Preview)** | Evaluate locally, no signup | 2 min | Not needed |
+| **API Integration** | Build on the platform | 5 min | Created in Admin |
+| **Self-Host (Production)** | Your own deployment | 10 min | Created in Admin |
+
+---
+
+## 1. Public Instance (Instant, No Signup)
+
+The hosted instance runs in **Público** mode by default — 20 queries/day, no account needed.
+
+| Product | URL |
+|---------|-----|
+| **Web (Live Demo)** | `https://web.intel.dom.gob` |
+| **Studio (Workspace)** | `https://studio.intel.dom.gob` |
+| **MCP Server** | `https://mcp.intel.dom.gob/mcp` |
+| **API** | `https://api.intel.dom.gob/v1` |
+
+Just open **Web** or **Studio** and start asking. Or point any MCP client (Claude Desktop, Cursor, our CLI) to the MCP endpoint.
+
+> **Público tier limits**: 20 intelligence queries/day per IP. Raw data endpoints (SIL, Senate, Knowledge Graph, etc.) are **always free and unmetered**.
+
+---
+
+## 2. Self-Host Preview (2 Minutes)
+
+Full stack locally — no API key, no signup, all features enabled.
+
+```bash
+git clone <repo-url> intel.dom.gob
+cd intel.dom.gob
+cp .env.example .env
+# Edit .env: set DEFAULT_AI_API_KEY (or use DEFAULT_AI_PROVIDER=ollama for local)
+./scripts/up.sh
+```
+
+| Service | Local URL |
+|---------|-----------|
+| Studio | `http://studio.localhost` |
+| Web | `http://web.localhost` |
+| API | `http://api.localhost/v1` |
+| MCP | `http://mcp.localhost/mcp` |
+| Admin | `http://admin.localhost` |
+| Docs | `http://docs.localhost` |
+
+The platform boots with `REQUIRE_API_KEY=false` — everything works without keys (Público tier limits apply).
+
+---
+
+## 3. Get an API Key (For Higher Limits)
+
+To go beyond Público tier (20/day):
+
+1. **Self-host**: Open Admin Console (`http://admin.localhost`), log in with the admin key (see logs or set `INTEL_API_TOKEN` in `.env`), go to **API Keys → Create Key**, pick a plan.
+2. **Public instance**: Same flow at `https://admin.intel.dom.gob`.
+
+| Plan | Audience | Queries/day | Streaming | Workflows |
+|------|----------|-------------|-----------|-----------|
+| **Público** | Anyone, no signup | 20 | ❌ | ❌ |
+| **Investigador** | Journalists, researchers, academics, `.gob.do` | 200 | ✅ | ❌ |
+| **Pro** | Businesses, law firms, analysts | 1,000+ (metered) | ✅ | ✅ |
+| **Institucional** | Ministries, large orgs | Custom | ✅ | ✅ + SLA |
+
+Use the key:
+
+```bash
+# CLI
+INTEL_API_TOKEN=idg_xxx intel query "..."
+
+# SDK
+const client = createIntelClient({ baseUrl, token: "idg_xxx" });
+
+# curl
+curl -H "Authorization: Bearer idg_xxx" ...
+```
+
+---
+
+## 4. Self-Host Production (10 Minutes)
+
+When ready for production:
+
+```bash
+# In .env
+DOMAIN=intel.dom.gob
+NODE_ENV=production
+REQUIRE_API_KEY=true
+CADDY_ACME_EMAIL=ops@yourdomain.com
+# ... other production settings
+
+./scripts/deploy.sh
+```
+
+Caddy auto-manages HTTPS via Let's Encrypt. Only `DOMAIN` changes between dev and prod — develop exactly like production.
+
+---
+
+## Product Quick Starts
+
+Each product has its own 5-minute guide:
+
+| Product | What it is | Quick Start |
+|---------|------------|-------------|
+| **API** | REST + SSE, the core platform | [API Quick Start](/docs/products/api) |
+| **Studio** | Multi-agent workspace (AGPL fork of Odysseus) | [Studio](/docs/products/studio) |
+| **Web** | Zero-JS public site + live demo | [Web](/docs/products/web) |
+| **MCP Server** | Model Context Protocol (Cursor, Claude, CLI) | [MCP Server](/docs/products/mcp) |
+| **CLI** | Interactive terminal client | [CLI](/docs/products/cli) |
+| **SDK** | TypeScript/Node client for browsers & servers | [SDK](/docs/products/sdk) |
+
+---
+
+## Key Concepts
+
+| Topic | Description |
+|-------|-------------|
+| [Plans & Limits](/docs/concepts/plans) | Público / Investigador / Pro / Institucional |
+| [Free Public Data](/docs/concepts/free-data) | Endpoints that never need a key |
+
+---
+
+## Need Help?
+
+- **Issues**: GitHub Issues
+- **Discussions**: GitHub Discussions
+- **Security**: `security@intel.dom.gob`

@@ -1,0 +1,67 @@
+---
+title: Plans & Limits
+description: Choose your tier — Público, Investigador, Pro, or Institucional.
+---
+
+INTEL.DOM.GOB uses a simple tiered model. **Raw official data is always free.** You pay for the **intelligence layer** (search + retrieval + synthesis).
+
+## Tier Comparison
+
+| Plan | Audience | Queries/day | Streaming | Workflows | Docs/Intel | Price |
+|------|----------|-------------|-----------|-----------|------------|-------|
+| **Público** | Anyone, no signup | 20 | ❌ | ❌ | ❌ | Free |
+| **Investigador** | Journalists, researchers, academics, `.gob.do` | 200 | ✅ | ❌ | ❌ | Free |
+| **Pro** | Businesses, law firms, analysts | 1,000+ (metered overage) | ✅ | ✅ | ✅ | Flat fee/mo |
+| **Institucional** | Ministries, large orgs, integrators | Custom | ✅ | ✅ + SLA | ✅ | Contract |
+
+## What's Always Free (No Key, No Quota)
+
+Raw official data never requires a key, quota, or payment:
+
+- Source registry: `GET /v1/institutions`, `GET /v1/url-tree`
+- SIL Congress: `GET /v1/sil/camara/*`, `GET /v1/sil/senado/*`
+- Senado news & search: `GET /v1/senado/news`, `GET /v1/sil/senado/search`
+- Public search: `GET /v1/sil/senado/search`, `GET /v1/sil/senado/communities`
+- Knowledge graph (read): `GET /v1/graph`
+- System: `GET /v1/health`, `GET /v1/docs`, `GET /v1/openapi.json`
+
+> **Official data is a public good. Synthesis is a paid service.** We meter the second, never the first.
+
+## How to Upgrade
+
+| Path | Steps |
+|------|-------|
+| **Public instance** | Open Admin Console → API Keys → Create Key → choose plan |
+| **Self-hosted** | Set `REQUIRE_API_KEY=true` in `.env` → create keys in Admin Console |
+| **Investigador verification** | `.gob.do` / accredited university domain auto-qualifies; independent journalists & civil society apply for manual approval |
+
+## Rate Limit Headers
+
+Every response includes:
+
+```
+X-RateLimit-Limit: 200
+X-RateLimit-Remaining: 187
+X-RateLimit-Reset: 1700000000
+```
+
+## What Counts as a "Query"
+
+| Action | Counts |
+|--------|--------|
+| `POST /v1/query` | ✅ 1 |
+| `POST /v1/query/stream` | ✅ 1 |
+| `POST /v1/chat` | ✅ 1 |
+| `POST /v1/chat/stream` | ✅ 1 |
+| `GET /v1/institutions` | ❌ (free) |
+| `GET /v1/sil/camara/*` | ❌ (free) |
+| `POST /v1/entities/extract` | ✅ 1 |
+| `POST /v1/workflows` | ✅ 1 per step |
+
+---
+
+## Next Steps
+
+- [Free Public Data](/docs/concepts/free-data) — complete list of always-free endpoints
+- [Quick Start: API](/docs/products/api) — start querying
+- [Quick Start: CLI](/docs/products/cli) — terminal access

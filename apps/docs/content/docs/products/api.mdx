@@ -1,44 +1,44 @@
 ---
-title: "Quick Start — API"
-description: Call the INTEL.DOM.GOB API directly — curl, SDK, or any HTTP client.
+title: "Inicio rápido — API"
+description: Llama a la API de INTEL.DOM.GOB directamente — curl, SDK o cualquier cliente HTTP.
 ---
 
-The INTEL.DOM.GOB API is the single entry point for all platform capabilities. Every product (Studio, Web, CLI, MCP) talks to the API. You can too.
+La API de INTEL.DOM.GOB es el punto de entrada único para todas las capacidades de la plataforma. Cada producto (Studio, Web, CLI, MCP) se comunica con la API. Tú también puedes hacerlo.
 
-## Base URL
+## URL base
 
-| Environment | Base URL |
-|-------------|----------|
+| Entorno | URL base |
+|---------|----------|
 | Local (Docker) | `http://api.localhost/v1` |
-| Production | `https://api.intel.dom.gob/v1` |
+| Producción | `https://api.intel.dom.gob/v1` |
 
-All endpoints are under `/v1`.
+Todos los endpoints están bajo `/v1`.
 
-## Authentication
+## Autenticación
 
-Two modes:
+Dos modos:
 
-| Mode | How | Use case |
-|------|-----|----------|
-| **Preview (no key)** | None | Public / Público tier — 20 queries/day, no signup |
-| **API Key** | `Authorization: Bearer <key>` | Investigador, Pro, Institucional tiers — higher quotas, streaming, workflows |
+| Modo | Cómo | Caso de uso |
+|------|------|-------------|
+| **Preview (sin clave)** | Ninguno | Tier Público — 20 consultas/día, sin registro |
+| **API Key** | `Authorization: Bearer <key>` | Tiers Investigador, Pro, Institucional — cuotas mayores, streaming, workflows |
 
-Create keys in **Admin Console → API Keys** (self-hosted) or use the public instance.
+Crea claves en **Admin Console → API Keys** (auto-hospedado) o usa la instancia pública.
 
 ```bash
-# Preview (no key)
+# Preview (sin clave)
 curl https://api.intel.dom.gob/v1/query \
   -H "Content-Type: application/json" \
   -d '{"query":"¿Qué leyes regulan las compras públicas en RD?"}'
 
-# With API key
+# Con API key
 curl -H "Authorization: Bearer idg_xxx" \
      -H "Content-Type: application/json" \
      https://api.intel.dom.gob/v1/query \
      -d '{"query":"¿Qué leyes regulan las compras públicas en RD?"}'
 ```
 
-## First Query (2 lines)
+## Primera consulta (2 líneas)
 
 ```bash
 curl -X POST https://api.intel.dom.gob/v1/query \
@@ -46,7 +46,7 @@ curl -X POST https://api.intel.dom.gob/v1/query \
   -d '{"query": "¿Cuáles son las últimas iniciativas legislativas sobre compras públicas?"}'
 ```
 
-Response:
+Respuesta:
 ```json
 {
   "summary": "Se identificaron 3 iniciativas recientes...",
@@ -58,21 +58,21 @@ Response:
 }
 ```
 
-## Key Endpoints
+## Endpoints principales
 
-| Endpoint | Method | Description |
+| Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| `/query` | POST | Full intelligence query (search → retrieve → synthesize) |
-| `/chat` | POST | Follow-up question grounded in a previous result |
-| `/chat/stream` | POST | SSE streaming chat |
-| `/entities/extract` | POST | Extract People / Orgs / Laws / Institutions from text |
-| `/evaluate/faithfulness` | POST | Evaluate answer faithfulness against context |
-| `/workflows` | POST | Define & execute multi-step DAG workflows |
-| `/institutions` | GET | List registered government data plugins |
-| `/health` | GET | Liveness probe |
-| `/openapi.json` | GET | Full OpenAPI 3.1 spec |
+| `/query` | POST | Consulta de inteligencia completa (búsqueda → recuperación → síntesis) |
+| `/chat` | POST | Pregunta de seguimiento basada en un resultado anterior |
+| `/chat/stream` | POST | Chat con streaming SSE |
+| `/entities/extract` | POST | Extraer Personas / Organizaciones / Leyes / Instituciones de un texto |
+| `/evaluate/faithfulness` | POST | Evaluar la fidelidad de una respuesta contra el contexto |
+| `/workflows` | POST | Definir y ejecutar workflows DAG de múltiples pasos |
+| `/institutions` | GET | Listar plugins de datos gubernamentales registrados |
+| `/health` | GET | Verificación de actividad |
+| `/openapi.json` | GET | Especificación OpenAPI 3.1 completa |
 
-## Using the SDK (Recommended)
+## Uso del SDK (Recomendado)
 
 ```bash
 npm i @intel.dom.gob/sdk
@@ -83,8 +83,8 @@ import { createIntelClient } from "@intel.dom.gob/sdk";
 
 const client = createIntelClient({
   baseUrl: "https://api.intel.dom.gob",
-  token: "idg_xxx",           // optional in preview mode
-  product: "my-app"           // identifies your client surface
+  token: "idg_xxx",           // opcional en modo preview
+  product: "my-app"           // identifica tu superficie de cliente
 });
 
 const result = await client.query({
@@ -95,7 +95,7 @@ const result = await client.query({
 console.log(result.summary);
 ```
 
-## Streaming Chat
+## Chat con streaming
 
 ```ts
 for await (const token of client.streamChat({
@@ -107,24 +107,24 @@ for await (const token of client.streamChat({
 }
 ```
 
-## Health Check
+## Verificación de salud
 
 ```bash
 curl https://api.intel.dom.gob/v1/health
 # {"status":"ok","timestamp":"...","service":"api","version":"v1"}
 ```
 
-## Running the API Standalone
+## Ejecutar la API de forma independiente
 
-The API is a Node/Express service (`apps/api`). It can run independently:
+La API es un servicio Node/Express (`apps/api`). Puede ejecutarse de forma independiente:
 
 ```bash
-# From repo root
+# Desde la raíz del repositorio
 cd apps/api
 npm install
-npm run dev      # tsx watch src/index.ts on :4000
+npm run dev      # tsx watch src/index.ts en el puerto :4000
 
-# Or with Docker (builds its own image)
+# O con Docker (construye su propia imagen)
 docker build -t intel-api -f apps/api/Dockerfile .
 docker run -p 4000:4000 \
   -e DEFAULT_AI_PROVIDER=gemini \
@@ -134,10 +134,10 @@ docker run -p 4000:4000 \
   intel-api
 ```
 
-The API requires PostgreSQL and DragonflyDB (Redis-compatible). See the platform docker-compose for the full stack, but the API image itself is standalone.
+La API requiere PostgreSQL y DragonflyDB (compatible con Redis). Consulta el docker-compose de la plataforma para el stack completo, pero la imagen de la API en sí es independiente.
 
-## Next Steps
+## Siguientes pasos
 
-- [SDK Reference](/docs/sdk-reference) — full client API
-- [Plans & Limits](/docs/concepts/plans) — Público / Investigador / Pro tiers
-- [Free Public Data](/docs/concepts/free-data) — always-free raw endpoints
+- [Referencia del SDK](/docs/sdk-reference) — API completa del cliente
+- [Planes y límites](/docs/concepts/plans) — Tiers Público / Investigador / Pro
+- [Datos públicos gratuitos](/docs/concepts/free-data) — endpoints raw siempre gratuitos

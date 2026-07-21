@@ -1,31 +1,31 @@
 ---
-title: SDK Reference
-description: Using @intel.dom.gob/sdk to talk to the API from Node.js, browsers, and MCP clients.
+title: Referencia del SDK
+description: Usa @intel.dom.gob/sdk para comunicarte con la API desde Node.js, navegadores y clientes MCP.
 ---
 
-## Installation
+## Instalación
 
 ```bash
 npm install @intel.dom.gob/sdk
 ```
 
-The SDK is ESM-only and has zero runtime dependencies beyond `@intel.dom.gob/types`.
+El SDK es exclusivamente ESM y no tiene dependencias en tiempo de ejecución más allá de `@intel.dom.gob/types`.
 
-## Creating a Client
+## Crear un Cliente
 
 ```ts
 import { createClient } from "@intel.dom.gob/sdk";
 
 const client = createClient({
-  baseUrl: "http://api.localhost",   // or https://api.intel.dom.gob
-  token: "your-api-key",            // optional — omit in preview mode
-  version: "v1",                   // optional, default "v1"
+  baseUrl: "http://api.localhost",   // o https://api.intel.dom.gob
+  token: "your-api-key",            // opcional — omitir en modo preview
+  version: "v1",                   // opcional, predeterminado "v1"
 });
 ```
 
-### In the Browser
+### En el Navegador
 
-Derive the API URL from the current hostname (subdomain convention):
+Deriva la URL de la API a partir del hostname actual (convención de subdominios):
 
 ```ts
 function apiBaseUrl(): string {
@@ -42,13 +42,13 @@ function apiBaseUrl(): string {
 const client = createClient({ baseUrl: apiBaseUrl() });
 ```
 
-## Core: Intelligence Queries
+## Núcleo: Consultas de Inteligencia
 
 ```ts
-// Basic query
+// Consulta básica
 const result = await client.query({
   query: "¿Cuáles son las iniciativas legislativas recientes?",
-  institutions: ["senado", "camara"],   // optional filter
+  institutions: ["senado", "camara"],   // filtro opcional
 });
 console.log(result.response.summary);
 console.log(result.response.confidenceLevel);
@@ -64,16 +64,16 @@ for await (const event of client.queryStream({ query: "..." })) {
 }
 ```
 
-### Follow-up Chat
+### Chat de Seguimiento
 
 ```ts
 const reply = await client.chat({
-  context: result,            // previous IntelligenceResult
+  context: result,            // IntelligenceResult anterior
   message: "¿Y sobre el senado?",
 });
 ```
 
-## Institutions
+## Instituciones
 
 ```ts
 const institutions = await client.listInstitutions();
@@ -82,7 +82,7 @@ const institutions = await client.listInstitutions();
 const found = await client.searchInstitution("senado");
 ```
 
-## Legislative Data (SIL)
+## Datos Legislativos (SIL)
 
 ```ts
 // Cámara de Diputados
@@ -95,18 +95,18 @@ await client.silCamaraLegislador({ query: "Juan Pérez" });
 await client.silSenadoIniciativas();
 await client.silSenadoBoletines();
 await client.silSenadoResoluciones();
-await client.silSenadoSearch({ query: "transporte" });  // full-text, ~32k DSpace items
+await client.silSenadoSearch({ query: "transporte" });  // búsqueda full-text, ~32k items de DSpace
 await client.silSenadoSenadores();
 await client.senadoNews();
 ```
 
-## Knowledge Graph
+## Grafo de Conocimiento
 
 ```ts
-// Query the graph
+// Consultar el grafo
 const graph = await client.graph({ entity: "Tribunal Constitucional" });
 
-// Ingest an IntelligenceResult
+// Ingestar un IntelligenceResult
 await client.graphIngest(result);
 ```
 
@@ -115,20 +115,20 @@ await client.graphIngest(result);
 ```ts
 const page = await client.fetchUrl("https://www.senado.gob.do/...");
 // → FetchedPage { url, title, text, publishedDate, dominican }
-// Returns null on 404/502.
+// Devuelve null en caso de 404/502.
 ```
 
-## Infrastructure
+## Infraestructura
 
 ```ts
 await client.health();         // { status: "ok", ... }
-await client.openApi();        // OpenAPI spec (JSON)
-await client.mcpTools();       // MCP server tool catalog
+await client.openApi();        // especificación OpenAPI (JSON)
+await client.mcpTools();       // catálogo de herramientas del servidor MCP
 ```
 
-## Error Handling
+## Manejo de Errores
 
-Non-OK responses throw with the server's error message:
+Las respuestas que no son OK lanzan un error con el mensaje del servidor:
 
 ```ts
 try {
@@ -139,28 +139,28 @@ try {
 }
 ```
 
-Defensive methods never throw on malformed payloads:
+Los métodos defensivos nunca lanzan errores con payloads malformados:
 
-- `listInstitutions()` → `[]` on parse failure
-- `fetchUrl()` → `null` on 404/502 (throws on 500)
+- `listInstitutions()` → `[]` en caso de fallo de parseo
+- `fetchUrl()` → `null` en caso de 404/502 (lanza error en 500)
 
-## Preview / No-Auth Mode
+## Modo Preview / Sin Autenticación
 
-When the platform runs with `REQUIRE_API_KEY=false` (default in development), omit the token:
+Cuando la plataforma funciona con `REQUIRE_API_KEY=false` (predeterminado en desarrollo), omite el token:
 
 ```ts
 const client = createClient({ baseUrl: "http://api.localhost" });
-// Works without authentication
+// Funciona sin autenticación
 ```
 
-In production (`REQUIRE_API_KEY=true`), every request needs a valid `Authorization: Bearer <key>` header — the SDK attaches it automatically when `token` is provided.
+En producción (`REQUIRE_API_KEY=true`), cada solicitud necesita un header `Authorization: Bearer <key>` válido — el SDK lo adjunta automáticamente cuando se proporciona un `token`.
 
-## TypeScript Types
+## Tipos de TypeScript
 
-All domain types are re-exported from `@intel.dom.gob/sdk/types`:
+Todos los tipos de dominio se re-exportan desde `@intel.dom.gob/sdk/types`:
 
 ```ts
 import type { IntelligenceResult, SourceRef, Confidence } from "@intel.dom.gob/sdk/types";
 ```
 
-See [packages/types](https://github.com/EnzoVezzaro/IntelDomGob/tree/main/packages/types) for the full contract.
+Consulta [packages/types](https://github.com/EnzoVezzaro/IntelDomGob/tree/main/packages/types) para el contrato completo.

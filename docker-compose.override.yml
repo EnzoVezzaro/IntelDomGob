@@ -28,6 +28,7 @@ services:
     # Read-write mount of the live source. node_modules is intentionally NOT
     # mounted — the dev image installs deps at build time.
     volumes:
+      - ./apps/docs/public:/app/public
       - ./apps/docs/app:/app/app
       - ./apps/docs/content:/app/content
       - ./apps/docs/lib:/app/lib

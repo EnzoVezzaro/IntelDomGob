@@ -583,6 +583,7 @@ export function home(instCount: number): string {
 <html lang="es">
 <head>
   <meta charset="utf-8" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>INTEL.DOM.GOB — Inteligencia del Estado Dominicano</title>
   <meta name="description" content="Plataforma de inteligencia artificial del Estado Dominicano. Orquestador multi-agente sobre fuentes oficiales, con evidencia y sin alucinaciones." />

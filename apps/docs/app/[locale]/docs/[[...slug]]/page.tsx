@@ -1,11 +1,12 @@
-import { source } from "@/lib/source";
+import { sources } from "@/lib/source";
 import { DocsPage, DocsBody } from "fumadocs-ui/page";
 import { notFound } from "next/navigation";
 
 export default async function Page(props: {
-  params: Promise<{ slug?: string[] }>;
+  params: Promise<{ locale: string; slug?: string[] }>;
 }) {
   const params = await props.params;
+  const source = sources[params.locale as keyof typeof sources] || sources.es;
   const page = source.getPage(params.slug);
   if (!page) notFound();
   const data: any = page.data;
@@ -20,13 +21,20 @@ export default async function Page(props: {
 }
 
 export async function generateStaticParams() {
-  return source.generateParams();
+  const params: { locale: string; slug?: string[] }[] = [];
+  for (const [locale, source] of Object.entries(sources)) {
+    for (const p of source.generateParams()) {
+      params.push({ locale, ...p });
+    }
+  }
+  return params;
 }
 
 export async function generateMetadata(props: {
-  params: Promise<{ slug?: string[] }>;
+  params: Promise<{ locale: string; slug?: string[] }>;
 }) {
   const params = await props.params;
+  const source = sources[params.locale as keyof typeof sources] || sources.es;
   const page = source.getPage(params.slug);
   if (!page) notFound();
   const data: any = page.data;

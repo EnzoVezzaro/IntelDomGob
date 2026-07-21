@@ -1,101 +1,101 @@
 ---
-title: Free Public Data
-description: Complete list of always-free, no-key, no-quota endpoints — raw official Dominican sources.
+title: Datos Públicos Gratuitos
+description: Lista completa de endpoints siempre gratuitos, sin key y sin cuota — fuentes oficiales dominicanas en bruto.
 ---
 
-**Raw official data is always free.** No API key, no quota, no signup. You only pay for the **intelligence layer** (search + retrieval + synthesis).
+**Los datos oficiales crudos siempre son gratuitos.** Sin API key, sin cuota, sin registro. Solo pagas por la **capa de inteligencia** (búsqueda + recuperación + síntesis).
 
 ---
 
-## Always Free Endpoints
+## Endpoints Siempre Gratuitos
 
-### Source Registry & Discovery
+### Registro y Descubrimiento de Fuentes
 
-| Endpoint | Method | Description |
+| Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| `/v1/institutions` | GET | List all registered government source plugins |
-| `/v1/url-tree` | GET | Categorized source registry (SIL, Senado, portals, etc.) |
-| `/v1/models` | GET | List available AI models |
+| `/v1/institutions` | GET | Lista todos los plugins de fuentes gubernamentales registrados |
+| `/v1/url-tree` | GET | Registro de fuentes categorizado (SIL, Senado, portales, etc.) |
+| `/v1/models` | GET | Lista los modelos de IA disponibles |
 
-### SIL Congress (Cámara de Diputados)
+### SIL Congreso (Cámara de Diputados)
 
-| Endpoint | Method | Description |
+| Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| `/v1/sil/camara/iniciativas` | GET | Search legislative initiatives |
-| `/v1/sil/camara/iniciativa/:id` | GET | Initiative detail |
-| `/v1/sil/camara/iniciativa/:id/completa` | GET | Full initiative text |
-| `/v1/sil/camara/iniciativa/:id/:sub` | GET | Initiative sub-sections |
-| `/v1/sil/camara/iniciativa/count` | GET | Initiative count |
-| `/v1/sil/camara/iniciativa/grupos` | GET | Parliamentary groups |
-| `/v1/sil/camara/iniciativa/materias` | GET | Subject matters |
-| `/v1/sil/camara/sesiones` | GET | Plenary sessions |
-| `/v1/sil/camara/grupos` | GET | Parliamentary groups |
-| `/v1/sil/camara/legislador` | GET | Legislator profiles |
-| `/v1/sil/camara/comisiones` | GET | Committees |
-| `/v1/sil/camara/comision/tipo` | GET | Committee types |
+| `/v1/sil/camara/iniciativas` | GET | Buscar iniciativas legislativas |
+| `/v1/sil/camara/iniciativa/:id` | GET | Detalle de una iniciativa |
+| `/v1/sil/camara/iniciativa/:id/completa` | GET | Texto completo de la iniciativa |
+| `/v1/sil/camara/iniciativa/:id/:sub` | GET | Sub-secciones de la iniciativa |
+| `/v1/sil/camara/iniciativa/count` | GET | Conteo de iniciativas |
+| `/v1/sil/camara/iniciativa/grupos` | GET | Grupos parlamentarios |
+| `/v1/sil/camara/iniciativa/materias` | GET | Materias temáticas |
+| `/v1/sil/camara/sesiones` | GET | Sesiones plenarias |
+| `/v1/sil/camara/grupos` | GET | Grupos parlamentarios |
+| `/v1/sil/camara/legislador` | GET | Perfiles de legisladores |
+| `/v1/sil/camara/comisiones` | GET | Comisiones |
+| `/v1/sil/camara/comision/tipo` | GET | Tipos de comisión |
 
 ### Senado de la República
 
-| Endpoint | Method | Description |
+| Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| `/v1/sil/senado/iniciativas` | GET | Senate legislative initiatives |
-| `/v1/sil/senado/boletines` | GET | Senate bulletins |
-| `/v1/sil/senado/resoluciones` | GET | Senate resolutions |
-| `/v1/sil/senado/search` | GET | Full-text search across Senate portal |
-| `/v1/sil/senado/communities` | GET | Document communities/collections |
-| `/v1/sil/senado/collections/:id/items` | GET | Collection items |
-| `/v1/sil/senado/senadores` | GET | Senators & periods |
-| `/v1/sil/senado/senadores/periodos` | GET | Legislative periods |
-| `/v1/sil/senado/senadores/periodo/:periodo` | GET | Senators by period |
-| `/v1/sil/senado/senadores/:itemId` | GET | Senator detail |
-| `/v1/sil/senado/expediente/:itemId` | GET | Legislative file |
-| `/v1/senado/news` | GET | Senate press releases / news |
+| `/v1/sil/senado/iniciativas` | GET | Iniciativas legislativas del Senado |
+| `/v1/sil/senado/boletines` | GET | Boletines del Senado |
+| `/v1/sil/senado/resoluciones` | GET | Resoluciones del Senado |
+| `/v1/sil/senado/search` | GET | Búsqueda full-text en el portal del Senado |
+| `/v1/sil/senado/communities` | GET | Comunidades/colecciones de documentos |
+| `/v1/sil/senado/collections/:id/items` | GET | Items de una colección |
+| `/v1/sil/senado/senadores` | GET | Senadores y períodos |
+| `/v1/sil/senado/senadores/periodos` | GET | Períodos legislativos |
+| `/v1/sil/senado/senadores/periodo/:periodo` | GET | Senadores por período |
+| `/v1/sil/senado/senadores/:itemId` | GET | Detalle de un senador |
+| `/v1/sil/senado/expediente/:itemId` | GET | Expediente legislativo |
+| `/v1/senado/news` | GET | Comunicados de prensa / noticias del Senado |
 
-### Knowledge Graph (Read)
+### Grafo de Conocimiento (Lectura)
 
-| Endpoint | Method | Description |
+| Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| `/v1/graph` | GET | Traverse entity-relation graph |
-| `/v1/graph/ingest` | POST | Ingest intelligence result into graph (requires key) |
+| `/v1/graph` | GET | Recorrer el grafo de entidades-relaciones |
+| `/v1/graph/ingest` | POST | Ingestar un resultado de inteligencia en el grafo (requiere key) |
 
-### System & Docs
+### Sistema y Documentación
 
-| Endpoint | Method | Description |
+| Endpoint | Método | Descripción |
 |----------|--------|-------------|
-| `/v1/health` | GET | Liveness probe |
-| `/v1/ready` | GET | Readiness probe |
-| `/v1/live` | GET | Live probe |
+| `/v1/health` | GET | Sonda de actividad |
+| `/v1/ready` | GET | Sonda de disponibilidad |
+| `/v1/live` | GET | Sonda en vivo |
 | `/v1/docs` | GET | Swagger UI |
-| `/v1/openapi.json` | GET | OpenAPI 3.1 spec |
-| `/v1/mcp/tools` | GET | MCP tool catalog |
+| `/v1/openapi.json` | GET | Especificación OpenAPI 3.1 |
+| `/v1/mcp/tools` | GET | Catálogo de herramientas MCP |
 
 ---
 
-## What's NOT Free (Requires API Key + Quota)
+## Qué NO es Gratis (Requiere API Key + Cuota)
 
-| Endpoint | Why It's Metered |
+| Endpoint | Por qué se mide |
 |----------|------------------|
-| `POST /v1/query` | Full multi-agent intelligence pipeline |
-| `POST /v1/query/stream` | Streaming synthesis |
-| `POST /v1/chat` | Grounded follow-up chat |
-| `POST /v1/chat/stream` | Streaming chat |
-| `POST /v1/chat/completions` | OpenAI-compatible chat |
-| `POST /v1/entities/extract` | Named entity extraction |
-| `POST /v1/documents/process` | Document intelligence pipeline |
-| `POST /v1/workflows` | DAG workflow engine |
-| `POST /v1/evaluate/faithfulness` | Faithfulness evaluation |
-| `POST /v1/evaluate/quality` | Quality evaluation |
-| `POST /v1/embeddings` | Embedding generation |
-| `POST /v1/fetch` | Single URL fetch + extraction |
-| `POST /v1/graph/ingest` | Graph ingestion |
-| `POST /v1/tools/:id/execute` | Arbitrary tool execution |
+| `POST /v1/query` | Pipeline completo de inteligencia multi-agente |
+| `POST /v1/query/stream` | Síntesis con streaming |
+| `POST /v1/chat` | Chat de seguimiento contextualizado |
+| `POST /v1/chat/stream` | Chat con streaming |
+| `POST /v1/chat/completions` | Chat compatible con OpenAI |
+| `POST /v1/entities/extract` | Extracción de entidades nombradas |
+| `POST /v1/documents/process` | Pipeline de inteligencia documental |
+| `POST /v1/workflows` | Motor de workflows DAG |
+| `POST /v1/evaluate/faithfulness` | Evaluación de fidelidad |
+| `POST /v1/evaluate/quality` | Evaluación de calidad |
+| `POST /v1/embeddings` | Generación de embeddings |
+| `POST /v1/fetch` | Obtención + extracción de una URL |
+| `POST /v1/graph/ingest` | Ingesta en el grafo |
+| `POST /v1/tools/:id/execute` | Ejecución arbitraria de herramientas |
 
 ---
 
-## Quick Test (No Key)
+## Prueba Rápida (Sin Key)
 
 ```bash
-# All of these work without any API key:
+# Todos estos funcionan sin ninguna API key:
 curl https://api.intel.dom.gob/v1/institutions
 curl https://api.intel.dom.gob/v1/sil/camara/iniciativas?q=compras%20p%C3%BAblicas
 curl https://api.intel.dom.gob/v1/sil/senado/search?q=compras%20p%C3%BAblicas
@@ -105,16 +105,16 @@ curl https://api.intel.dom.gob/v1/health
 
 ---
 
-## Philosophy
+## Filosofía
 
-> **Official data is a public good. Synthesis is a paid service.**
+> **Los datos oficiales son un bien público. La síntesis es un servicio de pago.**
 
-We meter the **intelligence layer** (search + retrieval + LLM synthesis + validation), never the **data layer** (raw official sources). This ensures journalists, researchers, citizens, and civil society always have free access to the raw evidence.
+Medimos la **capa de inteligencia** (búsqueda + recuperación + síntesis por LLM + validación), nunca la **capa de datos** (fuentes oficiales en bruto). Esto asegura que periodistas, investigadores, ciudadanos y la sociedad civil siempre tengan acceso gratuito a la evidencia cruda.
 
 ---
 
-## Next Steps
+## Próximos Pasos
 
-- [Plans & Limits](/docs/concepts/plans) — choose your tier
-- [Quick Start: API](/docs/products/api) — start querying
-- [Quick Start: CLI](/docs/products/cli) — terminal access
+- [Planes y Límites](/docs/concepts/plans) — elige tu nivel
+- [Inicio Rápido: API](/docs/products/api) — empieza a consultar
+- [Inicio Rápido: CLI](/docs/products/cli) — acceso por terminal
